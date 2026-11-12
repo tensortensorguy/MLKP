@@ -1,0 +1,6 @@
+# Build outputs.
+/target/
+# JIT cache output produced by the mlkpc demo runs (per-run data, not source).
+/.mlkp-cache/
+benches/artifacts/*.raw
+.cep/keys/ci_runner.key

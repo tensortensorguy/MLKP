@@ -1,0 +1,9 @@
+[package]
+name = "mlkp-config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Named target and limit configuration constants for the MLKP compiler."
+
+[lib]
+path = "src/lib.rs"

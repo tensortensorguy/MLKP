@@ -1,0 +1,11 @@
+[package]
+name = "mlkp-spirv"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GPU Machine IR subset, the native SPIR-V emitter, the module verifier, and kernel manifests."
+
+[dependencies]
+
+[lib]
+path = "src/lib.rs"

@@ -1,0 +1,14 @@
+[package]
+name = "mlkp-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Execution layer: CEP-0 kernels, kernel plans, the buffer arena, and the device probe."
+
+[dependencies]
+mlkp-config = { workspace = true }
+mlkp-hir = { workspace = true }
+mlkp-tensor = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

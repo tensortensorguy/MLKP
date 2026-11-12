@@ -1,0 +1,21 @@
+# CEP:WHAT: Continuous integration workflow running the repository CI gate.
+# CEP:WHY: Standard chapter 16 requires CI enforcement; the workflow delegates to scripts/ci.sh so local and hosted gates cannot drift.
+# CEP:CLASS: CEP-2
+# CEP:STATUS: complete
+# CEP:FAILURE: The workflow fails on any gate failure.
+# CEP:ASSUMES: hosted runner with a stable Rust toolchain.
+# CEP:COST: the gate itself.
+# CEP:EVIDENCE: scripts/ci.sh
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: ./scripts/ci.sh

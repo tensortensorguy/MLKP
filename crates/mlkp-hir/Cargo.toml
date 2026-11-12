@@ -1,0 +1,13 @@
+[package]
+name = "mlkp-hir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Heterogeneous Sea of Nodes IR with device placement, PGO annotations, and graph-level passes."
+
+[dependencies]
+cep-hash = { workspace = true }
+mlkp-tensor = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

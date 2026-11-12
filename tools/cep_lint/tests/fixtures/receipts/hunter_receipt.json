@@ -1,0 +1,15 @@
+{
+  "payload": {
+    "protocol": "hunter-receipt",
+    "unproven_paths": 0,
+    "functions_analyzed": [
+      {
+        "file": "tools/cep_lint/src/lib.rs",
+        "functions": [
+          "run_verify_hunt"
+        ]
+      }
+    ]
+  },
+  "signature": "61899d4f0ae467e1b4d308914f03b35c077097d2cfb440a49d7c8ea801286537382b329abdd3cdf47411bba7de2ebecd32915304992258d7ff47bac51709e40e"
+}

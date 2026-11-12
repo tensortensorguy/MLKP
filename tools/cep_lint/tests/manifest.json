@@ -1,0 +1,716 @@
+{
+  "manifest_version": 1,
+  "scenarios": [
+    {
+      "name": "file-header-violating",
+      "rules": [
+        "CEP-LINT-FILE-HEADER"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "pub const X: usize = 4;\n"
+      }
+    },
+    {
+      "name": "file-header-compliant",
+      "rules": [
+        "CEP-LINT-FILE-HEADER"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n"
+      }
+    },
+    {
+      "name": "func-block-violating",
+      "rules": [
+        "CEP-LINT-FUNC-BLOCK"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nfn two_statements() -> u64 {\n    let a = 0;\n    let b = 1;\n    a + b\n}\n"
+      }
+    },
+    {
+      "name": "func-block-compliant",
+      "rules": [
+        "CEP-LINT-FUNC-BLOCK"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Adds two allowed constants.\n// CEP:WHY: Exercises a function block with the full field set.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn add_consts() -> u64 {\n    let a = 0;\n    let b = 1;\n    a + b\n}\n"
+      }
+    },
+    {
+      "name": "status-value-violating",
+      "rules": [
+        "CEP-LINT-STATUS-VALUE"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Adds two constants with a non-canonical status.\n// CEP:WHY: Exercises status-value validation.\n// CEP:STATUS: finished\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn add_consts() -> u64 {\n    let a = 0;\n    let b = 1;\n    a + b\n}\n"
+      }
+    },
+    {
+      "name": "status-value-compliant",
+      "rules": [
+        "CEP-LINT-STATUS-VALUE"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Adds two constants with a canonical status.\n// CEP:WHY: Exercises status-value validation.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn add_consts() -> u64 {\n    let a = 0;\n    let b = 1;\n    a + b\n}\n"
+      }
+    },
+    {
+      "name": "todo-owner-violating",
+      "rules": [
+        "CEP-LINT-TODO-OWNER"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// TODO: wire the parser to the registry.\n"
+      }
+    },
+    {
+      "name": "todo-owner-compliant",
+      "rules": [
+        "CEP-LINT-TODO-OWNER"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// CEP:TODO(ttg): CEP-500: Wire the parser registry.\n"
+      }
+    },
+    {
+      "name": "stub-decl-violating",
+      "rules": [
+        "CEP-LINT-STUB-DECL"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Interface-only skeleton pending review.\n// CEP:WHY: Exercises the stub-declaration rule with an owned but ticketless stub.\n// CEP:STATUS: stub\n// CEP:FAILURE: Debug assertion fires if called.\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// CEP:OWNER: ttg\n"
+      }
+    },
+    {
+      "name": "stub-decl-compliant",
+      "rules": [
+        "CEP-LINT-STUB-DECL"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Interface-only skeleton pending review.\n// CEP:WHY: Exercises the stub-declaration rule with a fully owned stub.\n// CEP:STATUS: stub\n// CEP:FAILURE: Debug assertion fires if called.\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// CEP:OWNER: ttg\n// CEP:TICKET: CEP-500\n"
+      }
+    },
+    {
+      "name": "placeholder-comment-violating",
+      "rules": [
+        "CEP-LINT-PLACEHOLDER-COMMENT"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// The remaining cases are tbd once the registry lands.\n"
+      }
+    },
+    {
+      "name": "placeholder-comment-compliant",
+      "rules": [
+        "CEP-LINT-PLACEHOLDER-COMMENT"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// CEP:NOTE: the placeholder word is sanctioned on CEP field lines.\n"
+      }
+    },
+    {
+      "name": "placeholder-text-violating",
+      "rules": [
+        "CEP-LINT-PLACEHOLDER-TEXT"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Builds a label with a marker string.\n// CEP:WHY: Exercises string-literal scanning for marker text.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn label() -> &'static str {\n    \"wip-label\"\n}\n"
+      }
+    },
+    {
+      "name": "placeholder-text-compliant",
+      "rules": [
+        "CEP-LINT-PLACEHOLDER-TEXT"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Builds a label with a clean string.\n// CEP:WHY: Exercises string-literal scanning without marker text.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn label() -> &'static str {\n    \"dispatch-unit\"\n}\n"
+      }
+    },
+    {
+      "name": "magic-number-violating",
+      "rules": [
+        "CEP-LINT-MAGIC-NUMBER"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nfn magic() {\n    let x = 42;\n}\n"
+      }
+    },
+    {
+      "name": "magic-number-compliant",
+      "rules": [
+        "CEP-LINT-MAGIC-NUMBER"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\npub const TILE: usize = 64;\n\nfn tile() -> usize {\n    TILE\n}\n"
+      }
+    },
+    {
+      "name": "macro-prefix-violating",
+      "rules": [
+        "CEP-LINT-MACRO-PREFIX"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nmacro_rules! my_helper {\n    () => {};\n}\n"
+      }
+    },
+    {
+      "name": "macro-prefix-compliant",
+      "rules": [
+        "CEP-LINT-MACRO-PREFIX"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nmacro_rules! CEP_FIXTURE_HELPER {\n    () => {};\n}\n"
+      }
+    },
+    {
+      "name": "hot-banned-violating",
+      "rules": [
+        "CEP-LINT-HOT-BANNED"
+      ],
+      "expect_findings": 2,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-0\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Accumulates bytes into a growable buffer.\n// CEP:WHY: Exercises the banned-token rule on a cycle-exact file.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn accumulate() -> usize {\n    let v: Vec<u8> = Vec::new();\n    v.len()\n}\n"
+      }
+    },
+    {
+      "name": "hot-banned-compliant",
+      "rules": [
+        "CEP-LINT-HOT-BANNED"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-0\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Sums bytes of one buffer.\n// CEP:WHY: Exercises the banned-token rule with allocation-free hot code.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn sum_pairs(buf: &[u8]) -> u64 {\n    let mut total = 0;\n    let mut k = 0;\n    while k < buf.len() {\n        total += u64::from(buf[k]);\n        k += 1;\n    }\n    total\n}\n"
+      }
+    },
+    {
+      "name": "stub-body-violating",
+      "rules": [
+        "CEP-LINT-STUB-BODY"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nfn empty() {}\n"
+      }
+    },
+    {
+      "name": "stub-body-compliant",
+      "rules": [
+        "CEP-LINT-STUB-BODY"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Interface-only skeleton pending review.\n// CEP:WHY: Exercises declared stub bodies.\n// CEP:STATUS: stub\n// CEP:FAILURE: Debug assertion fires if called.\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// CEP:OWNER: ttg\n// CEP:TICKET: CEP-500\nfn empty() {}\n"
+      }
+    },
+    {
+      "name": "empty-catch-violating",
+      "rules": [
+        "CEP-LINT-EMPTY-CATCH"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Runs a guarded computation.\n// CEP:WHY: Exercises the empty-catch rule.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn risky() -> u64 {\n    let x = 0;\n    catch (err) {\n    }\n    x\n}\n"
+      }
+    },
+    {
+      "name": "empty-catch-compliant",
+      "rules": [
+        "CEP-LINT-EMPTY-CATCH"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Runs a guarded computation.\n// CEP:WHY: Exercises the empty-catch rule.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn risky() -> u64 {\n    let x = 0;\n    catch (err) {\n        return 1;\n    }\n    x\n}\n"
+      }
+    },
+    {
+      "name": "empty-branch-violating",
+      "rules": [
+        "CEP-LINT-EMPTY-BRANCH"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nfn gate(ready: bool) -> u64 {\n    if ready {}\n}\n"
+      }
+    },
+    {
+      "name": "empty-branch-compliant",
+      "rules": [
+        "CEP-LINT-EMPTY-BRANCH"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Gates one value on a flag.\n// CEP:WHY: Exercises the empty-branch rule with populated branches.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn gate(ready: bool) -> u64 {\n    if ready {\n        return 1;\n    }\n    0\n}\n"
+      }
+    },
+    {
+      "name": "constant-return-violating",
+      "rules": [
+        "CEP-LINT-CONSTANT-RETURN"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nfn always_true() -> bool {\n    true\n}\n"
+      }
+    },
+    {
+      "name": "constant-return-compliant",
+      "rules": [
+        "CEP-LINT-CONSTANT-RETURN"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nfn is_empty(buf: &[u8]) -> bool {\n    buf.is_empty()\n}\n"
+      }
+    },
+    {
+      "name": "naming-type-violating",
+      "rules": [
+        "CEP-LINT-NAMING-TYPE"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nstruct bad_shape;\n"
+      }
+    },
+    {
+      "name": "naming-type-compliant",
+      "rules": [
+        "CEP-LINT-NAMING-TYPE"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\nstruct GoodShape;\n"
+      }
+    },
+    {
+      "name": "naming-func-violating",
+      "rules": [
+        "CEP-LINT-NAMING-FUNC"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Moves one value.\n// CEP:WHY: Exercises the function-naming rule.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn BadMove(a: u64) -> u64 {\n    let t = a;\n    t\n}\n"
+      }
+    },
+    {
+      "name": "naming-func-compliant",
+      "rules": [
+        "CEP-LINT-NAMING-FUNC"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n\n// CEP:WHAT: Moves one value.\n// CEP:WHY: Exercises the function-naming rule.\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\nfn good_move(a: u64) -> u64 {\n    let t = a;\n    t\n}\n"
+      }
+    },
+    {
+      "name": "commented-code-violating",
+      "rules": [
+        "CEP-LINT-COMMENTED-CODE"
+      ],
+      "expect_findings": 1,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// let x = 4;\n"
+      }
+    },
+    {
+      "name": "commented-code-compliant",
+      "rules": [
+        "CEP-LINT-COMMENTED-CODE"
+      ],
+      "expect_findings": 0,
+      "files": {
+        "fixture.rs": "// CEP:FILE: fixture.rs\n// CEP:WHAT: Fixture used by the cep_lint self-test manifest.\n// CEP:WHY: Demonstrates the sanctioned or violating form for one configured rule.\n// CEP:CLASS: CEP-1\n// CEP:STATUS: complete\n// CEP:FAILURE: none\n// CEP:ASSUMES: none\n// CEP:COST: cold; fixture only.\n// CEP:EVIDENCE: cep_lint --self-test.\n// The opcode table is sorted for binary search.\n"
+      }
+    },
+    {
+      "name": "doc-sync-violating",
+      "rules": [
+        "CEP-LINT-DOC-SYNC"
+      ],
+      "expect_findings": 1,
+      "files": {},
+      "config": {
+        "standard": {
+          "name": "CEP&CC",
+          "version": "0.4"
+        },
+        "file_globs": [
+          "**/*.rs"
+        ],
+        "fail_on": [
+          0,
+          1
+        ],
+        "exit_codes": {
+          "ok": 0,
+          "findings": 1,
+          "bootstrap": 2,
+          "usage": 3
+        },
+        "self_test_manifest": "manifest.json",
+        "rules": {
+          "CEP-LINT-FAKE-RULE": {
+            "severity": 2,
+            "check": "comment_regex",
+            "message": "fake rule for the violating doc-sync scenario",
+            "params": {
+              "pattern": "\\bfake\\b",
+              "icase": false
+            }
+          },
+          "CEP-LINT-FILE-HEADER": {
+            "severity": 1,
+            "check": "comment_block_schema",
+            "mode": "file_header",
+            "message": "header"
+          },
+          "CEP-LINT-FUNC-BLOCK": {
+            "severity": 1,
+            "check": "function_policy",
+            "mode": "block",
+            "message": "block"
+          },
+          "CEP-LINT-STATUS-VALUE": {
+            "severity": 2,
+            "check": "comment_block_schema",
+            "mode": "status_value",
+            "message": "status"
+          },
+          "CEP-LINT-TODO-OWNER": {
+            "severity": 1,
+            "check": "comment_regex",
+            "message": "todo"
+          },
+          "CEP-LINT-STUB-DECL": {
+            "severity": 1,
+            "check": "comment_block_schema",
+            "mode": "stub_requirements",
+            "message": "stubdecl"
+          },
+          "CEP-LINT-PLACEHOLDER-COMMENT": {
+            "severity": 1,
+            "check": "comment_regex",
+            "message": "phcomment"
+          },
+          "CEP-LINT-PLACEHOLDER-TEXT": {
+            "severity": 1,
+            "check": "string_literal_regex",
+            "message": "phtext"
+          },
+          "CEP-LINT-MAGIC-NUMBER": {
+            "severity": 2,
+            "check": "numeric_literal_policy",
+            "message": "magic"
+          },
+          "CEP-LINT-MACRO-PREFIX": {
+            "severity": 2,
+            "check": "macro_prefix_policy",
+            "message": "macro"
+          },
+          "CEP-LINT-HOT-BANNED": {
+            "severity": 0,
+            "check": "banned_token_policy",
+            "message": "hot"
+          },
+          "CEP-LINT-STUB-BODY": {
+            "severity": 1,
+            "check": "function_policy",
+            "mode": "stub_body",
+            "message": "stubbody"
+          },
+          "CEP-LINT-EMPTY-CATCH": {
+            "severity": 1,
+            "check": "flat_code_regex",
+            "message": "catch"
+          },
+          "CEP-LINT-EMPTY-BRANCH": {
+            "severity": 2,
+            "check": "flat_code_regex",
+            "message": "branch"
+          },
+          "CEP-LINT-CONSTANT-RETURN": {
+            "severity": 2,
+            "check": "function_policy",
+            "mode": "constant_return",
+            "message": "cret"
+          },
+          "CEP-LINT-NAMING-TYPE": {
+            "severity": 2,
+            "check": "flat_code_regex",
+            "message": "ntype"
+          },
+          "CEP-LINT-NAMING-FUNC": {
+            "severity": 2,
+            "check": "function_policy",
+            "mode": "naming",
+            "message": "nfunc"
+          },
+          "CEP-LINT-COMMENTED-CODE": {
+            "severity": 2,
+            "check": "comment_regex",
+            "message": "ccode"
+          },
+          "CEP-LINT-DOC-SYNC": {
+            "severity": 1,
+            "check": "doc_rule_coverage",
+            "message": "DOC-SYNC drift: {detail}",
+            "params": {
+              "doc_path": "../../../standard.md",
+              "heading_pattern": "^### Rule (CEP-LINT-[A-Z0-9-]+)$",
+              "version_pattern": "^Version: \\*\\*([^*]+)\\*\\*\\s*$"
+            }
+          },
+          "CEP-LINT-HUNT-RECEIPT": {
+            "severity": 0,
+            "check": "commit_hunt_manifest",
+            "message": "hunt"
+          },
+          "CEP-LINT-HUNTER-RECEIPT": {
+            "severity": 0,
+            "check": "hunter_manifest",
+            "message": "hunter"
+          }
+        }
+      }
+    },
+    {
+      "name": "doc-sync-compliant",
+      "rules": [
+        "CEP-LINT-DOC-SYNC"
+      ],
+      "expect_findings": 0,
+      "files": {}
+    },
+    {
+      "name": "hunt-receipt-violating-tampered",
+      "rules": [
+        "CEP-LINT-HUNT-RECEIPT"
+      ],
+      "invoke": "verify_hunt",
+      "expect_findings": 1,
+      "files": {},
+      "config": {
+        "standard": {
+          "name": "CEP&CC",
+          "version": "0.4"
+        },
+        "file_globs": [
+          "**/*.rs"
+        ],
+        "fail_on": [
+          0,
+          1
+        ],
+        "exit_codes": {
+          "ok": 0,
+          "findings": 1,
+          "bootstrap": 2,
+          "usage": 3
+        },
+        "self_test_manifest": "manifest.json",
+        "rules": {
+          "CEP-LINT-HUNT-RECEIPT": {
+            "severity": 0,
+            "check": "commit_hunt_manifest",
+            "message": "hunt",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunt_receipt_tampered.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../..",
+              "min_fuzz_executions": 100000,
+              "min_diff_inputs": 10000
+            }
+          },
+          "CEP-LINT-HUNTER-RECEIPT": {
+            "severity": 0,
+            "check": "hunter_manifest",
+            "message": "hunter",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunter_receipt_unproven.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../.."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "hunt-receipt-compliant",
+      "rules": [
+        "CEP-LINT-HUNT-RECEIPT"
+      ],
+      "invoke": "verify_hunt",
+      "expect_findings": 0,
+      "files": {},
+      "config": {
+        "standard": {
+          "name": "CEP&CC",
+          "version": "0.4"
+        },
+        "file_globs": [
+          "**/*.rs"
+        ],
+        "fail_on": [
+          0,
+          1
+        ],
+        "exit_codes": {
+          "ok": 0,
+          "findings": 1,
+          "bootstrap": 2,
+          "usage": 3
+        },
+        "self_test_manifest": "manifest.json",
+        "rules": {
+          "CEP-LINT-HUNT-RECEIPT": {
+            "severity": 0,
+            "check": "commit_hunt_manifest",
+            "message": "hunt",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunt_receipt.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../..",
+              "min_fuzz_executions": 100000,
+              "min_diff_inputs": 10000
+            }
+          },
+          "CEP-LINT-HUNTER-RECEIPT": {
+            "severity": 0,
+            "check": "hunter_manifest",
+            "message": "hunter",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunter_receipt_unproven.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../.."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "hunter-receipt-violating-unproven",
+      "rules": [
+        "CEP-LINT-HUNTER-RECEIPT"
+      ],
+      "invoke": "verify_hunt",
+      "expect_findings": 1,
+      "files": {},
+      "config": {
+        "standard": {
+          "name": "CEP&CC",
+          "version": "0.4"
+        },
+        "file_globs": [
+          "**/*.rs"
+        ],
+        "fail_on": [
+          0,
+          1
+        ],
+        "exit_codes": {
+          "ok": 0,
+          "findings": 1,
+          "bootstrap": 2,
+          "usage": 3
+        },
+        "self_test_manifest": "manifest.json",
+        "rules": {
+          "CEP-LINT-HUNT-RECEIPT": {
+            "severity": 0,
+            "check": "commit_hunt_manifest",
+            "message": "hunt",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunt_receipt.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../..",
+              "min_fuzz_executions": 100000,
+              "min_diff_inputs": 10000
+            }
+          },
+          "CEP-LINT-HUNTER-RECEIPT": {
+            "severity": 0,
+            "check": "hunter_manifest",
+            "message": "hunter",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunter_receipt_unproven.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../.."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "hunter-receipt-compliant",
+      "rules": [
+        "CEP-LINT-HUNTER-RECEIPT"
+      ],
+      "invoke": "verify_hunt",
+      "expect_findings": 0,
+      "files": {},
+      "config": {
+        "standard": {
+          "name": "CEP&CC",
+          "version": "0.4"
+        },
+        "file_globs": [
+          "**/*.rs"
+        ],
+        "fail_on": [
+          0,
+          1
+        ],
+        "exit_codes": {
+          "ok": 0,
+          "findings": 1,
+          "bootstrap": 2,
+          "usage": 3
+        },
+        "self_test_manifest": "manifest.json",
+        "rules": {
+          "CEP-LINT-HUNT-RECEIPT": {
+            "severity": 0,
+            "check": "commit_hunt_manifest",
+            "message": "hunt",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunt_receipt.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../..",
+              "min_fuzz_executions": 100000,
+              "min_diff_inputs": 10000
+            }
+          },
+          "CEP-LINT-HUNTER-RECEIPT": {
+            "severity": 0,
+            "check": "hunter_manifest",
+            "message": "hunter",
+            "params": {
+              "receipt_path": "fixtures/receipts/hunter_receipt.json",
+              "public_key_path": "fixtures/keys/test_runner.pub",
+              "repo_root": "../../.."
+            }
+          }
+        }
+      }
+    }
+  ]
+}

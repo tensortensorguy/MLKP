@@ -1,0 +1,17 @@
+[package]
+name = "mlkp-autotune"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The JIT autotuner: PGO store, three caches, the search space over PL practice dimensions, the five-layer pruner, four-phase search, parallel evaluation, and Pareto selection."
+
+[dependencies]
+cep-hash = { workspace = true }
+cep-json = { workspace = true }
+mlkp-config = { workspace = true }
+mlkp-tensor = { workspace = true }
+mlkp-hir = { workspace = true }
+mlkp-runtime = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

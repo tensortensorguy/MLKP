@@ -1,0 +1,22 @@
+[package]
+name = "mlkp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MLKP compiler facade and the mlkpc command line interface."
+
+[dependencies]
+cep-hash = { workspace = true }
+mlkp-config = { workspace = true }
+mlkp-tensor = { workspace = true }
+mlkp-hir = { workspace = true }
+mlkp-front = { workspace = true }
+mlkp-runtime = { workspace = true }
+mlkp-autotune = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "mlkpc"
+path = "src/bin/mlkpc.rs"

@@ -1,0 +1,45 @@
+# Workspace manifest for the MLKP compiler.
+# CEP:WHAT: Cargo workspace manifest listing every first-party crate and shared build profile.
+# CEP:WHY: A workspace with strict domain isolation maps the design's compiler layers onto independently testable crates; zero external dependencies keeps builds deterministic and the supply chain auditable.
+# CEP:CLASS: CC
+# CEP:STATUS: complete
+# CEP:FAILURE: cargo exits non-zero if any member manifest is malformed; no silent recovery.
+# CEP:ASSUMES: stable Rust 1.99 or newer (first-party tree is edition 2021, std only); enforced by CI toolchain check.
+# CEP:COST: compile-time only.
+# CEP:EVIDENCE: scripts/ci.sh performs a clean workspace build on every commit.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/cep-json",
+    "crates/cep-hash",
+    "crates/mlkp-config",
+    "crates/mlkp-tensor",
+    "crates/mlkp-hir",
+    "crates/mlkp-front",
+    "crates/mlkp-runtime",
+    "crates/mlkp-machine",
+    "crates/mlkp-spirv",
+    "crates/mlkp-autotune",
+    "crates/mlkp",
+    "tools/cep_lint",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+cep-json = { path = "crates/cep-json" }
+cep-hash = { path = "crates/cep-hash" }
+mlkp-config = { path = "crates/mlkp-config" }
+mlkp-tensor = { path = "crates/mlkp-tensor" }
+mlkp-hir = { path = "crates/mlkp-hir" }
+mlkp-front = { path = "crates/mlkp-front" }
+mlkp-runtime = { path = "crates/mlkp-runtime" }
+mlkp-autotune = { path = "crates/mlkp-autotune" }
+
+[profile.release]
+overflow-checks = true
+codegen-units = 1

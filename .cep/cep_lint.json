@@ -1,0 +1,305 @@
+{
+  "standard": {
+    "name": "CEP&CC",
+    "version": "0.4"
+  },
+  "file_globs": [
+    "**/*.rs"
+  ],
+  "fail_on": [
+    0,
+    1
+  ],
+  "exit_codes": {
+    "ok": 0,
+    "findings": 1,
+    "bootstrap": 2,
+    "usage": 3
+  },
+  "self_test_manifest": "../tools/cep_lint/tests/manifest.json",
+  "rules": {
+    "CEP-LINT-FILE-HEADER": {
+      "severity": 1,
+      "check": "comment_block_schema",
+      "mode": "file_header",
+      "message": "File header block missing or malformed: {detail}",
+      "params": {
+        "max_start_line": 1,
+        "required_fields": [
+          "CEP:FILE",
+          "CEP:WHAT",
+          "CEP:WHY",
+          "CEP:CLASS",
+          "CEP:STATUS",
+          "CEP:FAILURE",
+          "CEP:ASSUMES",
+          "CEP:COST",
+          "CEP:EVIDENCE"
+        ],
+        "class_field": "CEP:CLASS",
+        "allowed_classes": [
+          "CEP-0",
+          "CEP-1",
+          "CEP-2",
+          "CC",
+          "FFI",
+          "HPC-0",
+          "HPC-1",
+          "HPC-2",
+          "RCS-0",
+          "RCS-1",
+          "RCS-2"
+        ]
+      }
+    },
+    "CEP-LINT-FUNC-BLOCK": {
+      "severity": 1,
+      "check": "function_policy",
+      "mode": "block",
+      "message": "Function CEP block missing or malformed: {detail}",
+      "params": {
+        "required_fields": [
+          "CEP:WHAT",
+          "CEP:WHY",
+          "CEP:STATUS",
+          "CEP:FAILURE",
+          "CEP:ASSUMES",
+          "CEP:COST",
+          "CEP:EVIDENCE"
+        ],
+        "min_body_statements": 2,
+        "gap_pattern": "^\\s*(#.*)?$",
+        "require_block_for_lambdas": false
+      }
+    },
+    "CEP-LINT-STATUS-VALUE": {
+      "severity": 2,
+      "check": "comment_block_schema",
+      "mode": "status_value",
+      "message": "CEP:STATUS value invalid: {detail}",
+      "params": {
+        "status_field": "STATUS",
+        "allowed_values": [
+          "complete",
+          "partial",
+          "stub",
+          "placeholder"
+        ]
+      }
+    },
+    "CEP-LINT-TODO-OWNER": {
+      "severity": 1,
+      "check": "comment_regex",
+      "message": "Anonymous work marker: {line}",
+      "params": {
+        "pattern": "\\b(TODO|FIXME|XXX|HACK)\\b",
+        "icase": true,
+        "suppression_pattern": "^\\s*CEP:TODO\\([^)]*\\):\\s*CEP-[0-9]+:"
+      }
+    },
+    "CEP-LINT-STUB-DECL": {
+      "severity": 1,
+      "check": "comment_block_schema",
+      "mode": "stub_requirements",
+      "message": "Declared status block is unowned: {detail}",
+      "params": {
+        "status_field": "STATUS",
+        "statuses": [
+          "stub",
+          "partial",
+          "placeholder"
+        ],
+        "required_fields": [
+          "CEP:OWNER",
+          "CEP:TICKET"
+        ]
+      }
+    },
+    "CEP-LINT-PLACEHOLDER-COMMENT": {
+      "severity": 1,
+      "check": "comment_regex",
+      "message": "Placeholder marker in comment: {line}",
+      "params": {
+        "pattern": "(not implemented|unimplemented|placeholder|fixme|tbd|wip)",
+        "icase": true,
+        "suppression_pattern": "^\\s*CEP:"
+      }
+    },
+    "CEP-LINT-PLACEHOLDER-TEXT": {
+      "severity": 1,
+      "check": "string_literal_regex",
+      "message": "Placeholder marker in string literal: {line}",
+      "params": {
+        "pattern": "(not implemented|unimplemented|placeholder|fixme|tbd|wip)",
+        "icase": true
+      }
+    },
+    "CEP-LINT-MAGIC-NUMBER": {
+      "severity": 2,
+      "check": "numeric_literal_policy",
+      "message": "Magic number outside sanctioned context: {value}",
+      "params": {
+        "allowed_values": [
+          0,
+          1
+        ],
+        "exempt_contexts": [
+          "^\\s*(pub\\s+)?(const|static)\\b",
+          "\\benum\\b",
+          "^\\s*[A-Z][A-Za-z0-9_]*\\s*=\\s*[^;{}]*,?\\s*$",
+          "^\\s*#\\["
+        ]
+      }
+    },
+    "CEP-LINT-MACRO-PREFIX": {
+      "severity": 2,
+      "check": "macro_prefix_policy",
+      "message": "Macro name violates prefix policy: {name}",
+      "params": {
+        "name_pattern": "^CEP_[A-Z0-9_]+$",
+        "guard_pattern": "^_?CEP.*_$"
+      }
+    },
+    "CEP-LINT-HOT-BANNED": {
+      "severity": 0,
+      "check": "banned_token_policy",
+      "message": "Banned token in cycle-exact code: {token}",
+      "params": {
+        "applies_to_classes": [
+          "CEP-0",
+          "HPC-0",
+          "RCS-0"
+        ],
+        "class_field": "CEP:CLASS",
+        "tokens": [
+          "Box<",
+          "Vec<",
+          "Vec::",
+          "String",
+          "format!",
+          "println!",
+          "eprintln!",
+          "print!",
+          "panic!",
+          "unwrap(",
+          "expect(",
+          "todo!",
+          "unimplemented!",
+          "unreachable!",
+          "Rc<",
+          "Arc<",
+          "Mutex",
+          "RwLock",
+          "thread::",
+          "dyn ",
+          "HashMap<",
+          "HashSet<",
+          "fs::",
+          "io::",
+          "env::",
+          "File",
+          "Instant"
+        ]
+      }
+    },
+    "CEP-LINT-STUB-BODY": {
+      "severity": 1,
+      "check": "function_policy",
+      "mode": "stub_body",
+      "message": "Empty function body without declared stub status: {detail}",
+      "params": {
+        "suppress_statuses": [
+          "stub",
+          "partial",
+          "placeholder"
+        ],
+        "suppress_status_field": "STATUS",
+        "gap_pattern": "^\\s*(#.*)?$"
+      }
+    },
+    "CEP-LINT-EMPTY-CATCH": {
+      "severity": 1,
+      "check": "flat_code_regex",
+      "message": "Empty catch handler swallows failure",
+      "params": {
+        "pattern": "catch\\s*\\([^)]*\\)\\s*\\{\\s*\\}"
+      }
+    },
+    "CEP-LINT-EMPTY-BRANCH": {
+      "severity": 2,
+      "check": "flat_code_regex",
+      "message": "Empty branch does nothing",
+      "params": {
+        "pattern": "\\b(if|else|for|while|do|switch|try|loop|match)\\b[^;{}]*\\{\\s*\\}"
+      }
+    },
+    "CEP-LINT-CONSTANT-RETURN": {
+      "severity": 2,
+      "check": "function_policy",
+      "mode": "constant_return",
+      "message": "Function returns a constant without computing: {name}",
+      "params": {
+        "pattern": "^(return\\s+)?(true|false|nullptr)\\s*;?$"
+      }
+    },
+    "CEP-LINT-NAMING-TYPE": {
+      "severity": 2,
+      "check": "flat_code_regex",
+      "message": "Type name violates PascalCase: {line}",
+      "params": {
+        "pattern": "\\b(struct|enum|union|trait|type)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+        "name_pattern": "^[A-Z][A-Za-z0-9]*$",
+        "line_group": 2
+      }
+    },
+    "CEP-LINT-NAMING-FUNC": {
+      "severity": 2,
+      "check": "function_policy",
+      "mode": "naming",
+      "message": "Function name violates snake_case: {name}",
+      "params": {
+        "name_pattern": "^[a-z_][a-z0-9_]*$"
+      }
+    },
+    "CEP-LINT-COMMENTED-CODE": {
+      "severity": 2,
+      "check": "comment_regex",
+      "message": "Commented-out code detected: {line}",
+      "params": {
+        "pattern": "^\\s*(pub|fn|let|mut|use|impl|return|if|for|while|match|else)\\b.*;\\s*$"
+      }
+    },
+    "CEP-LINT-DOC-SYNC": {
+      "severity": 1,
+      "check": "doc_rule_coverage",
+      "message": "DOC-SYNC drift: {detail}",
+      "params": {
+        "doc_path": "../standard.md",
+        "heading_pattern": "^### Rule (CEP-LINT-[A-Z0-9-]+)$",
+        "version_pattern": "^Version: \\*\\*([^*]+)\\*\\*\\s*$"
+      }
+    },
+    "CEP-LINT-HUNT-RECEIPT": {
+      "severity": 0,
+      "check": "commit_hunt_manifest",
+      "message": "Hunt receipt gate failed: {detail}",
+      "params": {
+        "receipt_path": "receipts/hunt_receipt.json",
+        "public_key_path": "keys/ci_runner.pub",
+        "repo_root": "..",
+        "min_fuzz_executions": 100000,
+        "min_diff_inputs": 10000
+      }
+    },
+    "CEP-LINT-HUNTER-RECEIPT": {
+      "severity": 0,
+      "check": "hunter_manifest",
+      "message": "HUNTER receipt gate failed: {detail}",
+      "params": {
+        "receipt_path": "receipts/hunter_receipt.json",
+        "public_key_path": "keys/ci_runner.pub",
+        "repo_root": ".."
+      }
+    }
+  }
+}

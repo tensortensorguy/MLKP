@@ -1,0 +1,19 @@
+{
+  "payload": {
+    "protocol": "hunter-receipt",
+    "unproven_paths": 0,
+    "functions_analyzed": [
+      {
+        "file": "crates/mlkp-runtime/src/kernels.rs",
+        "functions": [
+          "ew_unary",
+          "ew_binary",
+          "reduce_last_axis",
+          "softmax_last_axis",
+          "matmul_tiled"
+        ]
+      }
+    ]
+  },
+  "signature": "099ad687fabe82ae94f7002cc727137ec0c69a286b1ea6b5d3cebb24e56718dd2cc8ac02107168c46cdd678c3c91c94672e4d564cdeb970d4a56235c4c576b0f"
+}

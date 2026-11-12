@@ -1,0 +1,12 @@
+[package]
+name = "mlkp-tensor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Semantic Tensor IR: types, shape engine, numerical contracts, refinements, operation contracts, provenance."
+
+[dependencies]
+cep-hash = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

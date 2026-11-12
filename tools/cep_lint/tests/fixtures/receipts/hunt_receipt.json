@@ -1,0 +1,18 @@
+{
+  "payload": {
+    "protocol": "hunt-receipt",
+    "fuzz_executions": 100000,
+    "diff_inputs": 10000,
+    "divergences": 0,
+    "targets": [
+      {
+        "file": "tools/cep_lint/src/lib.rs",
+        "functions": [
+          "run_verify_hunt",
+          "run_scan"
+        ]
+      }
+    ]
+  },
+  "signature": "abc26e28bb7cbd3aa026d4a6644445f338c49afb536dfb5e3a1f5a81787db13e9f99f0b2bd0cb86b1e3babdabca1a3afe9c741399ba909760aecdf2e103db507"
+}

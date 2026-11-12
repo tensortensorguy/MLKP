@@ -1,0 +1,21 @@
+{
+  "payload": {
+    "protocol": "hunt-receipt",
+    "fuzz_executions": 100000,
+    "diff_inputs": 10000,
+    "divergences": 0,
+    "targets": [
+      {
+        "file": "crates/mlkp-runtime/src/kernels.rs",
+        "functions": [
+          "ew_unary",
+          "ew_binary",
+          "reduce_last_axis",
+          "softmax_last_axis",
+          "matmul_tiled"
+        ]
+      }
+    ]
+  },
+  "signature": "a61653c7a28759bc3b717e8abd8883caa7bfad573c30024742d40a1b7451077409cfa71280a1d45c6c99ad00310fa882bee1a9dee47a91d998c0625346063b03"
+}
