@@ -1970,3 +1970,634 @@ That gives you a machine backend with a fairly clean separation between instruct
 
 The particularly interesting part is that IRC becomes an optimization engine, not merely a register assignment pass. Coalescing, splitting, rematerialization and spill selection can all interact to improve the resulting machine code.
 
+
+
+Here is what you need to solve to make this work:
+
+1. The Driver Compilation Bottleneck (The Real Time Sink)
+Generating IR and searching the space is cheap. Invoking the vendor compiler is not.
+If your parallel evaluation engine generates 100 candidates, and each requires a full nvcc/hipcc invocation to go from PTX/HSAIL to SASS/ISA, you will blow your 30-second budget before you even launch a kernel. Driver compilers are notoriously slow, single-threaded, and memory-heavy.
+The Fix You Need: You must implement PTX/HSAIL-level caching and evaluation. Do not invoke the heavy driver compiler for every candidate. Generate the low-level kernel representation (e.g., PTX), hash it, and if it’s a new kernel, compile it. Better yet, if your backend can emit directly to a JIT-compiled format (like LLVM MCJIT or a custom lightweight assembler for the target), bypass the vendor compiler entirely during the search phase, and only use the vendor compiler for the final winning candidate.
+
+2. GPU Scheduler Thrashing & Memory Fragmentation
+You specified: "Saturate local CPU cores + GPU streams... Each stream evaluates one candidate's kernel."
+If you launch 50–100 concurrent kernel evaluations on a single GPU to measure them:
+Context/Stream Limits: GPUs have hard limits on concurrent contexts and active streams. Pushing too many will cause the GPU scheduler to serialize them anyway, adding massive launch latency and destroying the accuracy of your timing measurements.
+Memory Fragmentation: Each candidate evaluation might require allocating temporary buffers. Doing this 100 times in parallel will fragment the GPU memory arena, leading to allocation failures or severe slowdowns.
+
+The Fix You Need: Implement strict concurrency caps based on the specific GPU’s SM count and memory. Use a pre-allocated, fixed-size memory arena for all candidate evaluations. Reuse the same buffers across different candidate evaluations to eliminate allocation overhead during the search phase.
+
+3. Bayesian Optimization Cold Start in a Pruned Space
+You are pruning 
+10
+15
+10 
+15
+  down to "hundreds" of candidates, then doing 20 random samples for Phase 1 BO.
+The Risk: If the pruner is too aggressive (e.g., the Learned Cost Model is overconfident), the "hundreds" of candidates left might all be in a local optimum. Your 20 random samples will be highly correlated, the Gaussian Process surrogate model will fit poorly, and the Expected Improvement acquisition function will wander aimlessly, wasting your evaluation budget.
+The Fix You Need: Ensure your Similarity Clustering (Layer 4) enforces diversity in the initial random sample, not just proximity. Force the Phase 1 sampler to pick candidates that are maximally distant from each other in the 6-dimensional PL practice space to give the BO model a wide, informative prior.
+
+4. Measurement Noise and the "Final Polish" Phase
+You noted: "Evaluate each with more measurement iterations (reduce noise)."
+Hardware is noisy. Thermal throttling, OS background tasks, and GPU clock boosting will cause variance. If Candidate A beats Candidate B by 2%, but the measurement noise is 3%, your "Final Polish" will confidently select the wrong winner.
+The Fix You Need: Implement statistical hypothesis testing (e.g., Student’s t-test or bootstrapping) during Final Polish, not just "average of N runs". If the confidence interval between the top 2 candidates overlaps, your system needs a policy: either extend the budget for more samples, or default to the candidate with the lower variance (more predictable performance), not just the lower mean.
+
+5. IR Diffing and Cache Thrashing
+You want incremental recompilation via IR diffing.
+The Risk: In ML workloads, a single dynamic shape change (e.g., batch size goes from 32 to 33) can invalidate a massive portion of the Sea of Nodes if your shape constraints are tight. If the cache invalidates too often, you pay the full 2-minute compilation penalty repeatedly, negating the amortization benefit.
+The Fix You Need: Implement shape generalization in the cache key. Instead of keying the cache on the exact shape [32, 1024, 1024], key it on the shape equivalence class or divisibility constraints (e.g., B % 8 == 0, M == K). If a new shape fits the existing compiled kernel's constraints, reuse it. Only trigger a new search if the shape breaks the mathematical or tiling constraints of the cached winner.
+
+
+# GPU backend design
+
+For the first multi-vendor implementation, target NVIDIA and AMD GPUs through Vulkan. Add Intel and other Vulkan-capable devices through the same backend as their supported feature sets allow.
+
+The compiler generates SPIR-V itself. It does not invoke NVCC, HIPCC, LLVM, Clang, glslang, shaderc, or DXC. Vulkan drivers still perform device-specific lowering when creating a compute pipeline. That is the tradeoff that makes intermediate-level code generation practical without shipping a compiler for every GPU architecture. SPIR-V is explicitly designed as a binary intermediate passed to client APIs and their drivers; Vulkan uses SPIR-V shader modules for compute pipelines.&#x20;
+
+
+This gives you a clean division:
+
+- Your compiler: semantics, optimization, device mapping, GPU scheduling decisions, SPIR-V generation.
+- Vulkan driver: final architecture-specific instruction selection, register allocation, scheduling, and native code generation.
+- Your runtime: device discovery, memory, dispatch, synchronization, caching, and profiling.
+
+One important boundary: no external compiler dependency does not mean no runtime dependency. You still need a Vulkan loader and a GPU driver. That is unavoidable for this approach.
+
+## 1. Backend placement in your compiler
+
+I would preserve your existing three-layer architecture. The GPU backend becomes a specialized target implementation after the heterogeneous IR, not a new semantic IR that duplicates the tensor layer.
+
+Tensor IR
+
+Mathematics, shapes, numerical contracts, value properties
+
+Heterogeneous Sea of Nodes IR
+
+Device placement, cross-device costs, layouts, tiling, execution distribution
+
+GPU Machine IR
+
+GPU control flow, invocation mapping, memory spaces, synchronization, virtual values
+
+Native SPIR-V emitter
+
+Your code generator writes SPIR-V binary directly
+
+Vulkan driver
+
+Device-specific compilation, native scheduling and physical register allocation
+
+GPU execution
+
+There is one deliberate distinction here: I would call this GPU Machine IR, but I would not pretend SPIR-V is a physical GPU ISA. It is a virtual, driver-consumable instruction representation. Your existing Machine IR design already separates target descriptions, virtual registers, instruction constraints, and final emission. The GPU target should reuse that discipline while leaving physical register assignment to the driver for this code-generation tier.&#x20;
+
+
+### GPU Machine IR responsibilities
+
+It should represent:
+
+| Area         | Required representation                        |
+| ------------ | ---------------------------------------------- |
+| Execution    | Kernel entry points, workgroups, invocations   |
+| Indexing     | Global, local, and workgroup IDs               |
+| Control flow | Branches, loops, selections, returns           |
+| Values       | SSA virtual values and types                   |
+| Memory       | Global, workgroup, private, constant           |
+| Effects      | Reads, writes, atomics, barriers               |
+| Numerics     | Precision, rounding, contraction, determinism  |
+| Capabilities | Optional subgroup, matrix, and atomic features |
+
+It should not contain Tensor IR's mathematical semantics. It should also not pretend that a workgroup is a physical warp or that a subgroup has one universal width.
+
+Important allocation decision: Do not run your CPU IRC allocator on this portable path. SPIR-V has no NVIDIA/AMD physical register assignment to solve. Run liveness and register-pressure analysis, shorten live ranges, rematerialize cheap values, and optimize spills indirectly. A future native GPU backend can plug in a physical allocator with architecture-specific register classes and constraints.
+
+## 2. The portable target contract
+
+I'd establish one conservative target environment first:
+
+GPU target
+
+Default
+
+Vulkan Compute + SPIR-V 1.3
+
+Vulkan 1.1 baseline, subject to the selected device's reported support.
+
+Core support
+
+- 32-bit integer and floating-point arithmetic
+- Storage-buffer loads and stores
+- Workgroup-local shared memory
+- Static workgroup dimensions
+- Structured control flow
+- Basic atomics and workgroup barriers where supported
+- Explicit memory ordering and synchronization
+
+  Optional capabilities
+- Subgroup operations
+- FP16 and other narrow formats
+- 64-bit arithmetic and atomics
+- Cooperative matrix operations
+- Advanced asynchronous memory operations
+
+The important part is that optional hardware capabilities are actually optional. Your compiler must never silently assume them.
+
+The Vulkan compute model provides workgroups, invocations, shared workgroup storage, and barriers. SPIR-V provides the binary representation that Vulkan consumes.&#x20;
+
+
+
+### Device capability profiles
+
+At runtime, enumerate devices and build a `GpuDeviceProfile` for each one.
+
+Conceptually:
+
+```
+struct GpuDeviceProfile {
+    DeviceIdentity identity;
+
+    ApiVersion vulkan_version;
+    SpirvVersion spirv_version;
+
+    WorkgroupLimits workgroup_limits;
+    MemoryLimits memory_limits;
+
+    SubgroupCapabilities subgroup;
+    NumericCapabilities numeric;
+    AtomicCapabilities atomics;
+    MatrixCapabilities matrix;
+
+    ExtensionSet extensions;
+    FeatureSet features;
+
+    PipelineCacheIdentity pipeline_cache;
+};
+```
+
+The actual fields should be generated from queried properties and enabled features, not hardcoded vendor tables.
+
+At minimum, record:
+
+- Vendor ID and device ID.
+- Driver and API versions.
+- Device UUID and pipeline-cache UUID.
+- Maximum workgroup dimensions and invocation count.
+- Available workgroup memory.
+- Storage-buffer limits.
+- Subgroup capabilities and sizes.
+- Supported precision formats.
+- Atomic capabilities.
+- Optional matrix/cooperative-matrix support.
+
+Then the compiler selects a legal kernel variant for the profile.
+
+For example, a reduction may use subgroup operations on one device and a portable workgroup reduction on another. Same semantics, different implementation. No assuming every GPU behaves like NVIDIA's 32-lane warps.
+
+## 3. Lowering and optimization pipeline
+
+I would split the GPU lowering pipeline into six explicit stages.
+
+A. Kernel extraction
+
+Take the GPU-assigned subgraph from heterogeneous IR and extract a kernel boundary.
+
+Resolve inputs, outputs, aliasing, side effects, shape specialization, and cross-device edges. A subgraph crossing CPU/GPU boundaries must have explicit transfers or a legal shared-memory mechanism. Never let an ordinary data edge accidentally become an implicit PCIe transfer.
+
+B. Execution mapping
+
+Convert parallel loops and tensor dimensions into global work dimensions, workgroup dimensions, and per-invocation work.
+
+This is where your existing ideas for GPU block/grid mapping, warp/wavefront mapping, SIMT conversion, and reduction parallelization belong.&#x20;
+
+Pasted text(20261112-182020).txt
+
+
+
+C. Memory planning
+
+Choose physical representations and memory spaces.
+
+- Global buffers for cross-workgroup data.
+- Workgroup shared memory for cooperative reuse.
+- Private storage for invocation-local values.
+- Constant/uniform storage for read-only parameters where appropriate.
+
+Perform coalescing analysis, shared-memory tiling, bank-conflict analysis, and buffer lifetime planning. Your proposed memory and GPU passes fit here.&#x20;
+
+Pasted text(20261112-182020).txt
+
+
+
+D. GPU Machine IR lowering
+
+Lower high-level operations into a relatively small GPU instruction vocabulary.
+
+For example:
+
+```
+kernel @vector_add
+    %gid = gpu.global_id(0)
+
+    %a = gpu.load %input_a[%gid]
+    %b = gpu.load %input_b[%gid]
+
+    %result = gpu.fadd %a, %b
+
+    gpu.store %output[%gid], %result
+    gpu.return
+```
+
+This is illustrative IR, not SPIR-V assembly.
+
+E. GPU optimization
+
+Run passes such as:
+
+| Pass                        | Purpose                                                  |
+| --------------------------- | -------------------------------------------------------- |
+| Index simplification        | Remove redundant indexing arithmetic                     |
+| Bounds elimination          | Prove and remove redundant checks                        |
+| Memory coalescing           | Improve adjacent-lane memory access                      |
+| Vectorization               | Combine compatible operations                            |
+| Shared-memory tiling        | Reuse data across invocations                            |
+| Divergence reduction        | Reduce unnecessary divergent control flow                |
+| Reduction lowering          | Select tree, subgroup, or multi-stage reduction          |
+| Workgroup tuning            | Select legal execution dimensions                        |
+| Register-pressure reduction | Control live ranges and temporary values                 |
+| Matrix lowering             | Select portable or device-specific matrix implementation |
+
+Preserve numerical contracts throughout. A kernel transformation must not silently change reduction ordering, rounding, FMA behavior, or determinism guarantees. The numerical contract you've already specified in Tensor IR should constrain these passes.
+
+F. SPIR-V emission
+
+Serialize the final GPU Machine IR directly into SPIR-V words. No GLSL, HLSL, OpenCL C, or other source-language detour.
+
+## 4. Your SPIR-V emitter
+
+This is the part you actually own. It should be a small, deterministic binary backend, not a text-shader generator with an assembler bolted on later.
+
+I would structure it like this:
+
+```
+SpirvEmitter
+├── ModuleBuilder
+│   ├── CapabilitySection
+│   ├── ExtensionSection
+│   ├── MemoryModelSection
+│   ├── EntryPointSection
+│   ├── ExecutionModeSection
+│   ├── AnnotationSection
+│   ├── TypeConstantSection
+│   └── FunctionSection
+│
+├── IdAllocator
+├── TypeLowering
+├── ConstantLowering
+├── InstructionLowering
+├── ControlFlowLowering
+├── MemoryModelLowering
+├── DebugInfoEmitter
+└── ModuleVerifier
+```
+
+### Emitter contract
+
+The emitter accepts verified GPU Machine IR plus a concrete target profile. It produces:
+
+```
+struct SpirvModule {
+    std::vector<std::uint32_t> words;
+    KernelManifest manifest;
+    SpirvTargetEnvironment environment;
+};
+```
+
+The emitter needs to handle:
+
+1. Module header, version, and ID bound.
+2. Capability and extension declarations.
+3. Vulkan-compatible memory model.
+4. Entry points and execution modes.
+5. Types, constants, globals, and decorations.
+6. Function definitions, labels, and instructions.
+7. Debug information, when enabled.
+8. Deterministic serialization.
+
+The `ModuleVerifier` should reject invalid output before it reaches the driver. Check ID definitions and uses, type consistency, control-flow structure, required capabilities, memory-model legality, entry-point validity, and instruction operand constraints.
+
+I would keep a checked-in, versioned SPIR-V instruction and grammar description inside your project. The production compiler should not need SPIRV-Tools or another compiler library merely to emit its own modules. A separate external validator can still be useful in development tests, but it must not become a runtime requirement.
+
+### Kernel manifest
+
+Do not make the runtime reverse-engineer your generated module to discover its argument layout.
+
+Generate metadata alongside each kernel:
+
+```
+struct KernelManifest {
+    std::string entry_point;
+
+    std::vector<KernelBinding> bindings;
+
+    WorkgroupDimensions workgroup_size;
+
+    std::uint32_t push_constant_size;
+
+    RequiredCapabilities required_features;
+
+    KernelSpecialization specialization;
+};
+```
+
+The manifest defines the host/device ABI: buffer bindings, access modes, parameter layout, launch dimensions, and required features.
+
+That keeps your compiler and runtime connected by an explicit contract instead of a pile of conventions.
+
+## 5. Runtime architecture
+
+Use a narrow runtime abstraction so the rest of the compiler does not become covered in Vulkan types.
+
+```
+GpuRuntime
+├── DeviceDiscovery
+├── DeviceProfileBuilder
+├── MemoryManager
+├── ModuleManager
+├── PipelineManager
+├── CommandScheduler
+├── SynchronizationManager
+├── TransferManager
+└── ProfilingManager
+
+VulkanRuntime
+└── Implements GpuRuntime
+```
+
+### Runtime lifecycle
+
+1. Load the Vulkan API.
+2. Enumerate physical devices.
+3. Query features, limits, extensions, and memory properties.
+4. Build a `GpuDeviceProfile` for each device.
+5. Select a device or device set.
+6. Create logical devices and compute queues.
+7. Allocate buffers and construct descriptor layouts.
+8. Create shader modules from your emitted SPIR-V.
+9. Create compute pipelines.
+10. Record and submit dispatch commands.
+11. Synchronize, collect results, and update profiling data.
+
+The Vulkan shader module interface consumes SPIR-V, so your runtime does not need a source-language compiler.&#x20;
+
+GitHub+1
+
+
+
+### Synchronization rules
+
+There are some GPU rules worth encoding as compiler invariants rather than leaving them to runtime debugging:
+
+- A workgroup barrier cannot synchronize different workgroups.
+- Every participating invocation must reach a workgroup barrier in a legal converged manner.
+- Cross-dispatch dependencies require explicit device-side synchronization.
+- Cross-device dependencies require explicit transfer or supported sharing.
+- Atomic ordering and memory scope must be represented precisely.
+- Global memory visibility and execution synchronization are related but not interchangeable.
+
+For global reductions, for example, use multiple dispatches or a carefully constrained atomic strategy. Do not invent a global barrier inside a normal kernel. The GPU will not admire your confidence.
+
+## 6. Multi-vendor specialization
+
+The backend should have a portable baseline and optional capability-driven implementations.
+
+| Operation              | Portable implementation          | Optional specialization                    |
+| ---------------------- | -------------------------------- | ------------------------------------------ |
+| Elementwise arithmetic | Normal SPIR-V operations         | Vectorized operations                      |
+| Reduction              | Workgroup tree reduction         | Subgroup reductions                        |
+| Matrix multiplication  | Tiled arithmetic                 | Cooperative matrix operations              |
+| Data movement          | Ordinary loads/stores            | Specialized transfer operations            |
+| Synchronization        | Workgroup barriers               | Supported advanced synchronization         |
+| Atomics                | Supported core atomic operations | Additional typed/width-specific operations |
+
+For each operation, the lowering system chooses a legal implementation from the queried capabilities.
+
+Do not encode vendor names into generic optimization passes. The pass should ask whether a capability exists and what constraints apply. A vendor-specific optimization can be implemented behind that capability interface.
+
+Your heterogeneous IR already carries device placement and communication-cost information. Keep that responsibility there, and let the GPU backend realize the selected placement.&#x20;
+
+Pasted text(20261112-182020).txt
+
+
+
+### Future specialized backends
+
+I would reserve two optional paths without implementing them now:
+
+- NVIDIA PTX: Your own PTX emitter could load hand-written PTX through the CUDA Driver API. NVIDIA documents `cuModuleLoadData` as accepting PTX, including hand-written PTX. This remains NVIDIA-specific and the driver still performs the final compilation.&#x20;
+
+
+  NVIDIA Docs
+
+- AMD native code objects: A later backend could emit AMDGPU code objects directly. That is a much larger project involving ISA encoding, metadata, and architecture-specific constraints.
+
+I would specifically avoid making HIPRTC your portable compiler route. AMD documents that HIPRTC uses Code Object Manager internally, which would bring a compiler infrastructure dependency back into the design.&#x20;
+
+
+HIP 7.17.0 Documentation+1
+
+
+
+For now, one SPIR-V emitter plus one Vulkan runtime is much easier to test and maintain than two independent vendor stacks.
+
+## 7. Compilation, pipeline, and profiling caches
+
+Your autotuner makes caching particularly important. I would implement three separate caches.
+
+| Cache                 | Stores                                            | Invalidation                                       |
+| --------------------- | ------------------------------------------------- | -------------------------------------------------- |
+| GPU artifact cache    | SPIR-V modules and manifests                      | Compiler, IR, or target-environment changes        |
+| Device pipeline cache | Driver-generated pipeline data                    | Driver, device, or pipeline-cache identity changes |
+| Performance/PGO cache | Measurements, configurations, shape distributions | Hardware or workload distribution changes          |
+
+The two code caches must remain distinct.
+
+GPU artifact cache key:
+
+```
+struct ArtifactCacheKey {
+    Hash subgraph_hash;
+    Hash gpu_machine_ir_hash;
+
+    SpirvTargetEnvironment target;
+    Hash feature_profile_hash;
+
+    Hash specialization_hash;
+    Hash kernel_abi_hash;
+    Hash numerical_contract_hash;
+
+    CompilerVersion compiler_version;
+};
+```
+
+Device pipeline cache key:
+
+```
+struct PipelineCacheKey {
+    DeviceUUID device;
+    DriverVersion driver;
+
+    PipelineCacheUUID cache_identity;
+
+    Hash spirv_hash;
+    Hash pipeline_layout_hash;
+    Hash specialization_hash;
+};
+```
+
+SPIR-V can be reused across devices when its target environment and required capabilities are compatible. Driver pipeline data should not be treated as portable between different GPU implementations.
+
+### Autotuning integration
+
+Use this lifecycle:
+
+```
+Candidate generated
+       |
+       v
+GPU Machine IR optimization
+       |
+       v
+SPIR-V generation
+       |
+       v
+Artifact cache lookup
+       |
+       +---- hit ----> Reuse module
+       |
+       +---- miss ---> Store module
+                          |
+                          v
+                 Vulkan pipeline lookup
+                          |
+                          +---- hit ----> Reuse pipeline
+                          |
+                          +---- miss ---> Driver pipeline creation
+                                              |
+                                              v
+                                       Correctness test
+                                              |
+                                              v
+                                       Performance test
+                                              |
+                                              v
+                                      PGO/cache update
+```
+
+There is still a driver compilation cost for new pipelines. SPIR-V does not eliminate that. Its advantage is that you own the compiler front end and portable code generation, while the driver handles target-specific compilation. The SPIR-V specification explicitly anticipates that target-specific register allocation and scheduling remain driver responsibilities.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://registry.khronos.org\&sz=32)
+
+Khronos Registry+1
+
+
+
+For candidate search, cap concurrent evaluations based on the actual device profile. Reuse preallocated buffers instead of allocating a new GPU memory region for every candidate. Your design document already identifies stream oversubscription and memory fragmentation as risks for parallel evaluation.&#x20;
+
+Pasted text(20261112-182020).txt
+
+
+
+## 8. Implementation roadmap
+
+This is the order I'd use. It keeps the first milestone small enough to prove the entire backend rather than spending six months designing a matrix optimizer that cannot execute anything.
+
+1. Phase 0: GPU target and runtime foundation
+
+   Implement Vulkan device discovery, capability profiles, buffer allocation, queues, and synchronization.
+
+   Acceptance: enumerate and execute a minimal precompiled SPIR-V compute kernel on an NVIDIA and an AMD device.
+2. Phase 1: Native SPIR-V emitter
+
+   Implement module building, types, constants, loads, stores, integer and floating-point arithmetic, control flow, entry points, and manifests.
+
+   Acceptance: compile your own elementwise kernels, such as SAXPY, without a source compiler.
+3. Phase 2: GPU execution semantics
+
+   Implement invocation mapping, workgroups, shared memory, barriers, atomics, and reductions.
+
+   Acceptance: elementwise operations, reductions, and multi-stage kernels pass correctness tests on both vendors.
+4. Phase 3: Optimization
+
+   Implement memory coalescing, vectorization, shared-memory tiling, workgroup tuning, divergence optimization, and register-pressure reduction.
+
+   Acceptance: optimized kernels beat or at least match the unoptimized baseline on representative workloads, with correctness preserved.
+5. Phase 4: Autotuning and persistent caching
+
+   Connect kernel variants to your search engine, hardware profiles, compilation caches, PGO, and Pareto selection.
+
+   Acceptance: candidates can be generated, evaluated, cached, and reused across runs.
+6. Phase 5: Optional hardware-specific backends
+
+   Add PTX for NVIDIA and eventually native AMDGPU code generation where the measured performance benefit justifies the complexity.
+
+   Acceptance: specialized variants outperform the portable implementation enough to justify their separate maintenance.
+
+## 9. What I would explicitly defer
+
+| Component                       | Decision                   | Reason                                                                |
+| ------------------------------- | -------------------------- | --------------------------------------------------------------------- |
+| NVIDIA SASS encoder             | Defer                      | Architecture-specific binary generation                               |
+| AMDGPU ISA encoder              | Defer                      | Requires native ISA and object metadata support                       |
+| Physical GPU register allocator | Defer                      | Driver owns allocation for SPIR-V                                     |
+| CUDA and HIP runtime stacks     | Defer                      | Separate runtime implementations aren't needed for Vulkan portability |
+| Cooperative matrix operations   | Optional later             | Feature and vendor support varies                                     |
+| Asynchronous copy instructions  | Optional later             | Requires explicit capability and legality handling                    |
+| Distributed GPU execution       | Keep in HIR/runtime design | Not necessary to prove the initial backend                            |
+
+The GPU passes and target-specific lowering ideas from your document can remain in the roadmap. The difference is that the first actual implementation target is unified around SPIR-V rather than attempting independent CUDA and ROCm compiler stacks immediately.&#x20;
+
+Pasted text(20261112-182020).txt
+
+Pasted text(20261112-182020).txt
+
+
+
+## Final architecture decision
+
+## GPU backend v1
+
+Vendor coverage
+
+Multi-vendor
+
+Initial vendors
+
+NVIDIA + AMD
+
+Code generation
+
+Native SPIR-V emitter
+
+Execution API
+
+Vulkan Compute
+
+External compiler dependencies
+
+None
+
+Runtime dependency
+
+Vulkan loader + GPU driver
+
+Physical GPU allocation
+
+Driver-managed
+
+Architecture
+
+Tensor IR → Heterogeneous IR → GPU Machine IR → SPIR-V → Vulkan → GPU
+
+The central engineering decision is to keep your portable GPU backend independent of both vendor compiler stacks and physical GPU register models. You own the compiler through SPIR-V generation. The driver owns the final translation.
+
+That gives you a working multi-vendor backend without prematurely taking on two separate native GPU assemblers. Later, you can add native backends as optimization targets rather than making them prerequisites for GPU support.
