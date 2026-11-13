@@ -17,6 +17,7 @@ One lex pass per file separates code from comments and string literals with pres
 1. Bootstrap failures print `CEP-LINT-BOOT-<n>` and exit 2; the run never continues from a malformed configuration.
 2. DOC-SYNC is bidirectional: a configured rule without a standard heading fails, and a documented rule without configuration fails; the document version must equal the configured version.
 3. Receipt verification accepts only Ed25519 signatures over the canonical JSON payload against the trusted public key, with `fuzz_executions >= 100000`, `diff_inputs >= 10000`, `divergences == 0`, and `unproven_paths == 0`.
+4. Configuration validation rejects invalid regexes in rule params at load (bootstrap 8) instead of silently disabling the rule, range-checks severities and exit codes before narrowing, rejects non-object params, and rejects empty banned tokens; glob matching anchors to the process working directory with forward-slash normalization; magic numbers are recognized in hex, octal, and binary radix.
 4. Self-test ships one violating and one compliant scenario per configured rule with exact expected counts (40 scenarios).
 
 ## Integration Points
@@ -24,4 +25,4 @@ One lex pass per file separates code from comments and string literals with pres
 * Depended on by: `scripts/ci.sh` (self-lint and self-test gates).
 
 ## Known Limitations
-The regex engine is a bounded backtracker without lazy quantifiers; anchors bind to line boundaries. Signature keys are generated locally by `scripts/gen_hunt_key.sh`; key distribution is out of scope. The git-level cross-reference of modified functions against the receipt targets trusts the signed list rather than re-diffing (ticket CEP-340). Severity-2 magic-number findings from structural index arithmetic are informational by configuration (`fail_on` is `[0, 1]`).
+The regex engine is a bounded backtracker without lazy quantifiers; anchors bind to line boundaries; repetitions over nullable subexpressions terminate at their minimum rather than enumerating zero-width iterations. Signature keys are generated locally by `scripts/gen_hunt_key.sh`; key distribution is out of scope. The git-level cross-reference of modified functions against the receipt targets trusts the signed list rather than re-diffing (ticket CEP-340). Severity-2 magic-number findings from structural index arithmetic are informational by configuration (`fail_on` is `[0, 1]`).

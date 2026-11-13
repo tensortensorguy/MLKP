@@ -92,7 +92,21 @@ pub fn run_doc_sync(
         }
     }
     if let Some(m) = version_re.find(&chars) {
-        if let Some(group) = m.group_chars(&chars, 0) {
+        // CEP:WHAT: Falls back to the whole match when the pattern has no capture group.
+        // CEP:WHY: A groupless version pattern would otherwise silently skip the version check (fail-open); the matched span is the version text either way.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: the version value is the matched text.
+        // CEP:COST: O(span).
+        // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
+        if let Some(group) = m.group_chars(&chars, 0).or_else(|| {
+            let (a, b) = m.span();
+            if a <= b && b <= chars.len() {
+                Some(&chars[a..b])
+            } else {
+                None
+            }
+        }) {
             let version: String = group.iter().copied().collect();
             if version != config.standard_version {
                 out.push(Finding::new(

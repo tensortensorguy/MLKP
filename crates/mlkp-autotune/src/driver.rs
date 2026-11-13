@@ -1,5 +1,5 @@
 // CEP:FILE: crates/mlkp-autotune/src/driver.rs
-// CEP:WHAT: The JIT driver: the 19-step compilation lifecycle of design section XI, wiring PGO records, the compilation cache, the three caches together, pruner layers, the four-phase search, parallel evaluation, Pareto selection, warm-started incremental recompilation, and the fallback paths.
+// CEP:WHAT: The JIT driver: the 19-step compilation lifecycle of design section XI, wiring PGO records, the compilation cache, the three caches together, all five pruner layers, the four-phase search, evaluation with shadow correctness checks, Pareto selection, warm-started incremental recompilation, and the fallback paths.
 // CEP:WHY: The design defines the lifecycle as the product; this driver is the single orchestration point the CLI and tests call.
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
@@ -14,9 +14,9 @@ use std::time::Duration;
 
 use cep_hash::hash_u64;
 use mlkp_hir::Graph;
-use mlkp_runtime::{measure, probe, Arena, KernelPlan, Measurement, PassConfig};
+use mlkp_runtime::{measure, probe, Arena, KernelPlan, Measurement, PassConfig, PlanOp};
 
-use crate::pgo::{Observation, PgoStore};
+use crate::pgo::{Observation, PgoStore, StoredConfig};
 use crate::pruner::{Objectives, Pruner};
 use crate::search::{search, Budget, SearchResult};
 use crate::space::{candidate_hash, enumerate, Layout};
@@ -118,22 +118,7 @@ pub fn autotune(
     let hw_hash = hardware_profile_hash();
     let cache_key = hash_u64(subgraph_hash, hw_hash);
 
-    // Step 4/5: cache check. The PGO store carries the last compiled entry hash.
-    if let Some(rec) = pgo.record_for(cache_key) {
-        if rec.last_best_config != 0 {
-            // Warm-started incremental path: the previous winner stays installed and
-            // a short budget re-search runs around it (steps 14 through 18 happen on
-            // recompile; a hit short-circuits to install).
-            let config = config_from_hash(rec.last_best_config);
-            if let Some(entry) =
-                compile_and_check(graph, &config, subgraph_hash, hw_hash, pgo, &inputs)
-            {
-                return Ok(entry);
-            }
-        }
-    }
-
-    // Step 7: search space generation.
+    // Step 7 (dims first so the cache-hit path can record feedback too).
     let out_len = graph
         .outputs
         .first()
@@ -149,21 +134,84 @@ pub fn autotune(
         })
         .unwrap_or(1);
     let in_len = inputs.0.len() as u64;
+
+    // Step 4/5: cache check. The PGO store carries the last compiled entry and its
+    // concrete schedule so the warm start reinstalls the previous winner.
+    if let Some(rec) = pgo.record_for(cache_key) {
+        if rec.last_best_config != 0 {
+            let config = stored_config_or_default(rec.last_best);
+            if let Some(entry) = compile_and_check(graph, &config, cache_key, pgo, &inputs) {
+                // CEP:WHAT: Records the execution observation on a cache hit.
+                // CEP:WHY: Step 18 of the lifecycle feeds every execution back to the PGO store; skipping the record on hits would starve the drift detector of the sample history it requires.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: none
+                // CEP:ASSUMES: the cache latency approximates the execution cost.
+                // CEP:COST: O(records).
+                // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
+                pgo.record(
+                    cache_key,
+                    &Observation {
+                        dims: vec![in_len, out_len],
+                        exec_count: 1,
+                        cost_ns: entry.latency_ns,
+                    },
+                );
+                return Ok(entry);
+            }
+        }
+    }
+
     let candidates = enumerate(in_len + out_len);
 
-    // Steps 7 and 8: prune through the five layers.
+    // Steps 7 and 8: prune through the five layers. Layers 2 and 3 run inside the
+    // search once measurements exist; layer 5 is consulted per evaluation.
     let mut pruner = Pruner::new();
     pruner.model_mut().set_context(subgraph_hash, hw_hash);
     let probe_result = probe();
-    let (kept, _rejected) = pruner.layer1_constraints(
+    // CEP:WHAT: Derives the matrix dimensions for the tile constraints.
+    // CEP:WHY: bm, bn, and bk are block sizes over m, n, and k; comparing them against aggregate element counts would make Layer 1 fire effectively never.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Falls back to element counts when the input types carry no concrete dims.
+    // CEP:ASSUMES: input 0 is [m, k] and input 1 is [k, n].
+    // CEP:COST: O(dims).
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/driver_test.rs
+    let (m, k, n) = matrix_dims(graph, in_len, out_len);
+    let (mut kept, _rejected) = pruner.layer1_constraints(
         candidates,
-        [in_len, out_len],
+        [m, n, k],
         probe_result.cpu_workers,
         mlkp_config::limits::ARENA_DEFAULT_BYTES as u64,
         (in_len + out_len) * 4,
     );
-    let (probes, _interpolated) = pruner.layer4_similarity(kept);
-    let candidates = pruner.layer3_cost_model(probes);
+    // CEP:WHAT: Orders the pool so the layer-4 diverse probe leads.
+    // CEP:WHY: Phase 1 must evaluate the maximally distant subset so the cost model gets a wide prior (design fix 3); the remaining pool feeds Phase 2, which needs candidates left after the probe.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(pool * probes).
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/driver_test.rs
+    let (probe_set, _interpolated) = pruner.layer4_similarity(kept.clone());
+    let probe_ids: Vec<u64> = probe_set
+        .iter()
+        .map(|c| {
+            let mut key = [0u8; 0];
+            let _ = &mut key;
+            candidate_hash(c, subgraph_hash, hw_hash)
+        })
+        .collect();
+    let mut ordered: Vec<crate::space::Candidate> = Vec::with_capacity(kept.len());
+    let mut rest: Vec<crate::space::Candidate> = Vec::new();
+    for c in kept.drain(..) {
+        if probe_ids.contains(&candidate_hash(&c, subgraph_hash, hw_hash))
+            && !ordered.iter().any(|o| o == &c)
+        {
+            ordered.push(c);
+        } else {
+            rest.push(c);
+        }
+    }
+    ordered.extend(rest);
+    let candidates = ordered;
 
     // Baseline plan.
     let baseline_config = PassConfig::default();
@@ -198,9 +246,55 @@ pub fn autotune(
         inputs: baseline.input_a.clone(),
         inputs_b: baseline.input_b.clone(),
         arena,
+        reference_out: Vec::new(),
+        out_buf: 0,
+        out_len: 0,
     };
-    let mut evaluator = |c: &crate::space::Candidate| -> Objectives {
-        evaluate_candidate(graph, c, &mut eval_state, subgraph_hash)
+    // CEP:WHAT: Computes the baseline reference output once.
+    // CEP:WHY: The design's shadow execution check requires a reference to compare every candidate against; without it a fast-but-wrong candidate would win the search.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns CompileError::Evaluation when the baseline itself fails; the search cannot run without a reference.
+    // CEP:ASSUMES: the first plan op produces the output buffer.
+    // CEP:COST: one baseline execution.
+    // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
+    {
+        let (a_off, b_off) = (baseline.plan.offset_of(0), baseline.plan.offset_of(1));
+        let a_expect = baseline.plan.buffer_lens.first().copied().unwrap_or(0);
+        let b_expect = baseline.plan.buffer_lens.get(1).copied().unwrap_or(0);
+        eval_state.arena.reset();
+        if eval_state
+            .arena
+            .fill(a_off, a_expect, &eval_state.inputs)
+            .is_none()
+            || eval_state
+                .arena
+                .fill(b_off, b_expect, &eval_state.inputs_b)
+                .is_none()
+        {
+            return Err(CompileError::Evaluation(
+                "baseline staging failed".to_string(),
+            ));
+        }
+        mlkp_runtime::execute(&baseline.plan, &mut eval_state.arena)
+            .map_err(|e| CompileError::Evaluation(e.to_string()))?;
+        let out_id = baseline.plan.ops.last().map(out_buffer_of).unwrap_or(0);
+        let out_len = baseline
+            .plan
+            .buffer_lens
+            .get(out_id as usize)
+            .copied()
+            .ok_or_else(|| CompileError::Evaluation("baseline output missing".to_string()))?;
+        let reference = eval_state
+            .arena
+            .slice(baseline.plan.offset_of(out_id), out_len)
+            .map(|s| s.to_vec())
+            .ok_or_else(|| CompileError::Evaluation("baseline output slice missing".to_string()))?;
+        eval_state.reference_out = reference;
+        eval_state.out_buf = out_id;
+        eval_state.out_len = out_len;
+    }
+    let mut evaluator = |c: &crate::space::Candidate, runs: u32| -> Objectives {
+        evaluate_candidate(graph, c, &mut eval_state, subgraph_hash, runs)
     };
 
     // Steps 9 through 12: the four-phase search.
@@ -240,7 +334,18 @@ pub fn autotune(
             cost_ns: result.objectives.latency_ns,
         },
     );
-    pgo.set_last_best(cache_key, winner_hash);
+    pgo.set_last_best_config(
+        cache_key,
+        winner_hash,
+        StoredConfig {
+            bm: winner_config.tile.bm as u32,
+            bn: winner_config.tile.bn as u32,
+            bk: winner_config.tile.bk as u32,
+            threads: winner_config.threads,
+            loop_order: winner_config.loop_order,
+            transpose_b: winner_config.transpose_b,
+        },
+    );
     let _ = pruner.meta_tune();
 
     Ok(CacheEntry {
@@ -269,11 +374,31 @@ pub fn recompile_warm(
     autotune(graph, subgraph_hash, pgo, budget, inputs)
 }
 
-/// The per-evaluation state: one arena reused across candidates.
+/// The per-evaluation state: one arena reused across candidates plus the shadow reference.
 struct EvalState {
     inputs: Vec<f32>,
     inputs_b: Vec<f32>,
     arena: Arena,
+    reference_out: Vec<f32>,
+    out_buf: u32,
+    out_len: u64,
+}
+
+// CEP:WHAT: Returns the output buffer id of one plan op.
+// CEP:WHY: The baseline and the candidate both read their result from the last op's destination buffer.
+// CEP:STATUS: complete
+// CEP:FAILURE: none; every plan op produces exactly one destination.
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
+fn out_buffer_of(op: &PlanOp) -> u32 {
+    match op {
+        PlanOp::Unary { dst, .. }
+        | PlanOp::Binary { dst, .. }
+        | PlanOp::Reduce { dst, .. }
+        | PlanOp::Softmax { dst, .. }
+        | PlanOp::MatMul { c: dst, .. } => *dst,
+    }
 }
 
 // CEP:WHAT: Compiles one config, checks it against the cache, and returns an entry on hit.
@@ -286,32 +411,87 @@ struct EvalState {
 fn compile_and_check(
     graph: &Graph,
     config: &PassConfig,
-    _subgraph_hash: u64,
-    _hw_hash: u64,
+    cache_key: u64,
     pgo: &mut PgoStore,
     _inputs: &(Vec<f32>, Vec<f32>),
 ) -> Option<CacheEntry> {
     let plan = mlkp_runtime::plan::lower(graph, config).ok()?;
     plan.validate().ok()?;
-    // The latency stored with the config hash doubles as the cache metadata.
-    let key = pgo.record_for(hash_u64(0, 0)).map(|r| r.mean_cost_ns)?;
+    // CEP:WHAT: Looks up the cached latency under the real cache key.
+    // CEP:WHY: The previous lookup keyed on hash_u64(0, 0), which never matches a real record, so every warm recompile silently fell through to a full search.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns None when no record exists for the key.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(records).
+    // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
+    let rec = pgo.record_for(cache_key)?;
     Some(CacheEntry {
         plan,
-        config_hash: config.tile.bm as u64,
-        latency_ns: key,
+        config_hash: rec.last_best_config,
+        latency_ns: rec.mean_cost_ns,
         from_cache: true,
     })
 }
 
-// CEP:WHAT: Reconstructs a config from its stored hash.
+// CEP:WHAT: Reconstructs a config from its stored fields.
 // CEP:WHY: The warm start needs the previous winner's schedule.
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns the default schedule; the hash is advisory, the re-search corrects it.
+// CEP:FAILURE: Returns the default schedule when no schedule was stored.
 // CEP:ASSUMES: none
 // CEP:COST: O(1).
 // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
-fn config_from_hash(_hash: u64) -> PassConfig {
-    PassConfig::default()
+fn stored_config_or_default(stored: Option<StoredConfig>) -> PassConfig {
+    match stored {
+        Some(cfg) => PassConfig {
+            tile: mlkp_runtime::Tile {
+                bm: cfg.bm as usize,
+                bn: cfg.bn as usize,
+                bk: cfg.bk as usize,
+            },
+            threads: cfg.threads,
+            loop_order: cfg.loop_order,
+            fused_elementwise: true,
+            transpose_b: cfg.transpose_b,
+        },
+        None => PassConfig::default(),
+    }
+}
+
+// CEP:WHAT: Reads the concrete matrix dimensions from the graph inputs.
+// CEP:WHY: Layer 1 compares tile block sizes against m, n, and k.
+// CEP:STATUS: complete
+// CEP:FAILURE: Falls back to element-count-derived bounds when types are symbolic.
+// CEP:ASSUMES: input 0 is [m, k] and input 1 is [k, n].
+// CEP:COST: O(dims).
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/driver_test.rs
+fn matrix_dims(graph: &Graph, in_len: u64, out_len: u64) -> (u64, u64, u64) {
+    let dim_of = |idx: usize| -> Vec<u64> {
+        graph
+            .inputs
+            .get(idx)
+            .and_then(|id| graph.node(*id))
+            .map(|n| {
+                n.ty.dims
+                    .iter()
+                    .filter_map(|d| match d {
+                        mlkp_tensor::DimExpr::Const(c) => Some(*c),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let a = dim_of(0);
+    let b = dim_of(1);
+    if a.len() == 2 && b.len() == 2 {
+        return (a[0], b[0], b[1]);
+    }
+    // Fallback: keep dimensions conservative so no tile is wrongly rejected.
+    (
+        in_len.max(out_len),
+        in_len.max(out_len),
+        in_len.max(out_len),
+    )
 }
 
 // CEP:WHAT: Evaluates one candidate end to end.
@@ -319,13 +499,15 @@ fn config_from_hash(_hash: u64) -> PassConfig {
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns baseline-scale objectives with an infinite latency on failure so the search rejects the candidate.
 // CEP:ASSUMES: none
-// CEP:COST: O(measurement runs * kernel work).
+// CEP:COST: O(runs * kernel work).
 // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
+#[allow(clippy::needless_pass_by_value)]
 fn evaluate_candidate(
     graph: &Graph,
     c: &crate::space::Candidate,
     state: &mut EvalState,
     subgraph_hash: u64,
+    runs: u32,
 ) -> Objectives {
     let plan = match mlkp_runtime::plan::lower(graph, &c.config) {
         Ok(p) => p,
@@ -336,31 +518,56 @@ fn evaluate_candidate(
     }
     let a_off = plan.offset_of(0);
     let b_off = plan.offset_of(1);
+    let a_expect = plan.buffer_lens.first().copied().unwrap_or(0);
+    let b_expect = plan.buffer_lens.get(1).copied().unwrap_or(0);
     state.arena.reset();
-    if state.arena.fill(a_off, &state.inputs).is_none()
-        || state.arena.fill(b_off, &state.inputs_b).is_none()
+    if state.arena.fill(a_off, a_expect, &state.inputs).is_none()
+        || state.arena.fill(b_off, b_expect, &state.inputs_b).is_none()
     {
         return failed_objectives();
     }
     let measurement = measure(
         || {
             state.arena.reset();
-            if state.arena.fill(a_off, &state.inputs).is_none()
-                || state.arena.fill(b_off, &state.inputs_b).is_none()
+            if state.arena.fill(a_off, a_expect, &state.inputs).is_none()
+                || state.arena.fill(b_off, b_expect, &state.inputs_b).is_none()
             {
                 return Err::<(), _>(());
             }
             mlkp_runtime::execute(&plan, &mut state.arena).map_err(|_| ())
         },
         mlkp_config::limits::MEASUREMENT_WARMUP_RUNS,
-        mlkp_config::limits::MEASUREMENT_RUNS,
+        runs,
     );
     let m: Measurement = match measurement {
         Ok(m) => m,
         Err(_) => return failed_objectives(),
     };
-    // Correctness is checked by the caller-visible output comparison in the facade;
-    // a candidate that fails to execute at all is rejected here by ranking.
+    // CEP:WHAT: Runs the shadow correctness check against the baseline reference.
+    // CEP:WHY: The design mandates correctness verification on the first candidate executions; a fast candidate that computes wrong values must never win.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns failed objectives when the output disagrees beyond the configured tolerances.
+    // CEP:ASSUMES: the output is the destination buffer of the last plan op.
+    // CEP:COST: O(out_len).
+    // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
+    if !state.reference_out.is_empty() {
+        let out_id = plan.ops.last().map(out_buffer_of).unwrap_or(0);
+        let mismatch = (|| {
+            let slice = state.arena.slice(plan.offset_of(out_id), state.out_len)?;
+            let rel = mlkp_config::limits::CORRECTNESS_REL_TOLERANCE as f32;
+            let abs = mlkp_config::limits::CORRECTNESS_ABS_TOLERANCE as f32;
+            for (got, want) in slice.iter().zip(state.reference_out.iter()) {
+                let tol = rel * want.abs().max(abs);
+                if (got - want).abs() > tol {
+                    return Some(());
+                }
+            }
+            None
+        })();
+        if mismatch.is_some() {
+            return failed_objectives();
+        }
+    }
     let power = power_model(&plan, m.median);
     Objectives {
         latency_ns: m.median.as_nanos() as u64,

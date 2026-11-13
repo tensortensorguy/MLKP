@@ -355,10 +355,20 @@ fn hash_node(h: &mut Hasher, n: &Node) {
             }
         }
     }
+    // CEP:WHAT: Folds the device kind tag and index separately.
+    // CEP:WHY: A single offset would collide across kinds (Cpu(256) == Gpu(0)); the cache key must distinguish placements.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-hir/tests/hir_test.rs
     h.update_u64(match n.device {
-        Device::Cpu(i) => 0x100 + u64::from(i),
-        Device::Gpu(i) => 0x200 + u64::from(i),
-        Device::Cluster(i) => 0x300 + u64::from(i),
+        Device::Cpu(_) => 0x100,
+        Device::Gpu(_) => 0x200,
+        Device::Cluster(_) => 0x300,
+    });
+    h.update_u64(match n.device {
+        Device::Cpu(i) | Device::Gpu(i) | Device::Cluster(i) => u64::from(i),
     });
     let th = n.ty.hash64(h.snapshot());
     h.update_u64(th);

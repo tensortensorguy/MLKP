@@ -73,7 +73,7 @@ impl Arena {
     // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
     pub fn slice(&self, offset: u64, len: u64) -> Option<&[f32]> {
         let start = offset as usize;
-        let end = start + len as usize;
+        let end = start.checked_add(len as usize)?;
         if end > self.data.len() {
             return None;
         }
@@ -90,23 +90,26 @@ impl Arena {
     // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
     pub fn slice_mut(&mut self, offset: u64, len: u64) -> Option<&mut [f32]> {
         let start = offset as usize;
-        let end = start + len as usize;
+        let end = start.checked_add(len as usize)?;
         if end > self.data.len() {
             return None;
         }
         Some(&mut self.data[start..end])
     }
 
-    /// Copies a source slice into one allocated buffer.
-    // CEP:WHAT: Fills one buffer with a source slice.
-    // CEP:WHY: Inputs and constants are staged before execution.
+    /// Copies a source slice into one allocated buffer, requiring an exact length match.
+    // CEP:WHAT: Fills one buffer with a source slice of exactly the expected length.
+    // CEP:WHY: A short source would leave stale elements accepted silently and a long one would spill into the neighbouring buffer; staging must respect the plan's buffer lengths.
     // CEP:STATUS: complete
-    // CEP:FAILURE: Returns None when lengths mismatch or the buffer is out of range.
+    // CEP:FAILURE: Returns None when the source length differs from expected_len or the buffer is out of range.
     // CEP:ASSUMES: none
     // CEP:COST: O(len).
     // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
-    pub fn fill(&mut self, offset: u64, src: &[f32]) -> Option<()> {
-        let dst = self.slice_mut(offset, src.len() as u64)?;
+    pub fn fill(&mut self, offset: u64, expected_len: u64, src: &[f32]) -> Option<()> {
+        if src.len() as u64 != expected_len {
+            return None;
+        }
+        let dst = self.slice_mut(offset, expected_len)?;
         dst.copy_from_slice(src);
         Some(())
     }

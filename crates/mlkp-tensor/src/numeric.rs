@@ -189,14 +189,49 @@ impl NumericContract {
     // CEP:COST: O(1).
     // CEP:EVIDENCE: crates/mlkp-tensor/tests/numeric_test.rs
     pub fn hash64(&self, seed: u64) -> u64 {
+        // CEP:WHAT: Stable discriminants for element kinds.
+        // CEP:WHY: Byte width alone collides across kinds (F16 vs Bf16); the cache key must distinguish the mathematical element type.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: crates/mlkp-tensor/tests/numeric_test.rs
+        fn elem_tag(e: &ElemKind) -> u64 {
+            match e {
+                ElemKind::F16 => 1,
+                ElemKind::Bf16 => 2,
+                ElemKind::F32 => 3,
+                ElemKind::F64 => 4,
+                ElemKind::I8 => 5,
+                ElemKind::I16 => 6,
+                ElemKind::I32 => 7,
+                ElemKind::I64 => 8,
+                ElemKind::U8 => 9,
+                ElemKind::U16 => 10,
+                ElemKind::U32 => 11,
+                ElemKind::U64 => 12,
+                ElemKind::Bool => 13,
+                ElemKind::Complex64 => 14,
+                ElemKind::QI8 => 15,
+            }
+        }
         let mut h = cep_hash::Hasher::seeded(seed);
-        h.update_u64(self.input.byte_width())
-            .update_u64(self.accumulator.byte_width())
-            .update_u64(self.output.byte_width())
+        h.update_u64(elem_tag(&self.input))
+            .update_u64(elem_tag(&self.accumulator))
+            .update_u64(elem_tag(&self.output))
             .update_u64(match self.rounding {
                 Rounding::NearestEven => 1,
                 Rounding::TowardZero => 2,
                 Rounding::Stochastic => 3,
+            })
+            .update_u64(match self.overflow {
+                Overflow::Ieee => 1,
+                Overflow::Wrap => 2,
+                Overflow::Saturate => 3,
+            })
+            .update_u64(match self.underflow {
+                Underflow::Preserve => 1,
+                Underflow::FlushToZero => 2,
             })
             .update_u64(match self.reassociation {
                 Reassociation::Permitted => 1,

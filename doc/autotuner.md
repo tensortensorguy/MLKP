@@ -1,7 +1,7 @@
 # JIT Autotuner
 
 ## Abstract
-The autotuner implements the design's core loop (observe, predict, search, measure, learn, repeat): a PGO store with drift detection, a search space over the six PL practice dimensions, a five-layer pruner, a four-phase search with budget management, and a driver orchestrating the design's 19-step lifecycle.
+The autotuner implements the design's core loop (observe, predict, search, measure, learn, repeat): a PGO store with exact 64-bit key persistence and drift detection, a search space over the PL practice dimensions, a five-layer pruner wired into the search, a four-phase search with cumulative phase deadlines, and a driver orchestrating the design's 19-step lifecycle with shadow correctness checks and warm-started cache hits.
 
 ## Formal Definitions
 ```rust
@@ -24,4 +24,4 @@ Layer 1 removes tile, worker, and memory violations. Layer 4 interpolates near-e
 * Depended on by: `mlkp` (facade), `mlkpc` (CLI).
 
 ## Known Limitations
-The cost model is linear ridge over six features; the design's graph-neural-network surrogate is the documented next step. Bayesian optimization uses model-ranked batches as the acquisition surrogate rather than a Gaussian process. Thread-parallel evaluation is plumbed but single-threaded in the executor (ticket CEP-320). GPU candidate evaluation requires the device runtime (ticket CEP-210).
+The cost model is linear ridge over six features; the design's graph-neural-network surrogate is the documented next step. Bayesian optimization uses model-ranked batches as the acquisition surrogate rather than a Gaussian process. Thread-parallel evaluation is plumbed but single-threaded in the executor (ticket CEP-320). GPU candidate evaluation requires the device runtime (ticket CEP-210). The vector-width dimension is not enumerated because the CPU backend does not consume a width parameter; it returns when the backend does. Spill rewriting, live-range splitting, and remat are absent, so a candidate whose schedule needs spills fails with an unresolved-spill emission error rather than executing (ticket CEP-323). `EARLY_STOP_FACTOR` is reserved and not yet consulted by the evaluator.

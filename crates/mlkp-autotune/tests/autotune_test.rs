@@ -116,7 +116,7 @@ fn space_enumerates_deterministically() {
 fn layer1_rejects_illegal() {
     let pruner = Pruner::new();
     let space = enumerate(1 << 16);
-    let (kept, rejected) = pruner.layer1_constraints(space, [64, 64], 4, 1 << 28, 4096);
+    let (kept, rejected) = pruner.layer1_constraints(space, [64, 64, 64], 4, 1 << 28, 4096);
     assert!(rejected
         .iter()
         .any(|c| matches!(c, mlkp_autotune::Constraint::TileExceedsProblem(_, _))));
@@ -201,7 +201,7 @@ fn search_respects_budget() {
         algebraic_iters: 1,
     };
     let mut eval_count = 0u32;
-    let mut eval = |c: &Candidate| -> Objectives {
+    let mut eval = |c: &Candidate, _runs: u32| -> Objectives {
         eval_count += 1;
         let t = &c.config.tile;
         Objectives {

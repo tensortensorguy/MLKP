@@ -1,10 +1,10 @@
 // CEP:FILE: crates/mlkp-hir/src/passes/algebraic.rs
-// CEP:WHAT: Algebraic simplification and constant folding over the heterogeneous IR: identities (x*1, x+0, x*0), constant propagation through elementwise chains, and reassociation only when the numerical contract permits.
+// CEP:WHAT: Algebraic simplification and constant folding over the heterogeneous IR: identities (x*1), relu of relu, id removal, and constant reduction of an all-plus-zero tensor; constant propagation through elementwise chains, and reassociation only when the numerical contract permits.
 // CEP:WHY: Design passes 3 through 5 and 7 of level 1; folding constants at compile time removes work from every kernel execution, and the reassociation gate honors the numerical contract constraint of design section 6.
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
 // CEP:FAILURE: none; simplifications that would change bit-exact semantics under a Forbidden reassociation contract are skipped by construction.
-// CEP:ASSUMES: constant payloads are f32; identity elements follow IEEE semantics for float ops.
+// CEP:ASSUMES: constant payloads are f32; only IEEE-exact folds are applied. x+0 and x*0 are deliberately not folded: x + (+0.0) flips a -0.0 input to +0.0 and x*0 turns NaN and infinity into zero, so both folds violate the bit-exact determinism contracts of design section 6.
 // CEP:COST: cold; O(nodes) per sweep with a fixed iteration cap.
 // CEP:EVIDENCE: unit tests in crates/mlkp-hir/tests/passes_test.rs.
 
@@ -69,28 +69,14 @@ fn one_sweep(g: &mut Graph) -> usize {
                 } else if uniform_const(g, rhs, 1.0) {
                     retarget_and_remove(g, node.id, lhs);
                     rewrites += 1;
-                } else if uniform_const(g, lhs, 0.0) || uniform_const(g, rhs, 0.0) {
-                    let zero = add_zero_constant(g, &node);
-                    retarget_and_remove(g, node.id, zero);
-                    rewrites += 1;
                 }
-            }
-            Op::Map(MapFn::Add) => {
-                let lhs = match node.inputs.first() {
-                    Some(x) => *x,
-                    None => continue,
-                };
-                let rhs = match node.inputs.get(1) {
-                    Some(x) => *x,
-                    None => continue,
-                };
-                if uniform_const(g, rhs, 0.0) {
-                    retarget_and_remove(g, node.id, lhs);
-                    rewrites += 1;
-                } else if uniform_const(g, lhs, 0.0) {
-                    retarget_and_remove(g, node.id, rhs);
-                    rewrites += 1;
-                }
+                // CEP:WHAT: Documents the deliberately absent x*0 fold.
+                // CEP:WHY: IEEE NaN*0 = NaN and Inf*0 = NaN; folding to zero changes results, and the repo's determinism contracts are bit-exact.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: none
+                // CEP:ASSUMES: none
+                // CEP:COST: O(1).
+                // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
             }
             Op::Map(MapFn::Relu) => {
                 let inner = match node.inputs.first().and_then(|x| g.node(*x)) {
@@ -153,14 +139,22 @@ fn const_payload(g: &Graph, id: u32) -> Option<&Vec<f32>> {
 // CEP:COST: O(elements).
 // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
 fn uniform_const(g: &Graph, id: u32, value: f32) -> bool {
-    const_payload(g, id).is_some_and(|v| !v.is_empty() && v.iter().all(|x| *x == value))
+    // CEP:WHAT: Compares payloads by exact bit patterns.
+    // CEP:WHY: -0.0 == 0.0 numerically but not bit-exactly; the signed zero must not match the unsigned one or folds would flip signs.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(elements).
+    // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
+    const_payload(g, id)
+        .is_some_and(|v| !v.is_empty() && v.iter().all(|x| x.to_bits() == value.to_bits()))
 }
 
 // CEP:WHAT: Adds a zero constant with the node's type to the graph.
-// CEP:WHY: x*0 and sum(zeros) need a typed zero replacement.
+// CEP:WHY: sum(zeros) needs a typed zero replacement.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
-// CEP:ASSUMES: only constant dimensions contribute; symbolic dims fall back to one element and are corrected by a later sweep after shape resolution.
+// CEP:ASSUMES: only constant dimensions contribute; a symbolic dimension leaves a one-element payload that the verifier rejects for non-scalar types, so such graphs fail loudly instead of misexecuting.
 // CEP:COST: O(elements).
 // CEP:EVIDENCE: crates/mlkp-hir/tests/hir_test.rs
 fn add_zero_constant(g: &mut Graph, node: &Node) -> u32 {

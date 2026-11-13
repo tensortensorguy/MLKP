@@ -117,7 +117,20 @@ fn literal_value(code: &[char], start: usize) -> Option<(String, usize)> {
         text.push('.');
         k += 1;
     }
+    // CEP:WHAT: Tracks the radix prefix so hex, octal, and binary digits are consumed.
+    // CEP:WHY: After a 0x prefix only decimal digits were accepted, so 0xFF was not recognized as a literal at all and escaped the magic-number rule entirely, while 0x0 was flagged as an unknown value; the rule must treat every radix uniformly.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(token length).
+    // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
+    let mut radix: Option<u32> = None;
     if code.get(k) == Some(&'0') && matches!(code.get(k + 1), Some('x') | Some('b') | Some('o')) {
+        radix = match code[k + 1] {
+            'x' => Some(16),
+            'b' => Some(2),
+            _ => Some(8),
+        };
         text.push('0');
         text.push(code[k + 1]);
         k += 2;
@@ -125,7 +138,13 @@ fn literal_value(code: &[char], start: usize) -> Option<(String, usize)> {
     let mut saw_digit = false;
     while k < code.len() {
         let c = code[k];
-        if c.is_ascii_digit() || c == '_' {
+        let digit_ok = match radix {
+            Some(16) => c.is_ascii_hexdigit(),
+            Some(8) => ('0'..='7').contains(&c),
+            Some(2) => c == '0' || c == '1',
+            _ => c.is_ascii_digit(),
+        };
+        if digit_ok || c == '_' {
             saw_digit = true;
             text.push(c);
             k += 1;
@@ -163,6 +182,22 @@ fn literal_value(code: &[char], start: usize) -> Option<(String, usize)> {
 // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
 fn parse_value(text: &str) -> Option<f64> {
     let cleaned: String = text.chars().filter(|c| *c != '_').collect();
+    // CEP:WHAT: Converts radix-prefixed literals with from_str_radix.
+    // CEP:WHY: f64::from_str cannot parse 0xFF; the numeric allow-list comparison must be radix-aware or hex constants would be reported as unknown values.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns None for malformed radix literals.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(token length).
+    // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
+    if let Some(rest) = cleaned.strip_prefix("0x") {
+        return u64::from_str_radix(rest, 16).ok().map(|v| v as f64);
+    }
+    if let Some(rest) = cleaned.strip_prefix("0o") {
+        return u64::from_str_radix(rest, 8).ok().map(|v| v as f64);
+    }
+    if let Some(rest) = cleaned.strip_prefix("0b") {
+        return u64::from_str_radix(rest, 2).ok().map(|v| v as f64);
+    }
     cleaned.parse::<f64>().ok()
 }
 

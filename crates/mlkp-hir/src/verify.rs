@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 
 use crate::graph::{Graph, GraphError, Op};
+use mlkp_tensor::DimExpr;
 
 /// Maximum inputs per operation kind.
 const ARITY: fn(&Op) -> Option<usize> = |op| match op {
@@ -31,6 +32,48 @@ const ARITY: fn(&Op) -> Option<usize> = |op| match op {
 pub fn verify(g: &Graph) -> Result<(), Vec<GraphError>> {
     let mut errors = Vec::new();
     for n in g.iter() {
+        if let Op::Const(v) = &n.op {
+            // CEP:WHAT: Checks constant payload length against the declared type.
+            // CEP:WHY: A payload shorter than the tensor silently reads garbage in the plan airlock; a payload longer than a symbolic type has no defined meaning.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: Returns ArityMismatch for payload/type mismatches.
+            // CEP:ASSUMES: none
+            // CEP:COST: O(dims).
+            // CEP:EVIDENCE: crates/mlkp-hir/tests/verify_test.rs
+            let mut all_const = true;
+            let mut expect: u64 = 1;
+            for d in &n.ty.dims {
+                match d {
+                    DimExpr::Const(c) => match expect.checked_mul(*c) {
+                        Some(p) => expect = p,
+                        None => {
+                            errors.push(GraphError::ArityMismatch(format!(
+                                "node {} constant payload length overflows",
+                                n.id
+                            )));
+                            all_const = false;
+                            break;
+                        }
+                    },
+                    _ => {
+                        all_const = false;
+                        break;
+                    }
+                }
+            }
+            let ok = if all_const {
+                v.len() as u64 == expect
+            } else {
+                v.len() == 1
+            };
+            if !ok {
+                errors.push(GraphError::ArityMismatch(format!(
+                    "node {} constant payload length {} does not match type",
+                    n.id,
+                    v.len()
+                )));
+            }
+        }
         if let Some(expected) = ARITY(&n.op) {
             if n.inputs.len() != expected {
                 errors.push(GraphError::ArityMismatch(format!(
@@ -48,6 +91,11 @@ pub fn verify(g: &Graph) -> Result<(), Vec<GraphError>> {
                     errors.push(GraphError::MissingCommCost(*inp, n.id));
                 }
             }
+        }
+    }
+    for id in g.inputs.iter().chain(g.outputs.iter()) {
+        if g.node(*id).is_none() {
+            errors.push(GraphError::UnknownNode(*id));
         }
     }
     if has_cycle(g) {

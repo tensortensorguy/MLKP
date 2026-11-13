@@ -143,7 +143,9 @@ impl ShapeEnv {
                 let a = self.eval(x)?;
                 let b = self.eval(y)?;
                 Ok(match (a, b) {
-                    (Some(x), Some(y)) => Some(x + y),
+                    (Some(x), Some(y)) => Some(x.checked_add(y).ok_or_else(|| {
+                        ShapeError::ConstraintViolation("dimension arithmetic overflow".to_string())
+                    })?),
                     _ => None,
                 })
             }
@@ -151,7 +153,9 @@ impl ShapeEnv {
                 let a = self.eval(x)?;
                 let b = self.eval(y)?;
                 Ok(match (a, b) {
-                    (Some(x), Some(y)) => Some(x * y),
+                    (Some(x), Some(y)) => Some(x.checked_mul(y).ok_or_else(|| {
+                        ShapeError::ConstraintViolation("dimension arithmetic overflow".to_string())
+                    })?),
                     _ => None,
                 })
             }
@@ -239,6 +243,11 @@ impl ShapeEnv {
                     }
                 }
                 Constraint::Divisible(x, m) => {
+                    if *m == 0 {
+                        return Err(ShapeError::ConstraintViolation(
+                            "divisibility modulus is zero".to_string(),
+                        ));
+                    }
                     let xv = self.eval(x)?.ok_or_else(|| {
                         ShapeError::ConstraintViolation("Divisible over unbound symbol".to_string())
                     })?;

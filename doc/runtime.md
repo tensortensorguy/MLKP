@@ -11,11 +11,11 @@ pub struct Measurement { median: Duration, min: Duration, mean: Duration, varian
 ```
 
 ## Algorithm
-Lowering walks the verified graph, assigns buffers in order, and emits plan ops with concrete extents. The airlock proves length relations for every op once; the kernels then debug-assert only. Execution dispatches each op through a flat match to the CEP-0 kernels. Measurement discards warmup runs and reports the median with sample variance and the Welch t statistic for pairwise comparison.
+Lowering walks the verified graph, assigns buffers in order, and emits plan ops with concrete extents. The airlock proves buffer table consistency (offsets ascend without overlap), length relations for every op, per-op buffer disjointness, and the power-of-two tile contract once; the kernels then debug-assert only. Execution dispatches each op through a flat match to the CEP-0 kernels. Measurement discards warmup runs and reports the median with sample variance and the Welch t statistic for pairwise comparison.
 
 ## Invariants
 1. The kernels allocate nothing, lock nothing, format nothing, and panic on nothing; misuse is a debug assertion.
-2. The airlock rejects any plan whose buffer lengths disagree with op extents before execution.
+2. The airlock rejects any plan whose buffer table is inconsistent, whose lengths disagree with op extents, whose op buffers overlap in the arena, or whose matmul tiles are not powers of two, before execution.
 3. The arena is allocated once per evaluation session and reset between runs; buffers never resize mid-measurement.
 4. The probe reports honest availability; absent Vulkan is a reason string, never a silent CPU assumption.
 

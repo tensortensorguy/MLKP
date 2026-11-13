@@ -81,12 +81,14 @@ pub fn comment_blocks(lexed: &Lexed) -> Vec<CommentBlock> {
 // CEP:COST: cold; O(line length).
 // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
 fn is_comment_only(line: &LineInfo) -> bool {
-    let has_comment = line
-        .comment
-        .as_ref()
-        .map(|c| !c.trim().is_empty())
-        .unwrap_or(false);
-    has_comment && line.code.trim().is_empty()
+    // CEP:WHAT: Counts empty comment lines as part of a comment block.
+    // CEP:WHY: A bare // divider inside a header block is a visual separator; splitting the block there would report fields that follow it as missing.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
+    line.comment.is_some() && line.code.trim().is_empty()
 }
 
 /// Returns the first comment block when it starts at line 1 (the file header).

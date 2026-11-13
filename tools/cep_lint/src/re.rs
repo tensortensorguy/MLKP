@@ -131,8 +131,16 @@ impl Regex {
     // CEP:COST: cold; bounded by STEP_BUDGET per start position.
     // CEP:EVIDENCE: tools/cep_lint/tests/re_test.rs
     pub fn find(&self, text: &[char]) -> Option<Match> {
+        // CEP:WHAT: Resets the step budget at every start position.
+        // CEP:WHY: The documented contract bounds each start position's work; a cumulative counter would exhaust the budget on early failed starts and silently miss legitimate matches late in the input.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Returns None when a single start position exhausts the budget.
+        // CEP:ASSUMES: none
+        // CEP:COST: O(starts * budget).
+        // CEP:EVIDENCE: tools/cep_lint/tests/re_test.rs
         let steps = std::cell::Cell::new(0u32);
         for start in 0..=text.len() {
+            steps.set(0);
             let mut caps: Vec<Option<(usize, usize)>> = vec![None; self.group_count()];
             if let Some(end) = match_node(
                 &self.root,
@@ -510,6 +518,18 @@ impl Parser {
                         return Ok(node);
                     }
                 };
+                // CEP:WHAT: Rejects inverted quantifier bounds at compile time.
+                // CEP:WHY: a{3,2} can never match; compiling it would silently produce a dead pattern instead of surfacing the configuration error.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: Returns an error when min exceeds max.
+                // CEP:ASSUMES: none
+                // CEP:COST: O(1).
+                // CEP:EVIDENCE: tools/cep_lint/tests/re_test.rs
+                if let Some(m) = max {
+                    if min > m {
+                        return Err("quantifier min exceeds max".to_string());
+                    }
+                }
                 Ok(Node::Repeat {
                     node: Box::new(node),
                     min,
@@ -699,13 +719,31 @@ impl Parser {
                 self.pos += 1;
                 let hi_c = self.peek().ok_or("unterminated range")?;
                 self.pos += 1;
+                // CEP:WHAT: Decodes escapes in the range high endpoint like the low one.
+                // CEP:WHY: Using the raw escape letter made [\t-\r] a range to 'r' and matched unrelated characters; both endpoints must share one decoder, and shorthand escapes have no place inside a range.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: Returns an error for shorthand escapes as range endpoints.
+                // CEP:ASSUMES: none
+                // CEP:COST: O(1).
+                // CEP:EVIDENCE: tools/cep_lint/tests/re_test.rs
                 let hi = if hi_c == '\\' {
                     let e = self.peek().ok_or("dangling escape in range")?;
                     self.pos += 1;
-                    e
+                    match e {
+                        'd' | 'D' | 'w' | 'W' | 's' | 'S' => {
+                            return Err("shorthand escape cannot bound a class range".to_string())
+                        }
+                        'n' => '\n',
+                        't' => '\t',
+                        'r' => '\r',
+                        other => other,
+                    }
                 } else {
                     hi_c
                 };
+                if hi < lo {
+                    return Err("class range endpoints are reversed".to_string());
+                }
                 items.push(ClassItem::Range(lo, hi));
             } else {
                 items.push(ClassItem::Ch(lo));

@@ -49,7 +49,17 @@ pub fn run(g: &mut Graph) -> usize {
 // CEP:COST: O(nodes of subtree) via hash.
 // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
 fn equivalent(a: &Node, b: &Node) -> bool {
-    if a.id == b.id || a.device != b.device {
+    if a.id == b.id || a.device != b.device || a.ty != b.ty {
+        return false;
+    }
+    // CEP:WHAT: Rejects parameter nodes as merge candidates.
+    // CEP:WHY: Two Input nodes are distinct external bindings even when their names match.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
+    if matches!(a.op, crate::graph::Op::Input) {
         return false;
     }
     let mut h1 = cep_hash::Hasher::new();
@@ -120,6 +130,15 @@ fn hash_node_subtree(n: &Node, h: &mut cep_hash::Hasher) {
     for inp in &n.inputs {
         h.update_u64(u64::from(*inp));
     }
+    // CEP:WHAT: Folds the result type into the structural hash.
+    // CEP:WHY: The graph hash includes the type (graph.rs hash_node); CSE must share that semantics so type-incompatible nodes never merge.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(type payload).
+    // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
+    let th = n.ty.hash64(h.snapshot());
+    h.update_u64(th);
 }
 
 // CEP:WHAT: Stable discriminants for map and reduction kinds.
@@ -178,6 +197,11 @@ fn retarget(g: &mut Graph, from: u32, to: u32) {
     for out in g.outputs.iter_mut() {
         if *out == from {
             *out = to;
+        }
+    }
+    for inp in g.inputs.iter_mut() {
+        if *inp == from {
+            *inp = to;
         }
     }
 }

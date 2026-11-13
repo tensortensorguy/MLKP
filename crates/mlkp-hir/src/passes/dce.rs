@@ -12,16 +12,24 @@
 
 use crate::graph::Graph;
 
-/// Removes nodes not reachable from the graph outputs, in place.
+/// Removes nodes not reachable from the graph outputs or the declared inputs, in place.
 // CEP:WHAT: Removes unreachable nodes in place.
 // CEP:WHY: Dead nodes change subgraph hashes and waste search time without changing results.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
-// CEP:ASSUMES: outputs are the only externally observable results.
+// CEP:ASSUMES: outputs and declared inputs are externally observable; parameters are externally bound and must never be removed.
 // CEP:COST: O(nodes + edges).
 // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
 pub fn run(g: &mut Graph) -> usize {
     let mut live: Vec<u32> = g.outputs.clone();
+    // CEP:WHAT: Seeds the live walk with declared input nodes.
+    // CEP:WHY: Parameters are bound by the caller; removing one silently changes the function signature.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: g.inputs lists the parameter node ids.
+    // CEP:COST: O(inputs).
+    // CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
+    live.extend(g.inputs.iter().copied());
     let mut seen: Vec<u32> = Vec::new();
     while let Some(id) = live.pop() {
         if seen.contains(&id) {

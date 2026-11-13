@@ -3,9 +3,9 @@
 // CEP:WHY: Design.md assigns the compiler ownership of SPIR-V generation with a small, deterministic binary backend and a ModuleVerifier checking id definition and use, type consistency, control-flow structure, required capabilities, memory-model legality, and entry-point validity.
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns EmitError on duplicate or undefined ids, unstructured control flow, undeclared bindings, or blocks lacking exactly one terminator.
+// CEP:FAILURE: Returns EmitError on duplicate or undefined ids, unstructured control flow, undeclared bindings, blocks lacking exactly one terminator, value-producing instructions without a result id, or uses of undefined values.
 // CEP:ASSUMES: static workgroup sizes; descriptor bindings of single-member storage-buffer structs; SPIR-V 1.3 with the Shader capability; the emitted word streams are validated by this crate's ModuleVerifier, and cross-validation against an external validator (spirv-val) plus driver-level execution are the GPU runtime ticket CEP-210 because this environment exposes no Vulkan device.
-// CEP:COST: cold; O(insns) with a deterministic two-pass id allocation (pre-scan for constants and types, then per-instruction values).
+// CEP:COST: cold; O(insns) with a deterministic multi-pass id allocation (types, constants, variables, per-instruction temporaries, labels).
 // CEP:EVIDENCE: golden tests in crates/mlkp-spirv/tests/spirv_test.rs cross-check exact words.
 
 #![deny(missing_docs)]
@@ -33,6 +33,8 @@ pub enum EmitError {
     BadTerminator(String),
     /// A referenced binding was not declared.
     BadBinding(u32),
+    /// A value-producing instruction lacked a result id.
+    MissingResult(String),
 }
 
 impl std::fmt::Display for EmitError {
@@ -51,6 +53,9 @@ impl std::fmt::Display for EmitError {
                 write!(f, "emit error: block '{s}' lacks one terminator")
             }
             EmitError::BadBinding(b) => write!(f, "emit error: undeclared binding {b}"),
+            EmitError::MissingResult(s) => {
+                write!(f, "emit error: '{s}' must produce a result id")
+            }
         }
     }
 }
@@ -66,9 +71,60 @@ pub struct SpirvModule {
     pub entry_point: String,
 }
 
+// CEP:WHAT: Collects the value ids one instruction reads.
+// CEP:WHY: The verifier checks every use against the defined set; centralizing the operand walk keeps the check complete as opcodes are added.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(operands).
+// CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
+fn used_vids(insn: &crate::gmir::GInsn) -> Vec<u32> {
+    match &insn.opc {
+        GOpc::LoadF32 { index, .. } | GOpc::StoreF32 { index, .. } => vec![*index],
+        GOpc::FAdd(a, b)
+        | GOpc::FSub(a, b)
+        | GOpc::FMul(a, b)
+        | GOpc::FDiv(a, b)
+        | GOpc::IAdd(a, b)
+        | GOpc::IMul(a, b)
+        | GOpc::UDiv(a, b)
+        | GOpc::URem(a, b)
+        | GOpc::FGt(a, b) => vec![*a, *b],
+        GOpc::BranchCond { cond, .. } => vec![*cond],
+        _ => Vec::new(),
+    }
+}
+
+// CEP:WHAT: Reports the name of the value-producing opcode for diagnostics.
+// CEP:WHY: The verifier must name the instruction class missing a result id.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
+fn produces_value(insn: &crate::gmir::GInsn) -> Option<&'static str> {
+    match insn.opc {
+        GOpc::GlobalId(_) => Some("global_id"),
+        GOpc::LocalId(_) => Some("local_id"),
+        GOpc::LoadF32 { .. } => Some("load_f32"),
+        GOpc::FAdd(_, _)
+        | GOpc::FSub(_, _)
+        | GOpc::FMul(_, _)
+        | GOpc::FDiv(_, _)
+        | GOpc::IAdd(_, _)
+        | GOpc::IMul(_, _)
+        | GOpc::UDiv(_, _)
+        | GOpc::URem(_, _)
+        | GOpc::FGt(_, _) => Some("arithmetic"),
+        GOpc::ConstU32(_) => Some("const_u32"),
+        GOpc::ConstF32(_) => Some("const_f32"),
+        _ => None,
+    }
+}
+
 /// Verifies one kernel before emission.
 // CEP:WHAT: Verifies kernel structure.
-// CEP:WHY: The design's ModuleVerifier must reject invalid output before it reaches the driver.
+// CEP:WHY: The design's ModuleVerifier must reject invalid output before it reaches the driver; it checks terminators, branch targets, bindings, duplicate result definitions, missing result ids, and undefined uses.
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns EmitError for the first violation found per category.
 // CEP:ASSUMES: none
@@ -118,9 +174,16 @@ pub fn verify_module(kernel: &GKernel) -> Result<(), EmitError> {
             }
         }
     }
+    // Definitions: every result id defined at most once; every value-producing
+    // instruction carries a result id.
     let mut defined: Vec<u32> = Vec::new();
     for block in &kernel.blocks {
         for insn in &block.insns {
+            if let Some(name) = produces_value(insn) {
+                if insn.result.is_none() {
+                    return Err(EmitError::MissingResult(name.to_string()));
+                }
+            }
             if let Some(v) = insn.result {
                 if defined.contains(&v) {
                     return Err(EmitError::BadId(v));
@@ -129,7 +192,177 @@ pub fn verify_module(kernel: &GKernel) -> Result<(), EmitError> {
             }
         }
     }
+    // Uses: every read value id must be defined somewhere in the kernel.
+    for block in &kernel.blocks {
+        for insn in &block.insns {
+            for v in used_vids(insn) {
+                if !defined.contains(&v) {
+                    return Err(EmitError::BadId(v));
+                }
+            }
+        }
+    }
     Ok(())
+}
+
+/// The per-kernel id allocation tables.
+struct IdTables {
+    /// ssa vid -> spirv id (constants map to their pooled constant id).
+    ssa_ids: Vec<(u32, u32)>,
+    /// label -> spirv id.
+    label_ids: Vec<(String, u32)>,
+    /// binding -> (variable, runtime array, struct, pointer) ids.
+    bind_ids: Vec<(u32, u32, u32, u32, u32)>,
+    /// unique u32 constant value -> id.
+    u32_pool: Vec<(u32, u32)>,
+    /// unique f32 constant bits -> id.
+    f32_pool: Vec<(u32, u32)>,
+    /// one id per temporary instruction (GlobalId, LoadF32, StoreF32) in walk order.
+    temp_ids: Vec<u32>,
+    /// builtin global invocation id variable id.
+    gid_var: u32,
+    /// pointer-to-f32 (storage buffer) type id.
+    ptr_f32: u32,
+    /// pointer-to-vec3 (input) type id.
+    ptr_vec3: u32,
+    /// function id.
+    fn_id: u32,
+    /// one past the highest id used.
+    bound: u32,
+}
+
+// CEP:WHAT: Allocates every SPIR-V id deterministically in one pass.
+// CEP:WHY: Every id in the module must be below the header bound and allocated from one counter; synthetic arithmetic on ids would leak ids past the bound and collide.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: the kernel passed verify_module.
+// CEP:COST: O(insns).
+// CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
+fn alloc_ids(kernel: &GKernel) -> IdTables {
+    // Fixed type ids: 1 void, 2 bool, 3 u32, 4 f32, 5 vec3u32, 6 fn type.
+    let mut next: u32 = 7;
+    let ptr_f32 = next;
+    next += 1;
+    // Per binding: runtime array type, struct type, pointer-to-struct, variable.
+    let mut bind_ids: Vec<(u32, u32, u32, u32, u32)> = Vec::new();
+    for (binding, _) in &kernel.bindings {
+        let var = next;
+        let ra = next + 1;
+        let st = next + 2;
+        let ptr = next + 3;
+        next += 4;
+        bind_ids.push((*binding, var, ra, st, ptr));
+    }
+    let gid_var = next;
+    let ptr_vec3 = next + 1;
+    next += 2;
+    // Unique u32 constants in first-use order; zero is always present.
+    let mut u32_pool: Vec<(u32, u32)> = Vec::new();
+    let push_u32 = |pool: &mut Vec<(u32, u32)>, next: &mut u32, v: u32| {
+        if !pool.iter().any(|(x, _)| *x == v) {
+            let id = *next;
+            *next += 1;
+            pool.push((v, id));
+        }
+    };
+    for block in &kernel.blocks {
+        for insn in &block.insns {
+            if let GOpc::ConstU32(v) = &insn.opc {
+                push_u32(&mut u32_pool, &mut next, *v);
+            }
+        }
+    }
+    push_u32(&mut u32_pool, &mut next, 0);
+    // Unique f32 constants in first-use order, keyed by exact bits.
+    let mut f32_pool: Vec<(u32, u32)> = Vec::new();
+    for block in &kernel.blocks {
+        for insn in &block.insns {
+            if let GOpc::ConstF32(v) = &insn.opc {
+                let bits = v.to_bits();
+                if !f32_pool.iter().any(|(x, _)| *x == bits) {
+                    let id = next;
+                    next += 1;
+                    f32_pool.push((bits, id));
+                }
+            }
+        }
+    }
+    // Per-instruction result ids. Constant instructions resolve to their pooled
+    // module-scope constant id instead of allocating a fresh id.
+    let mut ssa_ids: Vec<(u32, u32)> = Vec::new();
+    for block in &kernel.blocks {
+        for insn in &block.insns {
+            if let Some(v) = insn.result {
+                match &insn.opc {
+                    GOpc::ConstU32(x) => {
+                        let id = u32_pool
+                            .iter()
+                            .find(|(val, _)| val == x)
+                            .map(|(_, id)| *id)
+                            .unwrap_or(0);
+                        ssa_ids.push((v, id));
+                    }
+                    GOpc::ConstF32(x) => {
+                        let id = f32_pool
+                            .iter()
+                            .find(|(bits, _)| *bits == x.to_bits())
+                            .map(|(_, id)| *id)
+                            .unwrap_or(0);
+                        ssa_ids.push((v, id));
+                    }
+                    GOpc::LocalId(_) => {
+                        // Local ids are not wired in v1; the zero constant keeps plans legal.
+                        let id = u32_pool
+                            .iter()
+                            .find(|(val, _)| *val == 0)
+                            .map(|(_, id)| *id)
+                            .unwrap_or(0);
+                        ssa_ids.push((v, id));
+                    }
+                    _ => {
+                        let id = next;
+                        next += 1;
+                        ssa_ids.push((v, id));
+                    }
+                }
+            }
+        }
+    }
+    // Per-instruction temporaries: gid vector load and access chains.
+    let mut temp_ids: Vec<u32> = Vec::new();
+    for block in &kernel.blocks {
+        for insn in &block.insns {
+            match &insn.opc {
+                GOpc::GlobalId(_) | GOpc::LoadF32 { .. } | GOpc::StoreF32 { .. } => {
+                    temp_ids.push(next);
+                    next += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    // Label ids.
+    let mut label_ids: Vec<(String, u32)> = Vec::new();
+    for block in &kernel.blocks {
+        let id = next;
+        next += 1;
+        label_ids.push((block.label.clone(), id));
+    }
+    let fn_id = next;
+    next += 1;
+    IdTables {
+        ssa_ids,
+        label_ids,
+        bind_ids,
+        u32_pool,
+        f32_pool,
+        temp_ids,
+        gid_var,
+        ptr_f32,
+        ptr_vec3,
+        fn_id,
+        bound: next,
+    }
 }
 
 /// Emits one kernel as a SPIR-V module.
@@ -142,103 +375,50 @@ pub fn verify_module(kernel: &GKernel) -> Result<(), EmitError> {
 // CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
 pub fn emit_module(kernel: &GKernel) -> Result<SpirvModule, EmitError> {
     verify_module(kernel)?;
-
-    // Deterministic id allocation.
-    // Fixed ids: 1 void, 2 bool, 3 u32, 4 f32, 5 vec3u32, 6 fn type.
-    const ID_VOID: u32 = 1;
-    const ID_BOOL: u32 = 2;
-    const ID_U32: u32 = 3;
-    const ID_F32: u32 = 4;
-    const ID_VEC3: u32 = 5;
-    const ID_FN_TY: u32 = 6;
-    let mut next: u32 = 7;
-    // Per binding: runtime array type, struct type, pointer-to-struct type, variable.
-    let mut bind_ids: Vec<(u32, u32)> = Vec::new(); // binding -> variable id
-    for (binding, _) in &kernel.bindings {
-        let _ = binding;
-        let var = next;
-        next += 1;
-        bind_ids.push((*binding, var));
-    }
-    // Builtin variables: gid x (we load the vec3 and extract), so one Input vec3 var.
-    let gid_var = next;
-    next += 1;
-    // Unique u32 constants in first-use order.
-    let mut u32_pool: Vec<(u32, u32)> = Vec::new();
-    for block in &kernel.blocks {
-        for insn in &block.insns {
-            if let GOpc::ConstU32(v) = &insn.opc {
-                if !u32_pool.iter().any(|(x, _)| x == v) {
-                    let id = next;
-                    next += 1;
-                    u32_pool.push((*v, id));
-                }
-            }
-        }
-    }
-    // One extra constant: u32 zero for composite extracts and loop init.
-    let zero_id = next;
-    next += 1;
-    if !u32_pool.iter().any(|(x, _)| *x == 0) {
-        u32_pool.push((0, zero_id));
-    }
-    // Per-instruction ids.
-    let mut ssa_ids: Vec<(u32, u32)> = Vec::new(); // ssa vid -> spirv id
-    for block in &kernel.blocks {
-        for insn in &block.insns {
-            if let Some(v) = insn.result {
-                let id = next;
-                next += 1;
-                ssa_ids.push((v, id));
-            }
-        }
-    }
-    // Label ids.
-    let mut label_ids: Vec<(String, u32)> = Vec::new();
-    for block in &kernel.blocks {
-        let id = next;
-        next += 1;
-        label_ids.push((block.label.clone(), id));
-    }
-    // The function id.
-    let fn_id = next;
-    next += 1;
-    let id_bound = next;
+    let t = alloc_ids(kernel);
 
     let ssa_of = |v: u32| -> u32 {
-        ssa_ids
+        t.ssa_ids
             .iter()
             .find(|(x, _)| *x == v)
             .map(|(_, id)| *id)
             .unwrap_or(0)
     };
     let label_of = |l: &str| -> u32 {
-        label_ids
+        t.label_ids
             .iter()
             .find(|(x, _)| x == l)
             .map(|(_, id)| *id)
             .unwrap_or(0)
     };
     let u32_const_of = |v: u32| -> u32 {
-        u32_pool
+        t.u32_pool
             .iter()
             .find(|(x, _)| *x == v)
             .map(|(_, id)| *id)
-            .unwrap_or(zero_id)
+            .unwrap_or(0)
+    };
+    let f32_const_of = |v: f32| -> u32 {
+        t.f32_pool
+            .iter()
+            .find(|(bits, _)| *bits == v.to_bits())
+            .map(|(_, id)| *id)
+            .unwrap_or(0)
     };
 
+    let id_bound = t.bound;
     let mut w: Vec<u32> = vec![MAGIC, VERSION, GENERATOR, id_bound, 0];
 
     insn(&mut w, op::CAPABILITY, &[e::capability::SHADER]);
     insn(&mut w, op::MEMORYMODEL, &[0, e::memory_model::GLSL450]);
-    let mut ep = vec![e::execution_model::GLCOMPUTE, fn_id];
+    let mut ep = vec![e::execution_model::GLCOMPUTE, t.fn_id];
     ep.extend(str_words(&kernel.name));
     insn(&mut w, op::ENTRYPOINT, &ep);
     insn(
         &mut w,
         op::EXECUTIONMODE,
         &[
-            fn_id,
+            t.fn_id,
             e::execution_mode::LOCALSIZE,
             kernel.workgroup[0],
             kernel.workgroup[1],
@@ -246,94 +426,111 @@ pub fn emit_module(kernel: &GKernel) -> Result<SpirvModule, EmitError> {
         ],
     );
     // Debug name.
-    let mut nm = vec![fn_id];
+    let mut nm = vec![t.fn_id];
     nm.extend(str_words(&kernel.name));
     insn(&mut w, op::NAME, &nm);
 
     // Types.
-    insn(&mut w, op::TYPEVOID, &[ID_VOID]);
-    insn(&mut w, op::TYPEBOOL, &[ID_BOOL]);
-    insn(&mut w, op::TYPEINT, &[ID_U32, 32, 0]);
-    insn(&mut w, op::TYPEFLOAT, &[ID_F32, 32]);
-    insn(&mut w, op::TYPEVECTOR, &[ID_VEC3, ID_U32, 3]);
-    insn(&mut w, op::TYPEFUNCTION, &[ID_FN_TY, ID_VOID]);
+    insn(&mut w, op::TYPEVOID, &[1]);
+    insn(&mut w, op::TYPEBOOL, &[2]);
+    insn(&mut w, op::TYPEINT, &[3, 32, 0]);
+    insn(&mut w, op::TYPEFLOAT, &[4, 32]);
+    insn(&mut w, op::TYPEVECTOR, &[5, 3, 3]);
+    insn(
+        &mut w,
+        op::TYPEPOINTER,
+        &[t.ptr_f32, e::storage_class::STORAGEBUFFER, 4],
+    );
+    insn(&mut w, op::TYPEFUNCTION, &[6, 1]);
 
-    // Constants.
-    for (v, id) in &u32_pool {
-        insn(&mut w, op::CONSTANT, &[ID_U32, *id, *v]);
+    // Constants: module-scope types/constants section per the SPIR-V logical layout.
+    for (v, id) in &t.u32_pool {
+        insn(&mut w, op::CONSTANT, &[3, *id, *v]);
+    }
+    for (bits, id) in &t.f32_pool {
+        insn(&mut w, op::CONSTANT, &[4, *id, *bits]);
     }
 
     // Globals: per binding, runtime array, struct, pointer, variable; decorated.
-    for (i, (binding, var_id)) in bind_ids.iter().enumerate() {
-        let _ = i;
-        let ra_id = *var_id + 1000;
-        let st_id = *var_id + 2000;
-        let ptr_id = *var_id + 3000;
-        insn(&mut w, op::TYPERUNTIMEARRAY, &[ra_id, ID_F32]);
-        insn(&mut w, op::TYPESTRUCT, &[st_id, ra_id]);
+    for (_, var_id, ra_id, st_id, ptr_id) in &t.bind_ids {
+        insn(&mut w, op::TYPERUNTIMEARRAY, &[*ra_id, 4]);
+        insn(&mut w, op::TYPESTRUCT, &[*st_id, *ra_id]);
         insn(
             &mut w,
             op::TYPEPOINTER,
-            &[ptr_id, e::storage_class::STORAGEBUFFER, st_id],
+            &[*ptr_id, e::storage_class::STORAGEBUFFER, *st_id],
         );
         insn(
             &mut w,
             op::VARIABLE,
-            &[ptr_id, *var_id, e::storage_class::STORAGEBUFFER],
+            &[*ptr_id, *var_id, e::storage_class::STORAGEBUFFER],
         );
-        insn(&mut w, op::DECORATE, &[st_id, e::decoration::BLOCK]);
+        insn(&mut w, op::DECORATE, &[*st_id, e::decoration::BLOCK]);
         insn(
             &mut w,
             op::DECORATE,
             &[*var_id, e::decoration::DESCRIPTORSET, 0],
         );
+        let binding = t
+            .bind_ids
+            .iter()
+            .find(|(_, v, _, _, _)| v == var_id)
+            .map(|(b, _, _, _, _)| *b)
+            .unwrap_or(0);
         insn(
             &mut w,
             op::DECORATE,
-            &[*var_id, e::decoration::BINDING, *binding],
+            &[*var_id, e::decoration::BINDING, binding],
         );
     }
     // Global invocation id input.
-    {
-        let ptr_vec3 = gid_var + 3000;
-        insn(
-            &mut w,
-            op::TYPEPOINTER,
-            &[ptr_vec3, e::storage_class::INPUT, ID_VEC3],
-        );
-        insn(
-            &mut w,
-            op::VARIABLE,
-            &[ptr_vec3, gid_var, e::storage_class::INPUT],
-        );
-        insn(
-            &mut w,
-            op::DECORATE,
-            &[
-                gid_var,
-                e::decoration::BUILTIN,
-                e::builtin::GLOBALINVOCATIONID,
-            ],
-        );
-    }
+    insn(
+        &mut w,
+        op::TYPEPOINTER,
+        &[t.ptr_vec3, e::storage_class::INPUT, 5],
+    );
+    insn(
+        &mut w,
+        op::VARIABLE,
+        &[t.ptr_vec3, t.gid_var, e::storage_class::INPUT],
+    );
+    insn(
+        &mut w,
+        op::DECORATE,
+        &[
+            t.gid_var,
+            e::decoration::BUILTIN,
+            e::builtin::GLOBALINVOCATIONID,
+        ],
+    );
 
     // Function.
-    insn(&mut w, op::FUNCTION, &[ID_VOID, fn_id, 0, ID_FN_TY]);
-    for (i, block) in kernel.blocks.iter().enumerate() {
+    insn(&mut w, op::FUNCTION, &[1, t.fn_id, 0, 6]);
+    let mut temp_cursor: usize = 0;
+    for block in &kernel.blocks {
         let label = label_of(&block.label);
         insn(&mut w, op::LABEL, &[label]);
-        for ins in &block.insns {
+        for ins in block.insns.iter() {
+            let temp = t.temp_ids.get(temp_cursor).copied().unwrap_or(0);
             emit_insn(
                 &mut w,
                 ins,
                 &ssa_of,
                 &label_of,
                 &u32_const_of,
-                gid_var,
-                &bind_ids,
-            );
+                &f32_const_of,
+                t.gid_var,
+                t.ptr_f32,
+                &t.bind_ids,
+                temp,
+            )?;
+            match ins.opc {
+                GOpc::GlobalId(_) | GOpc::LoadF32 { .. } | GOpc::StoreF32 { .. } => {
+                    temp_cursor += 1;
+                }
+                _ => {}
+            }
         }
-        let _ = i;
     }
     insn(&mut w, op::FUNCTIONEND, &[]);
 
@@ -345,10 +542,10 @@ pub fn emit_module(kernel: &GKernel) -> Result<SpirvModule, EmitError> {
 }
 
 // CEP:WHAT: Emits one GPU instruction into SPIR-V words.
-// CEP:WHY: The per-opcode mapping is the emitter's core; all ids resolve through the deterministic tables.
+// CEP:WHY: The per-opcode mapping is the emitter's core; all ids resolve through the deterministic tables and no constant instruction is emitted inside the function body.
 // CEP:STATUS: complete
-// CEP:FAILURE: Panics only through impossible id lookups that the verifier rejects earlier; lookups fall back to zero defensively.
-// CEP:ASSUMES: none
+// CEP:FAILURE: Returns EmitError::MissingResult when a value-producing instruction lacks a result id; the verifier rejects that case first, so the error is defensive.
+// CEP:ASSUMES: the kernel passed verify_module.
 // CEP:COST: O(1) per instruction.
 // CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
 #[allow(clippy::too_many_arguments)]
@@ -358,133 +555,132 @@ fn emit_insn(
     ssa_of: &dyn Fn(u32) -> u32,
     label_of: &dyn Fn(&str) -> u32,
     u32_const_of: &dyn Fn(u32) -> u32,
+    _f32_const_of: &dyn Fn(f32) -> u32,
     gid_var: u32,
-    bind_ids: &[(u32, u32)],
-) {
+    ptr_f32: u32,
+    bind_ids: &[(u32, u32, u32, u32, u32)],
+    temp_id: u32,
+) -> Result<(), EmitError> {
     const ID_U32: u32 = 3;
     const ID_F32: u32 = 4;
     const ID_VEC3: u32 = 5;
     const ID_BOOL: u32 = 2;
     let s = |v: u32| ssa_of(v);
-    let binding_var = |b: u32| -> u32 {
+    let storage_ptr_of = |b: u32| -> u32 {
         bind_ids
             .iter()
-            .find(|(x, _)| *x == b)
-            .map(|(_, v)| *v)
+            .find(|(x, _, _, _, _)| *x == b)
+            .map(|(_, _, _, _, ptr)| *ptr)
             .unwrap_or(0)
     };
-    let storage_ptr_of = |b: u32| binding_var(b) + 3000;
+    let require = |r: Option<u32>, name: &str| -> Result<u32, EmitError> {
+        r.ok_or_else(|| EmitError::MissingResult(name.to_string()))
+    };
     match &ins.opc {
         GOpc::GlobalId(_) => {
-            let gidv = s(ins.result.expect("GlobalId must produce a value"));
-            let loaded = gidv + 5000;
-            insn(w, op::LOAD, &[ID_VEC3, loaded, gid_var]);
-            insn(w, op::COMPOSITEEXTRACT, &[ID_U32, gidv, loaded, 0]);
+            let gidv = require(ins.result, "global_id")?;
+            let gidv = s(gidv);
+            // One temporary id for the vector load, allocated in the pre-pass.
+            insn(w, op::LOAD, &[ID_VEC3, temp_id, gid_var]);
+            insn(w, op::COMPOSITEEXTRACT, &[ID_U32, gidv, temp_id, 0]);
         }
         GOpc::LocalId(_) => {
-            let v = s(ins.result.expect("LocalId must produce a value"));
-            // Local ids are not wired in v1; the constant zero keeps plans legal.
-            insn(w, op::CONSTANT, &[ID_U32, v, 0]);
+            // Local ids are not wired in v1; the result maps to the zero constant
+            // allocated in the module-scope constants section.
+            let _ = require(ins.result, "local_id")?;
         }
         GOpc::LoadF32 { binding, index } => {
-            let ptr = s(ins.result.expect("Load must produce a value"));
-            let ac = ptr + 4000;
+            let ptr = require(ins.result, "load_f32")?;
+            let ptr = s(ptr);
+            // Two indexes: struct member 0, then the element index; the result is a
+            // pointer to f32, which the load consumes.
+            let zero = u32_const_of(0);
             insn(
                 w,
                 op::ACCESSCHAIN,
-                &[
-                    storage_ptr_of(*binding),
-                    ac,
-                    binding_var(*binding),
-                    s(*index),
-                ],
+                &[ptr_f32, temp_id, storage_ptr_of(*binding), zero, s(*index)],
             );
-            // AccessChain result type is the pointed-to element pointer; correct the
-            // emitted type id: the pointer type we built points to the struct, so
-            // access chain needs the runtime-array member pointer. The element
-            // pointer type is derived by the driver; we emit the u32-element pointer
-            // constructed on the fly from the same pointer id space.
-            insn(w, op::LOAD, &[ID_F32, ptr, ac]);
+            insn(w, op::LOAD, &[ID_F32, ptr, temp_id]);
         }
         GOpc::StoreF32 {
             binding,
             index,
             value,
         } => {
-            let ac = 9000_0000u32 + *binding * 77 + s(*index);
+            let zero = u32_const_of(0);
             insn(
                 w,
                 op::ACCESSCHAIN,
-                &[
-                    storage_ptr_of(*binding),
-                    ac,
-                    binding_var(*binding),
-                    s(*index),
-                ],
+                &[ptr_f32, temp_id, storage_ptr_of(*binding), zero, s(*index)],
             );
-            insn(w, op::STORE, &[ac, s(*value)]);
+            insn(w, op::STORE, &[temp_id, s(*value)]);
         }
         GOpc::FAdd(a, b) => insn(
             w,
             op::FADD,
-            &[ID_F32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_F32, s(require(ins.result, "fadd")?), s(*a), s(*b)],
         ),
         GOpc::FSub(a, b) => insn(
             w,
             op::FSUB,
-            &[ID_F32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_F32, s(require(ins.result, "fsub")?), s(*a), s(*b)],
         ),
         GOpc::FMul(a, b) => insn(
             w,
             op::FMUL,
-            &[ID_F32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_F32, s(require(ins.result, "fmul")?), s(*a), s(*b)],
         ),
         GOpc::FDiv(a, b) => insn(
             w,
             op::FDIV,
-            &[ID_F32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_F32, s(require(ins.result, "fdiv")?), s(*a), s(*b)],
         ),
         GOpc::IAdd(a, b) => insn(
             w,
             op::IADD,
-            &[ID_U32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_U32, s(require(ins.result, "iadd")?), s(*a), s(*b)],
         ),
         GOpc::IMul(a, b) => insn(
             w,
             op::IMUL,
-            &[ID_U32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_U32, s(require(ins.result, "imul")?), s(*a), s(*b)],
         ),
         GOpc::UDiv(a, b) => insn(
             w,
             op::UDIV,
-            &[ID_U32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_U32, s(require(ins.result, "udiv")?), s(*a), s(*b)],
         ),
         GOpc::URem(a, b) => insn(
             w,
             op::UMOD,
-            &[ID_U32, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_U32, s(require(ins.result, "urem")?), s(*a), s(*b)],
         ),
-        GOpc::ConstU32(v) => insn(
-            w,
-            op::CONSTANT,
-            &[ID_U32, s(ins.result.unwrap_or(0)), u32_const_of(*v)],
-        ),
-        GOpc::ConstF32(v) => insn(
-            w,
-            op::CONSTANT,
-            &[ID_F32, s(ins.result.unwrap_or(0)), v.to_bits()],
-        ),
+        GOpc::ConstU32(_) | GOpc::ConstF32(_) => {
+            // Constants live in the module-scope types/constants section; the result
+            // id already maps to the pooled constant, so nothing is emitted here.
+            let _ = require(ins.result, "const")?;
+        }
         GOpc::FGt(a, b) => insn(
             w,
             op::FORDGREATERTHAN,
-            &[ID_BOOL, s(ins.result.unwrap_or(0)), s(*a), s(*b)],
+            &[ID_BOOL, s(require(ins.result, "fgt")?), s(*a), s(*b)],
         ),
         GOpc::BranchCond {
             cond,
             true_label,
             false_label,
         } => {
-            let merge = 9900_0000;
+            // CEP:WHAT: Lowers a conditional branch as an if-without-else selection.
+            // CEP:WHY: SPIR-V structured control flow requires a merge declaration; the false target is the labeled reconvergence block in the v1 kernel shapes, and genuine diamonds need a merge-block construct in GMIR (see doc/spirv_emitter.md Known Limitations).
+            // CEP:STATUS: complete
+            // CEP:FAILURE: Returns EmitError::BadBlock when the false target is unknown; the verifier rejects that first.
+            // CEP:ASSUMES: the false target is the structural merge block of the selection.
+            // CEP:COST: O(1).
+            // CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
+            let merge = label_of(false_label);
+            if merge == 0 {
+                return Err(EmitError::BadBlock(false_label.clone()));
+            }
             insn(w, op::SELECTIONMERGE, &[merge, 0]);
             insn(
                 w,
@@ -496,6 +692,7 @@ fn emit_insn(
         GOpc::Return => insn(w, op::RETURN, &[]),
         GOpc::Barrier => insn(w, op::CONTROLBARRIER, &[]),
     }
+    Ok(())
 }
 
 // CEP:WHAT: Appends one SPIR-V instruction.

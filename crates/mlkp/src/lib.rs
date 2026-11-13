@@ -141,12 +141,21 @@ pub fn execute(compiled: &Compiled, a: &[f32], b: &[f32]) -> Result<Vec<f32>, Co
     let total: u64 = compiled.plan.buffer_lens.iter().sum();
     let mut arena = mlkp_runtime::Arena::with_capacity(total);
     let (a_off, b_off, out_off) = compiled.staging;
+    let a_expect = compiled.plan.buffer_lens.first().copied().unwrap_or(0);
+    let b_expect = compiled.plan.buffer_lens.get(1).copied().unwrap_or(0);
+    // CEP:WHAT: Stages inputs with exact length checks.
+    // CEP:WHY: A short or long input would leave stale elements or spill into the next buffer, defeating the airlock's length invariants at staging time.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns CompilerError::Compile on length or range mismatch.
+    // CEP:ASSUMES: the first two buffers are the inputs, matching the staging tuple produced by compile.
+    // CEP:COST: O(elements).
+    // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
     arena
-        .fill(a_off, a)
-        .ok_or_else(|| CompilerError::Compile("stage a".to_string()))?;
+        .fill(a_off, a_expect, a)
+        .ok_or_else(|| CompilerError::Compile("stage a length mismatch".to_string()))?;
     arena
-        .fill(b_off, b)
-        .ok_or_else(|| CompilerError::Compile("stage b".to_string()))?;
+        .fill(b_off, b_expect, b)
+        .ok_or_else(|| CompilerError::Compile("stage b length mismatch".to_string()))?;
     mlkp_runtime::execute(&compiled.plan, &mut arena)
         .map_err(|e| CompilerError::Compile(e.to_string()))?;
     let out_id = compiled
@@ -161,11 +170,21 @@ pub fn execute(compiled: &Compiled, a: &[f32], b: &[f32]) -> Result<Vec<f32>, Co
             | mlkp_runtime::PlanOp::MatMul { c: dst, .. } => *dst,
         })
         .unwrap_or(0);
+    // CEP:WHAT: Reads the output buffer with its planned length.
+    // CEP:WHY: Falling back to the input length would silently return a wrong-sized result when the output buffer id has no table entry.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns CompilerError::Compile when the output buffer has no planned length or the slice is unavailable.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(elements).
+    // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
     let out_len = compiled
         .plan
         .buffer_lens
         .get(out_id as usize)
         .copied()
-        .unwrap_or(a.len() as u64);
-    Ok(arena.slice(out_off, out_len).unwrap_or(&[]).to_vec())
+        .ok_or_else(|| CompilerError::Compile("output buffer has no planned length".to_string()))?;
+    arena
+        .slice(out_off, out_len)
+        .map(|s| s.to_vec())
+        .ok_or_else(|| CompilerError::Compile("output slice unavailable".to_string()))
 }

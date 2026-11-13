@@ -150,8 +150,8 @@ fn lower_and_execute_end_to_end() {
     let mut arena = Arena::with_capacity(plan.total_elements());
     let a: Vec<f32> = (0..64).map(|i| ((i % 9) as f32) - 4.0).collect();
     let b: Vec<f32> = (0..64).map(|i| ((i % 5) as f32) * 0.5).collect();
-    arena.fill(0, &a).expect("fill a");
-    arena.fill(1, &b).expect("fill b");
+    arena.fill(0, a.len() as u64, &a).expect("fill a");
+    arena.fill(1, b.len() as u64, &b).expect("fill b");
     execute(&plan, &mut arena).expect("execute");
     let out = arena.slice(3, 64).expect("out");
     assert!(
@@ -199,7 +199,7 @@ fn airlock_rejects_bad_plans() {
 fn arena_reuses_across_resets() {
     let mut arena = Arena::with_capacity(16);
     let off = arena.alloc(8).expect("alloc");
-    arena.fill(off, &[1.0; 8]).expect("fill");
+    arena.fill(off, 8, &[1.0; 8]).expect("fill");
     assert_eq!(arena.used(), 8);
     arena.reset();
     assert_eq!(arena.used(), 0);

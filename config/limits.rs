@@ -80,6 +80,18 @@ pub const MAX_SESSION_CANDIDATES: usize = 400;
 /// Early-stop margin: a candidate slower than the incumbent by this factor is aborted mid-measurement.
 pub const EARLY_STOP_FACTOR: f64 = 2.0;
 
+/// Candidates evaluated per Phase 2 ranking batch.
+pub const PHASE2_BATCH_EVAL: usize = 8;
+
+/// Mutants generated around the incumbent in Phase 3.
+pub const PHASE3_MUTANT_COUNT: usize = 24;
+
+/// Candidates re-measured in the final polish phase.
+pub const POLISH_TOP_K: usize = 5;
+
+/// Diverse probe count for Phase 1 sampling (mirrors the pruner constant).
+pub const DIVERSE_PROBE_COUNT: usize = 20;
+
 /// Maximum machine functions per compilation unit passed to the register allocator.
 pub const MAX_MIR_FUNCTIONS: usize = 64;
 

@@ -37,6 +37,16 @@ pub fn banned_token_policy(rule: &RuleConfig, file: &str, lexed: &Lexed) -> Vec<
         return out;
     }
     for token in &tokens {
+        // CEP:WHAT: Skips empty tokens.
+        // CEP:WHY: str::find on an empty needle always succeeds at the same position, so the scan would loop forever and exhaust memory; the loader guard plus this defense keep the check total.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
+        if token.is_empty() {
+            continue;
+        }
         for line in &lexed.lines {
             let mut from = 0usize;
             while let Some(pos) = line.code[from..].find(token.as_str()) {

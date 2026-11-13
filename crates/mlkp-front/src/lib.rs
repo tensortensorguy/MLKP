@@ -115,11 +115,25 @@ impl<'a> Parser<'a> {
     // CEP:COST: O(source size).
     // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
     fn new(text: &'a str) -> Self {
+        // CEP:WHAT: Strips trailing comments before filtering.
+        // CEP:WHY: '#' starts a comment anywhere in a line; leaving trailing comment text would make acceptance depend on where the last ')' falls.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: '#' cannot appear inside a dimension token or identifier; the grammar has no string literals.
+        // CEP:COST: O(source size).
+        // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
         let lines: Vec<(usize, &str)> = text
             .lines()
             .enumerate()
-            .map(|(i, l)| (i + 1, l.trim()))
-            .filter(|(_, l)| !l.is_empty() && !l.starts_with('#'))
+            .map(|(i, l)| {
+                let l = l.trim();
+                let code = match l.find('#') {
+                    Some(p) => l[..p].trim(),
+                    None => l,
+                };
+                (i + 1, code)
+            })
+            .filter(|(_, l)| !l.is_empty())
             .collect();
         Parser {
             lines,
@@ -157,8 +171,61 @@ impl<'a> Parser<'a> {
     // CEP:COST: O(symbols).
     // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
     fn dim(&mut self, token: &str, line: usize) -> Result<DimExpr, ParseError> {
+        // CEP:WHAT: Rejects zero and oversized constant dimensions.
+        // CEP:WHY: A zero extent has no elements and rank-0 is already rejected; an unbounded constant would overflow buffer arithmetic downstream.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Returns ParseError for zero, oversized, or malformed numeric tokens.
+        // CEP:ASSUMES: MAX_DIM_VALUE bounds single dimensions; products are re-checked with checked arithmetic in the plan airlock.
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+        const MAX_DIM_VALUE: u64 = 1 << 31;
         if let Ok(v) = token.parse::<u64>() {
+            if v == 0 {
+                return Err(ParseError {
+                    line,
+                    message: "dimension must be positive".to_string(),
+                });
+            }
+            if v > MAX_DIM_VALUE {
+                return Err(ParseError {
+                    line,
+                    message: "dimension exceeds the maximum accepted value".to_string(),
+                });
+            }
             return Ok(DimExpr::Const(v));
+        }
+        // CEP:WHAT: Rejects digit-leading tokens that failed the numeric parse.
+        // CEP:WHY: A token like '99999999999999999999999' must not silently become a symbol named by digits.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Returns ParseError for numeric-looking tokens that overflow.
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+        if token.starts_with(|c: char| c.is_ascii_digit()) {
+            return Err(ParseError {
+                line,
+                message: format!("invalid dimension token '{token}'"),
+            });
+        }
+        // CEP:WHAT: Enforces identifier syntax for dimension symbols.
+        // CEP:WHY: Junk like '2x' or '-1' must not be interned as a symbol; shapes are mathematical names, not free text.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Returns ParseError for tokens outside [A-Za-z_][A-Za-z0-9_]*.
+        // CEP:ASSUMES: none
+        // CEP:COST: O(token length).
+        // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+        let mut chars = token.chars();
+        let valid = match chars.next() {
+            Some(c) if c.is_ascii_alphabetic() || c == '_' => {
+                chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(ParseError {
+                line,
+                message: format!("invalid dimension symbol '{token}'"),
+            });
         }
         if token.len() > mlkp_config::limits::MAX_FRONTEND_IDENT_BYTES {
             return Err(ParseError {
@@ -193,6 +260,12 @@ impl<'a> Parser<'a> {
             return Err(ParseError {
                 line,
                 message: format!("type '{text}' has mismatched brackets"),
+            });
+        }
+        if close != text.len() - 1 {
+            return Err(ParseError {
+                line,
+                message: format!("type '{text}' has trailing content after ']'"),
             });
         }
         let elem = ElemKind::parse(text[..open].trim()).map_err(|e| ParseError {
@@ -233,14 +306,21 @@ impl<'a> Parser<'a> {
     }
 
     // CEP:WHAT: Registers a value name and node id.
-    // CEP:WHY: Later statements reference earlier definitions; the last definition wins.
+    // CEP:WHY: Every %name binds exactly once; SSA-style single definition makes lookups unambiguous.
     // CEP:STATUS: complete
-    // CEP:FAILURE: none
+    // CEP:FAILURE: Returns ParseError when the name was already defined.
     // CEP:ASSUMES: none
-    // CEP:COST: O(1).
+    // CEP:COST: O(values).
     // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
-    fn register(&mut self, name: &str, id: u32) {
+    fn register(&mut self, name: &str, id: u32, line: usize) -> Result<(), ParseError> {
+        if self.value_map.iter().any(|(n, _)| n == name) {
+            return Err(ParseError {
+                line,
+                message: format!("value '%{name}' is defined more than once"),
+            });
+        }
         self.value_map.push((name.to_string(), id));
+        Ok(())
     }
 
     // CEP:WHAT: Looks up a value name.
@@ -270,22 +350,55 @@ impl<'a> Parser<'a> {
             line: 1,
             message: "empty program".to_string(),
         })?;
-        let sig = sig.strip_prefix("fn").ok_or_else(|| ParseError {
+        let sig_body = sig.strip_prefix("fn").ok_or_else(|| ParseError {
             line: sig_line,
             message: "program must start with 'fn @name'".to_string(),
         })?;
+        // CEP:WHAT: Enforces the 'fn' keyword token boundary.
+        // CEP:WHY: strip_prefix alone would accept 'fnord' as a program starting with the identifier 'ord'.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Returns ParseError when 'fn' is not followed by whitespace or '@'.
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+        if !sig_body.starts_with(char::is_whitespace) && !sig_body.starts_with('@') {
+            return Err(ParseError {
+                line: sig_line,
+                message: "program must start with 'fn @name'".to_string(),
+            });
+        }
+        let sig = sig_body;
         let name_end = sig.find('(').ok_or_else(|| ParseError {
             line: sig_line,
             message: "signature lacks parameter list".to_string(),
         })?;
         let name = sig[..name_end].trim().trim_start_matches('@').to_string();
+        if name.is_empty()
+            || !name
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(ParseError {
+                line: sig_line,
+                message: "function name must be a valid identifier".to_string(),
+            });
+        }
         let rest = &sig[name_end + 1..];
         let arrow = rest.find("->").ok_or_else(|| ParseError {
             line: sig_line,
             message: "signature lacks '->' output type".to_string(),
         })?;
         let params_all = &rest[..arrow];
-        let params_text = params_all.strip_suffix(')').unwrap_or(params_all);
+        let params_trim = params_all.trim_end();
+        if !params_trim.ends_with(')') {
+            return Err(ParseError {
+                line: sig_line,
+                message: "parameter list lacks closing parenthesis".to_string(),
+            });
+        }
+        let params_text = &params_trim[..params_trim.len() - 1];
         let output_text = rest[arrow + 2..].trim();
         let open_brace = output_text.find('{').ok_or_else(|| ParseError {
             line: sig_line,
@@ -310,7 +423,7 @@ impl<'a> Parser<'a> {
                 .to_string();
             let id = self.next_node;
             self.next_node += 1;
-            self.register(&pname, id);
+            self.register(&pname, id, sig_line)?;
             self.type_map.push((id, ty.clone()));
             self.pending_inputs.push(Node {
                 id,
@@ -347,11 +460,32 @@ impl<'a> Parser<'a> {
         graph.inputs = (0..self.param_count).collect();
 
         let mut return_seen = false;
+        let mut saw_close_brace = false;
+        let mut statement_count = 0usize;
         while let Some((line, text)) = self.next_line() {
             if text == "}" {
+                saw_close_brace = true;
                 break;
             }
             if let Some(ret_body) = text.strip_prefix("return") {
+                // CEP:WHAT: Enforces the 'return' keyword token boundary.
+                // CEP:WHY: strip_prefix alone would misclassify 'returnme' as a return with value 'me'.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: none
+                // CEP:ASSUMES: lines are trimmed so the boundary check needs no whitespace scan.
+                // CEP:COST: O(1).
+                // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+                if !ret_body.is_empty() && !ret_body.starts_with(char::is_whitespace) {
+                    self.parse_statement(line, text, &mut graph)?;
+                    statement_count += 1;
+                    if statement_count > mlkp_config::limits::MAX_FRONTEND_STATEMENTS {
+                        return Err(ParseError {
+                            line,
+                            message: "statement count exceeds the configured cap".to_string(),
+                        });
+                    }
+                    continue;
+                }
                 if return_seen {
                     return Err(ParseError {
                         line,
@@ -364,6 +498,24 @@ impl<'a> Parser<'a> {
                     line,
                     message: format!("return references unknown value '{ret_val}'"),
                 })?;
+                // CEP:WHAT: Compares the returned value type with the declared output type.
+                // CEP:WHY: A mismatched return would produce a plan whose output buffer disagrees with the signature.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: Returns ParseError on type mismatch.
+                // CEP:ASSUMES: none
+                // CEP:COST: O(dims).
+                // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+                let ret_ty = self.node_type(node_id).ok_or_else(|| ParseError {
+                    line,
+                    message: "returned value has no registered type".to_string(),
+                })?;
+                if ret_ty != output {
+                    return Err(ParseError {
+                        line,
+                        message: "returned value type does not match the declared output type"
+                            .to_string(),
+                    });
+                }
                 graph.outputs.push(node_id);
                 return_seen = true;
                 continue;
@@ -375,6 +527,26 @@ impl<'a> Parser<'a> {
                 });
             }
             self.parse_statement(line, text, &mut graph)?;
+            statement_count += 1;
+            if statement_count > mlkp_config::limits::MAX_FRONTEND_STATEMENTS {
+                return Err(ParseError {
+                    line,
+                    message: "statement count exceeds the configured cap".to_string(),
+                });
+            }
+        }
+        if !saw_close_brace {
+            return Err(ParseError {
+                line: sig_line,
+                message: "function body lacks closing brace".to_string(),
+            });
+        }
+        if self.idx < self.lines.len() {
+            let (line, _) = self.lines[self.idx];
+            return Err(ParseError {
+                line,
+                message: "trailing content after the closing brace".to_string(),
+            });
         }
         if !return_seen {
             return Err(ParseError {
@@ -438,10 +610,20 @@ impl<'a> Parser<'a> {
         let mut operands = Vec::new();
         for arg in args_text.split(',') {
             let arg_trimmed = arg.trim();
-            let arg = arg_trimmed.strip_prefix('%').unwrap_or(arg_trimmed);
-            if arg.is_empty() {
-                continue;
+            // CEP:WHAT: Rejects empty operand slots.
+            // CEP:WHY: 'relu(%a,,%b)' and trailing commas must fail loudly instead of silently dropping slots.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: Returns ParseError for empty arguments.
+            // CEP:ASSUMES: none
+            // CEP:COST: O(1).
+            // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+            if arg_trimmed.is_empty() {
+                return Err(ParseError {
+                    line,
+                    message: "statement has an empty operand slot".to_string(),
+                });
             }
+            let arg = arg_trimmed.strip_prefix('%').unwrap_or(arg_trimmed);
             let id = self.lookup(arg).ok_or_else(|| ParseError {
                 line,
                 message: format!("unknown operand '{arg}'"),
@@ -451,8 +633,6 @@ impl<'a> Parser<'a> {
         let op = match op_name {
             "matmul" => Op::Contract,
             "relu" => Op::Map(MapFn::Relu),
-            "add" => Op::Map(MapFn::Add),
-            "mul" => Op::Map(MapFn::Mul),
             "exp" => Op::Map(MapFn::Exp),
             "neg" => Op::Map(MapFn::Neg),
             "sigmoid" => Op::Map(MapFn::Sigmoid),
@@ -478,7 +658,7 @@ impl<'a> Parser<'a> {
         };
         graph.add(node).expect("fresh ids");
         self.type_map.push((id, ty));
-        self.register(&target, id);
+        self.register(&target, id, line)?;
         Ok(())
     }
 
@@ -517,6 +697,19 @@ impl<'a> Parser<'a> {
                         message: "matmul requires rank-2 operands".to_string(),
                     });
                 }
+                // CEP:WHAT: Checks contraction-dimension equality.
+                // CEP:WHY: A.shape[1] == B.shape[0] is the matmul shape constraint from design section 13; accepting unequal K would miscompile or over-read buffers.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: Returns ParseError when the reduction dimensions disagree.
+                // CEP:ASSUMES: none
+                // CEP:COST: O(1).
+                // CEP:EVIDENCE: crates/mlkp-front/tests/front_test.rs
+                if a.dims[1] != b.dims[0] {
+                    return Err(ParseError {
+                        line,
+                        message: "matmul reduction dimensions disagree".to_string(),
+                    });
+                }
                 let m = a.dims[0].clone();
                 let n = b.dims[1].clone();
                 TensorType::dense(a.elem, vec![m, n]).map_err(|e| ParseError {
@@ -524,7 +717,13 @@ impl<'a> Parser<'a> {
                     message: e.to_string(),
                 })
             }
-            "softmax" | "relu" | "add" | "mul" | "exp" | "neg" | "sigmoid" => {
+            "softmax" | "relu" | "exp" | "neg" | "sigmoid" => {
+                if operands.len() != 1 {
+                    return Err(ParseError {
+                        line,
+                        message: "unary operation takes exactly one operand".to_string(),
+                    });
+                }
                 let first = match operands.first() {
                     Some(x) => *x,
                     None => {
@@ -535,15 +734,6 @@ impl<'a> Parser<'a> {
                     }
                 };
                 let a = ty_of(first)?;
-                for other in &operands[1..] {
-                    let t = ty_of(*other)?;
-                    if t.dims.len() != a.dims.len() {
-                        return Err(ParseError {
-                            line,
-                            message: "elementwise operands disagree in rank".to_string(),
-                        });
-                    }
-                }
                 Ok(a)
             }
             other => Err(ParseError {

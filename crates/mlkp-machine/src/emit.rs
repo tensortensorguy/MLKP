@@ -72,18 +72,32 @@ pub fn emit(
             saved.push(p);
         }
     }
-    let frame = 8 * saved.len() as i64 + 8 * alloc.spill_slots as i64;
+    let spill_area = 8 * alloc.spill_slots as i64;
+    // CEP:WHAT: Aligns the spill area to the SysV 16-byte stack boundary.
+    // CEP:WHY: An odd spill count would leave rsp misaligned at call sites and fault vector instructions in callees.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+    let spill_aligned = (spill_area + 15) / 16 * 16;
+    let frame = 8 * saved.len() as i64 + spill_aligned;
     out.push_str(&format!(".text\n.globl {}\n{}:\n", f.name, f.name));
     out.push_str("  pushq %rbp\n  movq %rsp, %rbp\n");
     for p in &saved {
         out.push_str(&format!("  pushq %{}\n", target.reg_name(*p)));
     }
     out.push_str(&format!("  subq ${frame}, %rsp\n"));
-    // Spill slot offsets relative to rbp: spill slot i lives at -16 - 8*i - frame_padding.
-    for (bi, block) in f.blocks.iter().enumerate() {
-        if bi > 0 {
-            out.push_str(&format!(".L{}:\n", block.label));
-        }
+    // Spill slot offsets relative to rbp: spill slot i lives at -(8*saved + 8*(i+1)) once spill rewriting lands (CEP-323).
+    for block in f.blocks.iter() {
+        // CEP:WHAT: Emits every block label, including the entry block.
+        // CEP:WHY: A branch to the entry block would otherwise reference an undefined label at assembly time.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: none
+        // CEP:COST: O(blocks).
+        // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+        out.push_str(&format!(".L{}:\n", block.label));
         for insn in &block.insns {
             let line = render_insn(insn, alloc, target)?;
             out.push_str(&line);
@@ -110,12 +124,18 @@ fn render_insn(
     target: &X86_64Target,
 ) -> Result<String, EmitError> {
     let preg_of = |v: u32| -> Result<u32, EmitError> {
-        alloc
-            .assignment
-            .iter()
-            .find(|(id, _)| id == &v)
-            .map(|(_, p)| *p)
-            .ok_or(EmitError::UnresolvedVReg(v))
+        match alloc.assignment.iter().find(|(id, _)| id == &v) {
+            Some((_, p)) if *p != u32::MAX => Ok(*p),
+            // CEP:WHAT: Reports spilled values as unresolved spills.
+            // CEP:WHY: A spilled vreg has no register; rendering %unknown would produce silently corrupt assembly, so the declared failure path must fire.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: Returns EmitError::UnresolvedSpill for u32::MAX assignments.
+            // CEP:ASSUMES: none
+            // CEP:COST: O(assignment).
+            // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+            Some(_) => Err(EmitError::UnresolvedSpill(v)),
+            None => Err(EmitError::UnresolvedVReg(v)),
+        }
     };
     let opnd = |o: &Operand| -> Result<String, EmitError> {
         match o {
@@ -166,7 +186,7 @@ fn render_insn(
             let val = dst;
             format!("  movq {}, {}\n", val, addr)
         }
-        Opcode::Ret => "  ret\n".to_string(),
+        Opcode::Ret => "  jmp .Lret\n".to_string(),
         Opcode::Jl | Opcode::Jge | Opcode::Jmp => format!("  {mnemonic} {dst}\n"),
         Opcode::Call => format!("  call {dst}\n"),
         _ => {
@@ -256,6 +276,21 @@ pub fn verify_allocation(
                     Some(r) if r.class == *class => {}
                     _ => errors.push(format!("vreg {v} assigned register outside its class")),
                 }
+            }
+        }
+    }
+    // CEP:WHAT: Checks preg blocking from implicit defs.
+    // CEP:WHY: A value live across a call must not occupy a caller-saved register the call clobbers; the allocator's blocked-preg contract is checked independently here.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Pushes an error per violation.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(blocked).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+    let ig2 = crate::irc::build_interference(f, target);
+    for (v, pg) in &ig2.blocked_pregs {
+        if let Some((_, p)) = alloc.assignment.iter().find(|(id, _)| id == v) {
+            if *p == *pg {
+                errors.push(format!("vreg {v} occupies blocked register {pg}"));
             }
         }
     }

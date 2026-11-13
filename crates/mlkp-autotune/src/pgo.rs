@@ -12,7 +12,6 @@
 
 use std::path::{Path, PathBuf};
 
-use cep_hash::hash_u64;
 use cep_json::Json;
 
 /// PGO store failure.
@@ -53,6 +52,23 @@ pub struct Observation {
     pub cost_ns: u64,
 }
 
+/// The stored winning schedule for warm starting.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StoredConfig {
+    /// Tile rows.
+    pub bm: u32,
+    /// Tile columns.
+    pub bn: u32,
+    /// Tile depth.
+    pub bk: u32,
+    /// Worker count.
+    pub threads: u32,
+    /// Loop order.
+    pub loop_order: u32,
+    /// Transposed B layout.
+    pub transpose_b: bool,
+}
+
 /// PGO record for one subgraph.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PgoRecord {
@@ -66,6 +82,8 @@ pub struct PgoRecord {
     pub last_best_config: u64,
     /// Observation count feeding the mean.
     pub cost_samples: u64,
+    /// The winning schedule fields, when a compilation completed.
+    pub last_best: Option<StoredConfig>,
 }
 
 /// The persistent PGO store.
@@ -128,9 +146,17 @@ impl PgoStore {
             .ok_or_else(|| PgoError::Malformed("records array missing".to_string()))?;
         let mut out = Vec::new();
         for item in arr {
+            // CEP:WHAT: Parses 64-bit keys from their decimal string form.
+            // CEP:WHY: JSON numbers are IEEE doubles; a u64 hash above 2^53 would round and corrupt the key, so keys travel as strings both ways.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: Returns Malformed when the hash string is missing or unparseable.
+            // CEP:ASSUMES: the file was written by save().
+            // CEP:COST: O(digits).
+            // CEP:EVIDENCE: crates/mlkp-autotune/tests/pgo_test.rs
             let hash = item
                 .get("hash")
-                .and_then(|v| v.as_u64())
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<u64>().ok())
                 .ok_or_else(|| PgoError::Malformed("record hash missing".to_string()))?;
             let rec = item
                 .get("record")
@@ -142,12 +168,14 @@ impl PgoStore {
                 .unwrap_or(0);
             let last = rec
                 .get("last_best_config")
-                .and_then(|v| v.as_u64())
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<u64>().ok())
                 .unwrap_or(0);
             let cost_samples = rec
                 .get("cost_samples")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
+            let last_best = parse_stored_config(rec);
             let mut shapes = Vec::new();
             if let Some(shape_arr) = rec.get("shapes").and_then(|v| v.as_arr()) {
                 for s in shape_arr {
@@ -168,6 +196,7 @@ impl PgoStore {
                     mean_cost_ns,
                     last_best_config: last,
                     cost_samples,
+                    last_best,
                 },
             ));
         }
@@ -202,27 +231,35 @@ impl PgoStore {
                     ("count".to_string(), Json::Num(*count as f64)),
                 ]));
             }
-            records.push(Json::Obj(vec![
-                ("hash".to_string(), Json::Num(*hash as f64)),
+            let mut fields = vec![
+                ("exec_count".to_string(), Json::Num(rec.exec_count as f64)),
+                ("shapes".to_string(), Json::Arr(shapes)),
                 (
-                    "record".to_string(),
-                    Json::Obj(vec![
-                        ("exec_count".to_string(), Json::Num(rec.exec_count as f64)),
-                        ("shapes".to_string(), Json::Arr(shapes)),
-                        (
-                            "mean_cost_ns".to_string(),
-                            Json::Num(rec.mean_cost_ns as f64),
-                        ),
-                        (
-                            "last_best_config".to_string(),
-                            Json::Num(rec.last_best_config as f64),
-                        ),
-                        (
-                            "cost_samples".to_string(),
-                            Json::Num(rec.cost_samples as f64),
-                        ),
-                    ]),
+                    "mean_cost_ns".to_string(),
+                    Json::Num(rec.mean_cost_ns as f64),
                 ),
+                (
+                    "last_best_config".to_string(),
+                    Json::Str(rec.last_best_config.to_string()),
+                ),
+                (
+                    "cost_samples".to_string(),
+                    Json::Num(rec.cost_samples as f64),
+                ),
+            ];
+            if let Some(cfg) = rec.last_best {
+                fields.push(("last_best".to_string(), stored_config_json(cfg)));
+            }
+            records.push(Json::Obj(vec![
+                // CEP:WHAT: Serializes the 64-bit key as a decimal string.
+                // CEP:WHY: A u64 above 2^53 does not round-trip through an IEEE double; the string form is exact.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: none
+                // CEP:ASSUMES: none
+                // CEP:COST: O(digits).
+                // CEP:EVIDENCE: crates/mlkp-autotune/tests/pgo_test.rs
+                ("hash".to_string(), Json::Str(hash.to_string())),
+                ("record".to_string(), Json::Obj(fields)),
             ]));
         }
         let doc = Json::Obj(vec![("records".to_string(), Json::Arr(records))]);
@@ -252,17 +289,23 @@ impl PgoStore {
                 &mut self.records.last_mut().expect("just pushed").1
             }
         };
-        rec.exec_count += obs.exec_count;
-        rec.cost_samples += 1;
-        // Running mean keeps the store bounded.
-        rec.mean_cost_ns =
-            (rec.mean_cost_ns * (rec.cost_samples - 1) + obs.cost_ns) / rec.cost_samples.max(1);
+        rec.exec_count = rec.exec_count.saturating_add(obs.exec_count);
+        rec.cost_samples = rec.cost_samples.saturating_add(1);
+        // CEP:WHAT: Updates the running mean in 128-bit arithmetic.
+        // CEP:WHY: The product mean * (n-1) can exceed 64 bits at large sample counts; u128 keeps the accumulator exact and the division truncation is documented.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: crates/mlkp-autotune/tests/pgo_test.rs
+        let n = rec.cost_samples.max(1) as u128;
+        let acc = rec.mean_cost_ns as u128 * (n - 1) + obs.cost_ns as u128;
+        rec.mean_cost_ns = (acc / n).min(u64::MAX as u128) as u64;
         if let Some(entry) = rec.shapes.iter_mut().find(|(d, _)| *d == obs.dims) {
-            entry.1 += obs.exec_count;
+            entry.1 = entry.1.saturating_add(obs.exec_count);
         } else {
             rec.shapes.push((obs.dims.clone(), obs.exec_count));
         }
-        let _ = hash_u64(subgraph_hash, 0);
     }
 
     /// Reads one record.
@@ -294,6 +337,29 @@ impl PgoStore {
         }
     }
 
+    /// Sets the last best config and its concrete schedule fields for warm starting.
+    // CEP:WHAT: Stores the winner hash and schedule together.
+    // CEP:WHY: A hash alone cannot reconstruct the schedule; warm starting must reinstall the previous winner's tile and loop settings.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Creates the record when absent so the warm start survives process restarts.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(records).
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pgo_test.rs
+    pub fn set_last_best_config(
+        &mut self,
+        subgraph_hash: u64,
+        config_hash: u64,
+        config: StoredConfig,
+    ) {
+        if self.record_for(subgraph_hash).is_none() {
+            self.records.push((subgraph_hash, PgoRecord::default()));
+        }
+        self.set_last_best(subgraph_hash, config_hash);
+        if let Some((_, rec)) = self.records.iter_mut().find(|(h, _)| *h == subgraph_hash) {
+            rec.last_best = Some(config);
+        }
+    }
+
     /// Detects drift: true when the fresh median cost exceeds the stored mean by the drift ratio.
     // CEP:WHAT: Detects PGO drift.
     // CEP:WHY: Design failure mode "PGO drift": when runtime behavior diverges beyond a threshold, trigger re-autotune with fresh data.
@@ -308,4 +374,54 @@ impl PgoStore {
             r.cost_samples >= 4 && (fresh_ns as f64) > r.mean_cost_ns as f64 * ratio
         })
     }
+}
+
+// CEP:WHAT: Serializes one stored schedule to JSON.
+// CEP:WHY: Warm starting needs the previous winner's concrete fields, not just its hash.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/pgo_test.rs
+fn stored_config_json(cfg: StoredConfig) -> Json {
+    Json::Obj(vec![
+        ("bm".to_string(), Json::Num(f64::from(cfg.bm))),
+        ("bn".to_string(), Json::Num(f64::from(cfg.bn))),
+        ("bk".to_string(), Json::Num(f64::from(cfg.bk))),
+        ("threads".to_string(), Json::Num(f64::from(cfg.threads))),
+        (
+            "loop_order".to_string(),
+            Json::Num(f64::from(cfg.loop_order)),
+        ),
+        ("transpose_b".to_string(), Json::Bool(cfg.transpose_b)),
+    ])
+}
+
+// CEP:WHAT: Parses one stored schedule from a record; absent fields yield None.
+// CEP:WHY: Older cache files without the schedule must still load; warm start then falls back to the default schedule.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/pgo_test.rs
+fn parse_stored_config(rec: &Json) -> Option<StoredConfig> {
+    let obj = rec.get("last_best")?;
+    let num = |k: &str| obj.get(k).and_then(|v| v.as_u64());
+    let bm = num("bm")?;
+    let bn = num("bn")?;
+    let bk = num("bk")?;
+    let threads = num("threads")?;
+    let loop_order = num("loop_order")?;
+    let transpose_b = obj
+        .get("transpose_b")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    Some(StoredConfig {
+        bm: bm.min(u32::MAX as u64) as u32,
+        bn: bn.min(u32::MAX as u64) as u32,
+        bk: bk.min(u32::MAX as u64) as u32,
+        threads: threads.min(u32::MAX as u64) as u32,
+        loop_order: loop_order.min(u32::MAX as u64) as u32,
+        transpose_b,
+    })
 }

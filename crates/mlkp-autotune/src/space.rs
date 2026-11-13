@@ -65,8 +65,6 @@ impl PassSet {
 
 /// Tile size candidates: powers of two within L1/L2 bounds (named constants per Law 7).
 const TILE_CHOICES: [usize; 4] = [16, 32, 64, 128];
-/// Vector width candidates map to unroll factors of the inner loop.
-const WIDTH_CHOICES: [u32; 2] = [1, 4];
 /// Loop order candidates for the matmul triple.
 const LOOP_ORDER_CHOICES: [u32; 2] = [0, 1];
 /// Worker counts candidates (dimension E, CPU slice).
@@ -81,31 +79,47 @@ const WORKER_CHOICES: [u32; 2] = [1, 2];
 // CEP:COST: O(space size).
 // CEP:EVIDENCE: crates/mlkp-autotune/tests/space_test.rs
 pub fn enumerate(problem_elements: u64) -> Vec<Candidate> {
+    // CEP:WHAT: Caps the enumerated space at the configured session bound.
+    // CEP:WHY: An unbounded cross product would let one pathological session starve the budget; the cap keeps the pruner's input bounded by a named constant.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none; enumeration truncates deterministically at the cap.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(space size).
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/space_test.rs
+    let cap = mlkp_config::limits::MAX_SESSION_CANDIDATES;
     let mut out = Vec::new();
-    for bm in TILE_CHOICES {
+    'outer: for bm in TILE_CHOICES {
         for bn in TILE_CHOICES {
             for bk in TILE_CHOICES {
-                for width in WIDTH_CHOICES {
-                    for order in LOOP_ORDER_CHOICES {
-                        for layout in [Layout::RowMajor, Layout::TransposedB] {
-                            for workers in WORKER_CHOICES {
-                                // Small problems do not benefit from multi-worker chunking.
-                                if workers > 1 && problem_elements < 1 << 16 {
-                                    continue;
-                                }
-                                out.push(Candidate {
-                                    config: PassConfig {
-                                        tile: Tile { bm, bn, bk },
-                                        threads: workers,
-                                        loop_order: order,
-                                        fused_elementwise: true,
-                                        transpose_b: layout == Layout::TransposedB,
-                                    },
-                                    layout,
-                                    device_workers: workers,
-                                    passes: PassSet::ALL,
-                                    algebraic_iters: if width > 1 { 2 } else { 1 },
-                                });
+                for order in LOOP_ORDER_CHOICES {
+                    for layout in [Layout::RowMajor, Layout::TransposedB] {
+                        for workers in WORKER_CHOICES {
+                            // Small problems do not benefit from multi-worker chunking.
+                            if workers > 1 && problem_elements < 1 << 16 {
+                                continue;
+                            }
+                            // CEP:WHAT: Skips the phantom vector-width dimension.
+                            // CEP:WHY: The backend does not consume a width parameter yet; enumerating width duplicates would produce byte-identical plans and waste half the evaluation budget.
+                            // CEP:STATUS: complete
+                            // CEP:FAILURE: none
+                            // CEP:ASSUMES: none
+                            // CEP:COST: O(1).
+                            // CEP:EVIDENCE: doc/autotuner.md Known Limitations.
+                            out.push(Candidate {
+                                config: PassConfig {
+                                    tile: Tile { bm, bn, bk },
+                                    threads: workers,
+                                    loop_order: order,
+                                    fused_elementwise: true,
+                                    transpose_b: layout == Layout::TransposedB,
+                                },
+                                layout,
+                                device_workers: workers,
+                                passes: PassSet::ALL,
+                                algebraic_iters: 1,
+                            });
+                            if out.len() >= cap {
+                                break 'outer;
                             }
                         }
                     }

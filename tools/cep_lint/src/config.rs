@@ -183,6 +183,19 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
             let v = s
                 .as_u64()
                 .ok_or_else(|| BootError::new(5, "wrong type: fail_on element"))?;
+            // CEP:WHAT: Range-checks the severity before any narrowing cast.
+            // CEP:WHY: Casting u64 to u8 first would silently wrap 259 into 3 and accept an out-of-range severity.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: Returns BootError code 7.
+            // CEP:ASSUMES: none
+            // CEP:COST: O(1).
+            // CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
+            if v > 3 {
+                return Err(BootError::new(
+                    7,
+                    format!("severity {v} out of range 0..=3"),
+                ));
+            }
             check_severity(v as u8)
         })
         .collect::<Result<_, _>>()?;
@@ -191,10 +204,10 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
         .get("exit_codes")
         .ok_or_else(|| BootError::new(4, "missing key: exit_codes"))?;
     let exit_codes = [
-        require_u64(exits, "ok", "exit_codes.ok")? as u8,
-        require_u64(exits, "findings", "exit_codes.findings")? as u8,
-        require_u64(exits, "bootstrap", "exit_codes.bootstrap")? as u8,
-        require_u64(exits, "usage", "exit_codes.usage")? as u8,
+        require_exit(exits, "ok", "exit_codes.ok")?,
+        require_exit(exits, "findings", "exit_codes.findings")?,
+        require_exit(exits, "bootstrap", "exit_codes.bootstrap")?,
+        require_exit(exits, "usage", "exit_codes.usage")?,
     ];
 
     let manifest = value
@@ -210,10 +223,21 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
     let mut rules = Vec::new();
     let mut doc_sync = None;
     for (name, body) in rules_value {
-        let severity =
-            check_severity(
-                require_u64(body, "severity", &format!("rules.{name}.severity"))? as u8,
-            )?;
+        let severity_v = require_u64(body, "severity", &format!("rules.{name}.severity"))?;
+        // CEP:WHAT: Range-checks rule severities before the narrowing cast.
+        // CEP:WHY: A truncated cast would accept 259 as severity 3 and silently change the rule's failure behavior.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Returns BootError code 7.
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
+        if severity_v > 3 {
+            return Err(BootError::new(
+                7,
+                format!("severity {severity_v} out of range 0..=3 for rule {name}"),
+            ));
+        }
+        let severity = check_severity(severity_v as u8)?;
         let check = require_str(body, "check", &format!("rules.{name}.check"))?.to_string();
         if !KNOWN_CHECKS.contains(&check.as_str()) && !KNOWN_CHECKS_EXTRA.contains(&check.as_str())
         {
@@ -228,7 +252,57 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
             .unwrap_or("")
             .to_string();
         let message = require_str(body, "message", &format!("rules.{name}.message"))?.to_string();
+        // CEP:WHAT: Validates the params object type and every pattern-valued param.
+        // CEP:WHY: A mistyped params object would fall back to defaults at check time; an invalid pattern would silently disable a severity-1 rule because the check primitives discard compile errors. Both are fail-open paths the schema must close.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Returns BootError code 5 for non-object params and code 8 for invalid patterns.
+        // CEP:ASSUMES: the PATTERN_PARAMS table lists the pattern-valued params per check.
+        // CEP:COST: O(params).
+        // CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
         let params = body.get("params").cloned().unwrap_or(Json::Obj(Vec::new()));
+        if body.get("params").is_some() && params.as_obj().is_none() {
+            return Err(BootError::new(
+                5,
+                format!("wrong type: rules.{name}.params must be an object"),
+            ));
+        }
+        if let Some(obj) = params.as_obj() {
+            const PATTERN_PARAMS: [&str; 6] = [
+                "pattern",
+                "suppression_pattern",
+                "name_pattern",
+                "gap_pattern",
+                "match_pattern",
+                "heading_pattern",
+            ];
+            for (k, v) in obj {
+                if PATTERN_PARAMS.contains(&k.as_str()) {
+                    if let Some(p) = v.as_str() {
+                        validate_pattern(p).map_err(|e| {
+                            BootError::new(8, format!("rules.{name}.params.{k}: {e}"))
+                        })?;
+                    }
+                }
+                // CEP:WHAT: Validates the exempt_contexts pattern list element-wise.
+                // CEP:WHY: It is the only array param whose entries are regexes; a single invalid entry would silently disable matching for that context.
+                // CEP:STATUS: complete
+                // CEP:FAILURE: Returns BootError code 8.
+                // CEP:ASSUMES: other array params (tokens, statuses, fields) are literal strings, not patterns.
+                // CEP:COST: O(elements).
+                // CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
+                if k == "exempt_contexts" {
+                    if let Some(arr) = v.as_arr() {
+                        for (i, el) in arr.iter().enumerate() {
+                            if let Some(p) = el.as_str() {
+                                validate_pattern(p).map_err(|e| {
+                                    BootError::new(8, format!("rules.{name}.params.{k}[{i}]: {e}"))
+                                })?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if name == "CEP-LINT-DOC-SYNC" {
             let doc_path = require_str(&params, "doc_path", "doc_sync.doc_path")?.to_string();
             let heading_pattern =
@@ -332,4 +406,22 @@ fn check_severity(v: u8) -> Result<u8, BootError> {
 // CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
 pub fn validate_pattern(pattern: &str) -> Result<(), String> {
     re::compile(pattern, false).map(|_| ())
+}
+
+// CEP:WHAT: Reads a required exit code in 0..=255.
+// CEP:WHY: Exit codes are u8 at the process boundary; a wrapped value would make the configured contract and the observed exit disagree.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns BootError code 5 for out-of-range values.
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
+fn require_exit(obj: &Json, key: &str, path: &str) -> Result<u8, BootError> {
+    let v = require_u64(obj, key, path)?;
+    if v > 255 {
+        return Err(BootError::new(
+            5,
+            format!("wrong type: {path} must be in 0..=255"),
+        ));
+    }
+    Ok(v as u8)
 }

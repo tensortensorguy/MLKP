@@ -144,15 +144,21 @@ pub fn flat_code_regex(rule: &RuleConfig, file: &str, lexed: &Lexed) -> Vec<Find
     while let Some(m) = find_from(&compiled, &chars, search_from) {
         let (start, end) = m.span();
         let mut detail = String::new();
+        // CEP:WHAT: Treats a non-participating name capture as a violation.
+        // CEP:WHY: Defaulting to accepted when the capture group is absent would let optional groups silently suppress findings; absence of a name is exactly what the rule flags.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
         let mut violated = true;
         if let (Some(idx), Some(name_rx)) = (name_group, &name_re) {
-            violated = false;
             if let Some(group) = m.group_chars(&chars, idx) {
                 let name: String = group.iter().copied().collect();
                 detail = name.clone();
                 let gchars: Vec<char> = name.chars().collect();
-                if !name_rx.is_match(&gchars) {
-                    violated = true;
+                if name_rx.is_match(&gchars) {
+                    violated = false;
                 }
             }
         }
