@@ -488,6 +488,22 @@ impl KernelPlan {
     // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn validate(&self) -> Result<(), PlanError> {
         let mut errors: Vec<String> = Vec::new();
+        // CEP:WHAT: Proves the schedule configuration is executable.
+        // CEP:WHY: The kernels select behavior from the config fields; a loop order or thread count outside the executable set would make the measured cost claim false.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Appends an airlock error per invalid config field.
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1).
+        // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+        if self.config.loop_order > 1 {
+            errors.push(format!(
+                "config loop_order {} is outside the executable set {{0, 1}}",
+                self.config.loop_order
+            ));
+        }
+        if self.config.threads == 0 {
+            errors.push("config threads must be at least 1".to_string());
+        }
         for op in &self.ops {
             match op {
                 PlanOp::Unary { src, dst, n, .. } => {

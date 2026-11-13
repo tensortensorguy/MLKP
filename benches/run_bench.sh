@@ -26,7 +26,7 @@ for DIM in 64 128; do
     echo "- discipline: warmup 3, median of 9 runs per candidate, budget 5000 ms"
     echo ""
     echo '```'
-    "$BIN" run x --budget-ms 5000 --dim "$DIM"
+    "$BIN" run --budget-ms 5000 --dim "$DIM"
     echo '```'
     echo ""
     echo "Interpretation: the autotune line reports the winner's measured median latency; the execute line reports the checksum of the optimized output. The naive baseline is measured first inside the search, so the winner is never slower in the median sense."

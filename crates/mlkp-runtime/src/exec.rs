@@ -222,8 +222,17 @@ fn run_op(op: &PlanOp, plan: &KernelPlan, arena: &mut Arena) -> Result<(), ExecE
             let data = arena.as_mut_slice();
             let views = three_mut(data, s0, l0, s1, l1, s2, l2).ok_or(ExecError::Buffer(*c))?;
             let (a_view, b_view, c_view) = views;
-            let threads = plan.config.threads.max(1) as usize;
-            if threads <= 1 || *m < 2 {
+            // CEP:WHAT: Gates the threaded path by the worker budget and the output size.
+            // CEP:WHY: Threads pay off only above the named output-element threshold; below it the spawn overhead would inflate the measured cost, and the config request is capped at MAX_PLAN_THREADS so one plan cannot oversubscribe the host.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: none
+            // CEP:ASSUMES: the airlock rejected threads == 0 and loop_order > 1 already.
+            // CEP:COST: O(1).
+            // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+            let threads =
+                (plan.config.threads as usize).clamp(1, mlkp_config::limits::MAX_PLAN_THREADS);
+            if threads <= 1 || *m < 2 || *m * *n < mlkp_config::limits::PARALLEL_MIN_OUTPUT_ELEMENTS
+            {
                 kernels::matmul_tiled_sched(
                     a_view,
                     b_view,

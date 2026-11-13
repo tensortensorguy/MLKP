@@ -90,6 +90,12 @@ pub const PGO_DRIFT_RATIO: f64 = 1.25;
 /// Hard cap on concurrent evaluation threads.
 pub const MAX_EVAL_THREADS: usize = 16;
 
+/// Minimum output elements of one plan op before execution spawns worker threads.
+pub const PARALLEL_MIN_OUTPUT_ELEMENTS: usize = 1 << 15;
+
+/// Hard cap on worker threads inside one plan execution.
+pub const MAX_PLAN_THREADS: usize = 16;
+
 /// Hard cap on candidate evaluations per autotuning session.
 pub const MAX_SESSION_CANDIDATES: usize = 400;
 
@@ -118,4 +124,5 @@ const _: () = assert!(
 );
 const _: () = assert!(MEASUREMENT_WARMUP_RUNS < MEASUREMENT_RUNS);
 const _: () = assert!(MAX_EVAL_THREADS >= 1);
+const _: () = assert!(MAX_PLAN_THREADS >= 1);
 const _: () = assert!(HOT_PATH_EXEC_COUNT >= 1);

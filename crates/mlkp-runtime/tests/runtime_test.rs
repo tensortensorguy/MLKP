@@ -311,7 +311,8 @@ fn matmul_schedules_match_reference() {
 // CEP:EVIDENCE: cargo test -p mlkp-runtime
 #[test]
 fn threaded_matmul_matches_single_thread() {
-    let (m, n, k) = (32, 32, 32);
+    // The output must clear PARALLEL_MIN_OUTPUT_ELEMENTS so the threaded path runs.
+    let (m, n, k) = (200, 200, 200);
     let a: Vec<f32> = (0..m * k).map(|i| ((i % 9) as f32) - 4.0).collect();
     let b: Vec<f32> = (0..k * n).map(|i| ((i % 5) as f32) * 0.5).collect();
     let mut single = vec![0.0f32; m * n];
@@ -395,4 +396,53 @@ fn airlock_rejects_overlapping_op_buffers() {
         config: PassConfig::default(),
     };
     assert!(plan.validate().is_err(), "src == dst must be rejected");
+}
+
+// CEP:WHAT: Verifies the airlock rejects unexecutable schedule configurations.
+// CEP:WHY: A loop order or thread count outside the executable set would make the cost claims false.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+#[test]
+fn airlock_rejects_bad_schedule_config() {
+    let mut g = Graph::default();
+    let t2 = TensorType::dense(ElemKind::F32, vec![DimExpr::c(8), DimExpr::c(8)]).expect("type");
+    for name in ["A", "B"] {
+        g.add(Node {
+            id: g.len() as u32,
+            op: Op::Input,
+            inputs: vec![],
+            device: Device::Cpu(0),
+            ty: t2.clone(),
+            pgo: Default::default(),
+            name: name.to_string(),
+        })
+        .expect("add");
+    }
+    g.add(Node {
+        id: 2,
+        op: Op::Contract,
+        inputs: vec![0, 1],
+        device: Device::Cpu(0),
+        ty: t2,
+        pgo: Default::default(),
+        name: "mm".to_string(),
+    })
+    .expect("add");
+    g.inputs = vec![0, 1];
+    g.outputs = vec![2];
+    let cfg = PassConfig {
+        loop_order: 2,
+        ..Default::default()
+    };
+    let plan = mlkp_runtime::plan::lower(&g, &cfg).expect("lower");
+    assert!(plan.validate().is_err(), "loop_order 2 must be rejected");
+    let cfg = PassConfig {
+        threads: 0,
+        ..Default::default()
+    };
+    let plan = mlkp_runtime::plan::lower(&g, &cfg).expect("lower");
+    assert!(plan.validate().is_err(), "threads 0 must be rejected");
 }

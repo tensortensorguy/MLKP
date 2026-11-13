@@ -9,7 +9,7 @@
 ```
 stage=parse ok
 stage=verify ok nodes=4
-stage=autotune winner_hash=6685657665941114018 latency_ns=1698418 from_cache=false
+stage=autotune winner_hash=5979803995542702231 latency_ns=1677764 from_cache=false tile=32x128x64 loop_order=1 transpose_b=false threads=2
 stage=execute ok checksum=10481800.0000
 ```
 

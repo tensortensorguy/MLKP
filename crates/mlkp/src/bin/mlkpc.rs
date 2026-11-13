@@ -105,9 +105,25 @@ fn main() {
             let sum: f32 = out.iter().sum();
             println!("stage=parse ok");
             println!("stage=verify ok nodes={}", compiled.plan.buffers);
+            // CEP:WHAT: Logs the winning schedule alongside its measured latency.
+            // CEP:WHY: The bench artifacts must record which schedule won (tile, loop order, layout, threads), not only its hash, so the evidence ties the cost claim to the executable configuration.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: none
+            // CEP:ASSUMES: the plan carries the winning config.
+            // CEP:COST: cold; one formatted line.
+            // CEP:EVIDENCE: benches/artifacts/matmul_64.md and benches/artifacts/matmul_128.md
+            let cfg = &compiled.plan.config;
             println!(
-                "stage=autotune winner_hash={} latency_ns={} from_cache={}",
-                compiled.config_hash, compiled.latency_ns, compiled.from_cache
+                "stage=autotune winner_hash={} latency_ns={} from_cache={} tile={bm}x{bn}x{bk} loop_order={lo} transpose_b={tb} threads={th}",
+                compiled.config_hash,
+                compiled.latency_ns,
+                compiled.from_cache,
+                bm = cfg.tile.bm,
+                bn = cfg.tile.bn,
+                bk = cfg.tile.bk,
+                lo = cfg.loop_order,
+                tb = cfg.transpose_b,
+                th = cfg.threads,
             );
             println!("stage=execute ok checksum={sum:.4}");
             let _ = pgo.save();
