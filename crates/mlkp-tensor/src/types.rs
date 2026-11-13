@@ -6,7 +6,7 @@
 // CEP:FAILURE: Constructors return TypeError on zero-rank tensors and unknown element kinds; no panics.
 // CEP:ASSUMES: element widths follow the IEEE and integer conventions named in the descriptions; quantized types carry their scale explicitly rather than assuming a calibration.
 // CEP:COST: cold; type construction is O(1) and runs during lowering only.
-// CEP:EVIDENCE: unit tests in crates/mlkp-tensor/tests/types_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-tensor/tests/tensor_test.rs.
 
 #![deny(missing_docs)]
 
@@ -32,7 +32,7 @@ impl fmt::Display for TypeError {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: cold; one formatted string.
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TypeError::ZeroRank => write!(f, "type error: tensor has zero dimensions"),
@@ -89,7 +89,7 @@ impl ElemKind {
     // CEP:FAILURE: none
     // CEP:ASSUMES: complex64 occupies two f32 slots; booleans occupy one byte.
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn byte_width(self) -> u64 {
         match self {
             ElemKind::F16 | ElemKind::Bf16 => 2,
@@ -110,7 +110,7 @@ impl ElemKind {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn is_float(self) -> bool {
         matches!(
             self,
@@ -125,7 +125,7 @@ impl ElemKind {
     // CEP:FAILURE: Returns TypeError::UnknownElement for unrecognized names.
     // CEP:ASSUMES: none
     // CEP:COST: O(names).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn parse(name: &str) -> Result<ElemKind, TypeError> {
         match name {
             "f16" => Ok(ElemKind::F16),
@@ -189,7 +189,7 @@ impl TensorType {
     // CEP:FAILURE: Returns TypeError::ZeroRank for empty dimensions.
     // CEP:ASSUMES: none
     // CEP:COST: O(dims).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn dense(elem: ElemKind, dims: Vec<DimExpr>) -> Result<TensorType, TypeError> {
         if dims.is_empty() {
             return Err(TypeError::ZeroRank);
@@ -208,7 +208,7 @@ impl TensorType {
     // CEP:FAILURE: Returns TypeError::ZeroRank for empty dimensions.
     // CEP:ASSUMES: none
     // CEP:COST: O(dims).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn composite(
         elem: ElemKind,
         composite: CompositeKind,
@@ -231,7 +231,7 @@ impl TensorType {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn rank(&self) -> usize {
         self.dims.len()
     }
@@ -310,7 +310,7 @@ impl DimExpr {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn c(v: u64) -> DimExpr {
         DimExpr::Const(v)
     }
@@ -322,7 +322,7 @@ impl DimExpr {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn s(id: u32) -> DimExpr {
         DimExpr::Sym(id)
     }
@@ -334,7 +334,7 @@ impl DimExpr {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn add_expr(a: DimExpr, b: DimExpr) -> DimExpr {
         DimExpr::Add(Box::new(a), Box::new(b))
     }
@@ -346,7 +346,7 @@ impl DimExpr {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn mul_expr(a: DimExpr, b: DimExpr) -> DimExpr {
         DimExpr::Mul(Box::new(a), Box::new(b))
     }
@@ -358,7 +358,7 @@ impl DimExpr {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn ceildiv(a: DimExpr, b: DimExpr) -> DimExpr {
         DimExpr::CeilDiv(Box::new(a), Box::new(b))
     }
@@ -370,7 +370,7 @@ impl DimExpr {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(nodes).
-    // CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+    // CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
     pub fn hash_into(&self, h: &mut cep_hash::Hasher) {
         match self {
             DimExpr::Const(v) => {
@@ -397,7 +397,7 @@ impl DimExpr {
 // CEP:FAILURE: none
 // CEP:ASSUMES: none
 // CEP:COST: O(subtrees).
-// CEP:EVIDENCE: crates/mlkp-tensor/tests/types_test.rs
+// CEP:EVIDENCE: crates/mlkp-tensor/tests/tensor_test.rs
 fn bin_tag(h: &mut cep_hash::Hasher, tag: u64, x: &DimExpr, y: &DimExpr) {
     h.update_u64(tag);
     x.hash_into(h);

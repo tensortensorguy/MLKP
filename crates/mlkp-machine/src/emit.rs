@@ -3,10 +3,10 @@
 // CEP:WHY: The design's implementation order ends at machine code emission; textual assembly is the reviewable, testable artifact for v1, and byte-level encoding is deferred with a ticket (doc/machine_ir.md Known Limitations).
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns an EmitError when an operand still holds an unresolved virtual register or a spilled value is used without a slot.
+// CEP:FAILURE: Returns an EmitError when an operand still holds an unresolved virtual register or when a spilled value is referenced, because spill rewriting is a documented limitation in v1.
 // CEP:ASSUMES: the allocation is verified before emission.
 // CEP:COST: cold; O(insns).
-// CEP:EVIDENCE: unit tests in crates/mlkp-machine/tests/emit_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-machine/tests/irc_test.rs.
 
 #![deny(missing_docs)]
 
@@ -29,7 +29,7 @@ impl std::fmt::Display for EmitError {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: cold; one formatted string.
-    // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EmitError::UnresolvedVReg(id) => write!(f, "emit error: vreg {id} unresolved"),
@@ -45,7 +45,7 @@ impl std::fmt::Display for EmitError {
 // CEP:FAILURE: Returns EmitError per the module contract.
 // CEP:ASSUMES: none
 // CEP:COST: O(insns).
-// CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+// CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
 pub fn emit(
     f: &MFunction,
     alloc: &crate::irc::Allocation,
@@ -114,10 +114,10 @@ pub fn emit(
 // CEP:WHAT: Renders one instruction line.
 // CEP:WHY: Shared by the function emitter.
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns EmitError for unresolved registers.
+// CEP:FAILURE: Returns EmitError for unresolved or spilled registers.
 // CEP:ASSUMES: none
 // CEP:COST: O(operands).
-// CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+// CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
 fn render_insn(
     insn: &crate::mir::MInsn,
     alloc: &crate::irc::Allocation,
@@ -141,12 +141,21 @@ fn render_insn(
         match o {
             Operand::VReg { id, .. } => {
                 let p = preg_of(*id)?;
+                if p == u32::MAX {
+                    // The sentinel marks a spilled value; spill rewriting is not
+                    // implemented in v1 (doc/machine_ir.md Known Limitations), so
+                    // emission fails loudly instead of printing a fake register.
+                    return Err(EmitError::UnresolvedSpill(*id));
+                }
                 Ok(format!("%{}", target.reg_name(p)))
             }
             Operand::PReg { id, .. } => Ok(format!("%{}", target.reg_name(*id))),
             Operand::Imm(v) => Ok(format!("${v}")),
             Operand::Mem { base, disp, .. } => {
                 let p = preg_of(*base)?;
+                if p == u32::MAX {
+                    return Err(EmitError::UnresolvedSpill(*base));
+                }
                 Ok(format!("{}(%{})", disp, target.reg_name(p)))
             }
             Operand::Block(label) => Ok(format!(".L{label}")),
@@ -207,7 +216,7 @@ fn render_insn(
 // CEP:FAILURE: Returns every violation found.
 // CEP:ASSUMES: none
 // CEP:COST: O(insns * live).
-// CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+// CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
 pub fn verify_allocation(
     f: &MFunction,
     alloc: &crate::irc::Allocation,

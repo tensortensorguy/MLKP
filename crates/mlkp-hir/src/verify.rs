@@ -6,7 +6,7 @@
 // CEP:FAILURE: Returns every violation found, not only the first.
 // CEP:ASSUMES: the graph is a DAG; cycles are rejected.
 // CEP:COST: cold; O(nodes + edges) with a cycle check of the same order.
-// CEP:EVIDENCE: unit tests in crates/mlkp-hir/tests/verify_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-hir/tests/hir_test.rs.
 
 #![deny(missing_docs)]
 
@@ -23,12 +23,12 @@ const ARITY: fn(&Op) -> Option<usize> = |op| match op {
 
 /// Verifies one graph and returns all violations.
 // CEP:WHAT: Verifies one graph.
-// CEP:WHY: Verifiable optimization (design section 16) is a named property of the whole design; this is its enforcement point.
+// CEP:WHY: Verifiable optimization (design section 16) is a named property of the whole design; this is its enforcement point, including the shape functions of contractions and softmax.
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns one GraphError per violation.
 // CEP:ASSUMES: none
 // CEP:COST: O(nodes + edges).
-// CEP:EVIDENCE: crates/mlkp-hir/tests/verify_test.rs
+// CEP:EVIDENCE: crates/mlkp-hir/tests/hir_test.rs
 pub fn verify(g: &Graph) -> Result<(), Vec<GraphError>> {
     let mut errors = Vec::new();
     for n in g.iter() {
@@ -92,7 +92,60 @@ pub fn verify(g: &Graph) -> Result<(), Vec<GraphError>> {
                 }
             }
         }
+        match &n.op {
+            // Shape function of the contraction: the depth of both operands must
+            // unify, per the design's matmul shape_constraints example.
+            Op::Contract if n.inputs.len() == 2 => {
+                let a = g.node(n.inputs[0]).map(|x| x.ty.clone());
+                let b = g.node(n.inputs[1]).map(|x| x.ty.clone());
+                if let (Some(a), Some(b)) = (a, b) {
+                    if a.dims.len() != 2 || b.dims.len() != 2 {
+                        errors.push(GraphError::ArityMismatch(format!(
+                            "contract node {} requires rank-2 operands",
+                            n.id
+                        )));
+                    } else if a.dims[1] != b.dims[0] {
+                        errors.push(GraphError::ArityMismatch(format!(
+                            "contract node {} depth {:?} does not unify with {:?}",
+                            n.id, a.dims[1], b.dims[0]
+                        )));
+                    }
+                }
+            }
+            // Softmax normalizes one existing axis.
+            Op::Softmax { axis } => {
+                if *axis as usize >= n.ty.dims.len() {
+                    errors.push(GraphError::ArityMismatch(format!(
+                        "softmax node {} axis {axis} is outside rank {}",
+                        n.id,
+                        n.ty.dims.len()
+                    )));
+                }
+            }
+            // Reduction axes must exist in the source rank.
+            Op::Reduce { axes, .. } => {
+                if let Some(src) = n.inputs.first().and_then(|id| g.node(*id)) {
+                    let src_rank = src.ty.dims.len();
+                    for a in axes {
+                        if (*a as usize) >= src_rank {
+                            errors.push(GraphError::ArityMismatch(format!(
+                                "reduce node {} axis {a} is outside source rank {src_rank}",
+                                n.id
+                            )));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
+    for id in g.inputs.iter().chain(g.outputs.iter()) {
+        if g.node(*id).is_none() {
+            errors.push(GraphError::UnknownNode(*id));
+        }
+    }
+    // Declared inputs and outputs must exist; dangling entries would break
+    // plan lowering and staging.
     for id in g.inputs.iter().chain(g.outputs.iter()) {
         if g.node(*id).is_none() {
             errors.push(GraphError::UnknownNode(*id));
@@ -116,7 +169,7 @@ pub fn verify(g: &Graph) -> Result<(), Vec<GraphError>> {
 // CEP:FAILURE: none
 // CEP:ASSUMES: none
 // CEP:COST: O(nodes + edges).
-// CEP:EVIDENCE: crates/mlkp-hir/tests/verify_test.rs
+// CEP:EVIDENCE: crates/mlkp-hir/tests/hir_test.rs
 fn has_cycle(g: &Graph) -> bool {
     const WHITE: u8 = 0;
     const GRAY: u8 = 1;

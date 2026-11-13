@@ -92,6 +92,21 @@ ENUMERANTS = [
         ("GLSL450", "GLSL450"),
         ("VULKAN", "Vulkan"),
     ]),
+    ("scope", "Scope", [
+        ("DEVICE", "Device"),
+        ("WORKGROUP", "Workgroup"),
+        ("SUBGROUP", "Subgroup"),
+        ("INVOCATION", "Invocation"),
+    ]),
+    ("memory_semantics", "MemorySemantics", [
+        ("RELAXED", "Relaxed"),
+        ("ACQUIRE", "Acquire"),
+        ("RELEASE", "Release"),
+        ("ACQUIRERELEASE", "AcquireRelease"),
+        ("SEQUENTIALLYCONSISTENT", "SequentiallyConsistent"),
+        ("WORKGROUPMEMORY", "WorkgroupMemory"),
+        ("CROSSWORKGROUPMEMORY", "CrossWorkgroupMemory"),
+    ]),
     ("capability", "Capability", [
         ("SHADER", "Shader"),
     ]),

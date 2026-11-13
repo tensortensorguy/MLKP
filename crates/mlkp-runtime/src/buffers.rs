@@ -6,7 +6,7 @@
 // CEP:FAILURE: Allocation returns AllocError when the arena is exhausted; there is no silent overcommit.
 // CEP:ASSUMES: the arena is sized before measurement runs; resizing during measurement invalidates timings and is rejected.
 // CEP:COST: cold; allocation is O(1) per buffer.
-// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/buffers_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/runtime_test.rs.
 
 #![deny(missing_docs)]
 
@@ -34,7 +34,7 @@ impl Arena {
     // CEP:FAILURE: Panics only through the Vec allocation failure path, which the process cannot recover from and which the standard treats as abort.
     // CEP:ASSUMES: capacity reflects the largest plan evaluated in the session.
     // CEP:COST: O(capacity) zeroing once.
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn with_capacity(capacity: u64) -> Arena {
         Arena {
             data: vec![0.0; capacity as usize],
@@ -49,7 +49,7 @@ impl Arena {
     // CEP:FAILURE: Returns AllocError when fewer than n elements remain.
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn alloc(&mut self, n: u64) -> Result<u64, AllocError> {
         let remaining = self.data.len() as u64 - self.used;
         if n > remaining {
@@ -70,10 +70,10 @@ impl Arena {
     // CEP:FAILURE: Returns None when offset+len exceeds the arena capacity.
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn slice(&self, offset: u64, len: u64) -> Option<&[f32]> {
-        let start = offset as usize;
-        let end = start.checked_add(len as usize)?;
+        let start = usize::try_from(offset).ok()?;
+        let end = start.checked_add(usize::try_from(len).ok()?)?;
         if end > self.data.len() {
             return None;
         }
@@ -85,31 +85,43 @@ impl Arena {
     // CEP:WHY: Kernel outputs are written in place.
     // CEP:STATUS: complete
     // CEP:FAILURE: Returns None when offset+len exceeds the arena capacity.
-    // CEP:ASSUMES: callers never hold two overlapping mutable slices; the plan's buffer graph guarantees disjoint writes.
+    // CEP:ASSUMES: callers never hold two overlapping mutable slices; the plan airlock proves per-operation buffer disjointness (plan.rs validate).
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn slice_mut(&mut self, offset: u64, len: u64) -> Option<&mut [f32]> {
-        let start = offset as usize;
-        let end = start.checked_add(len as usize)?;
+        let start = usize::try_from(offset).ok()?;
+        let end = start.checked_add(usize::try_from(len).ok()?)?;
         if end > self.data.len() {
             return None;
         }
         Some(&mut self.data[start..end])
     }
 
-    /// Copies a source slice into one allocated buffer, requiring an exact length match.
-    // CEP:WHAT: Fills one buffer with a source slice of exactly the expected length.
-    // CEP:WHY: A short source would leave stale elements accepted silently and a long one would spill into the neighbouring buffer; staging must respect the plan's buffer lengths.
+    /// Returns the whole arena as one mutable slice.
+    // CEP:WHAT: Exposes the backing storage.
+    // CEP:WHY: The executor derives disjoint buffer views with split_at_mut so kernel dispatch never copies operands.
     // CEP:STATUS: complete
-    // CEP:FAILURE: Returns None when the source length differs from expected_len or the buffer is out of range.
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: callers split disjoint ranges exactly as the plan airlock proved.
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+    pub fn as_mut_slice(&mut self) -> &mut [f32] {
+        &mut self.data
+    }
+
+    /// Copies a source slice into one allocated buffer, requiring the exact expected length.
+    // CEP:WHAT: Fills one buffer with a source slice of the declared length.
+    // CEP:WHY: A short or long input would leave stale elements or spill into the next buffer, defeating the airlock's length invariants at staging time.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns None when the source length differs from `expected` or the buffer is out of range.
     // CEP:ASSUMES: none
     // CEP:COST: O(len).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
-    pub fn fill(&mut self, offset: u64, expected_len: u64, src: &[f32]) -> Option<()> {
-        if src.len() as u64 != expected_len {
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+    pub fn fill(&mut self, offset: u64, expected: u64, src: &[f32]) -> Option<()> {
+        if expected != src.len() as u64 {
             return None;
         }
-        let dst = self.slice_mut(offset, expected_len)?;
+        let dst = self.slice_mut(offset, expected)?;
         dst.copy_from_slice(src);
         Some(())
     }
@@ -121,7 +133,7 @@ impl Arena {
     // CEP:FAILURE: none
     // CEP:ASSUMES: no live references outlive the reset.
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn reset(&mut self) {
         self.used = 0;
     }
@@ -133,7 +145,7 @@ impl Arena {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn capacity(&self) -> u64 {
         self.data.len() as u64
     }
@@ -145,7 +157,7 @@ impl Arena {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/buffers_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn used(&self) -> u64 {
         self.used
     }

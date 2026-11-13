@@ -35,6 +35,8 @@ pub enum EmitError {
     BadBinding(u32),
     /// A value-producing instruction lacked a result id.
     MissingResult(String),
+    /// The serialized words violated a structural rule.
+    BadWords(String),
 }
 
 impl std::fmt::Display for EmitError {
@@ -53,6 +55,7 @@ impl std::fmt::Display for EmitError {
                 write!(f, "emit error: block '{s}' lacks one terminator")
             }
             EmitError::BadBinding(b) => write!(f, "emit error: undeclared binding {b}"),
+            EmitError::BadWords(s) => write!(f, "word verify error: {s}"),
             EmitError::MissingResult(s) => {
                 write!(f, "emit error: '{s}' must produce a result id")
             }
@@ -273,6 +276,11 @@ fn alloc_ids(kernel: &GKernel) -> IdTables {
         }
     }
     push_u32(&mut u32_pool, &mut next, 0);
+    // Barrier scope and semantics constants: OpControlBarrier takes three id
+    // operands, so the workgroup scope and WorkgroupMemory semantics must exist
+    // in the constant pool even when the kernel never names them.
+    push_u32(&mut u32_pool, &mut next, 2);
+    push_u32(&mut u32_pool, &mut next, 0x100);
     // Unique f32 constants in first-use order, keyed by exact bits.
     let mut f32_pool: Vec<(u32, u32)> = Vec::new();
     for block in &kernel.blocks {
@@ -534,11 +542,13 @@ pub fn emit_module(kernel: &GKernel) -> Result<SpirvModule, EmitError> {
     }
     insn(&mut w, op::FUNCTIONEND, &[]);
 
-    Ok(SpirvModule {
+    let module = SpirvModule {
         words: w,
         id_bound,
         entry_point: kernel.name.clone(),
-    })
+    };
+    verify_words(&module)?;
+    Ok(module)
 }
 
 // CEP:WHAT: Emits one GPU instruction into SPIR-V words.
@@ -690,7 +700,21 @@ fn emit_insn(
         }
         GOpc::Branch(t) => insn(w, op::BRANCH, &[label_of(t)]),
         GOpc::Return => insn(w, op::RETURN, &[]),
-        GOpc::Barrier => insn(w, op::CONTROLBARRIER, &[]),
+        GOpc::Barrier => {
+            // CEP:WHAT: Lowers a workgroup barrier with explicit scopes.
+            // CEP:WHY: OpControlBarrier takes execution scope, memory scope, and memory semantics as id operands; a zero-operand barrier is not valid SPIR-V.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: none; the scope constants always exist in the pool.
+            // CEP:ASSUMES: the workgroup scope and WorkgroupMemory semantics constants were pooled in the pre-pass.
+            // CEP:COST: O(1).
+            // CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
+            let wg = u32_const_of(e::scope::WORKGROUP);
+            let mem = u32_const_of(e::memory_semantics::WORKGROUPMEMORY);
+            if wg == 0 || mem == 0 {
+                return Err(EmitError::BadId(0));
+            }
+            insn(w, op::CONTROLBARRIER, &[wg, wg, mem]);
+        }
     }
     Ok(())
 }
@@ -730,4 +754,222 @@ fn str_words(s: &str) -> Vec<u32> {
                 | (u32::from(c[3]) << 24)
         })
         .collect()
+}
+
+/// Verifies the serialized word stream: header, id bound, unique definitions, and every used id defined somewhere in the module (forward label references are legal SPIR-V; per-block SSA ordering is the kernel verifier's job).
+// CEP:WHAT: Verifies one serialized module.
+// CEP:WHY: The design's ModuleVerifier must prove properties of the binary the driver receives, not only of the kernel IR; id discipline is what a driver trusts.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns EmitError::BadWords on the first structural violation.
+// CEP:ASSUMES: the module was produced by this emitter's opcode set.
+// CEP:COST: O(words).
+// CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
+pub fn verify_words(module: &SpirvModule) -> Result<(), EmitError> {
+    let w = &module.words;
+    if w.len() < 5 {
+        return Err(EmitError::BadWords(
+            "module shorter than the header".to_string(),
+        ));
+    }
+    if w[0] != MAGIC || w[1] != VERSION || w[4] != 0 {
+        return Err(EmitError::BadWords("header fields invalid".to_string()));
+    }
+    let bound = w[3];
+    let mut defined: Vec<u32> = Vec::new();
+    let mut used: Vec<(u32, usize)> = Vec::new();
+    let mut i = 5usize;
+    let mut in_function = false;
+    while i < w.len() {
+        let word = w[i];
+        let wc = (word >> 16) as usize;
+        let opc = word & 0xFFFF;
+        if wc == 0 || i + wc > w.len() {
+            return Err(EmitError::BadWords(format!("bad word count at {i}")));
+        }
+        let operands = &w[i + 1..i + wc];
+        let Some(l) = operand_layout(opc) else {
+            return Err(EmitError::BadWords(format!("unexpected opcode {opc}")));
+        };
+        if l.function_scope_change {
+            if l.enter_function {
+                if in_function {
+                    return Err(EmitError::BadWords("nested function".to_string()));
+                }
+                in_function = true;
+            } else if !in_function {
+                return Err(EmitError::BadWords(
+                    "function end outside function".to_string(),
+                ));
+            }
+        }
+        if let Some(rt) = l.result_type_pos {
+            used.push((operands[rt], i));
+        }
+        if let Some(rp) = l.result_pos {
+            let id = operands[rp];
+            if id >= bound {
+                return Err(EmitError::BadWords(format!(
+                    "result id {id} at or above id bound {bound}"
+                )));
+            }
+            if defined.contains(&id) {
+                return Err(EmitError::BadWords(format!("duplicate definition {id}")));
+            }
+            defined.push(id);
+        }
+        for p in l.id_positions {
+            let id = operands[*p];
+            if id >= bound {
+                return Err(EmitError::BadWords(format!(
+                    "operand id {id} at or above id bound {bound}"
+                )));
+            }
+            used.push((id, i));
+        }
+        if let Some(from) = l.ids_from {
+            for id in operands.iter().skip(from) {
+                if *id >= bound {
+                    return Err(EmitError::BadWords(format!(
+                        "operand id {id} at or above id bound {bound}"
+                    )));
+                }
+                used.push((*id, i));
+            }
+        }
+        let _ = l.string_tail;
+        i += wc;
+    }
+    for (id, at) in &used {
+        if *id != 0 && !defined.iter().any(|d| d == id) {
+            return Err(EmitError::BadWords(format!(
+                "id {id} used at word {at} before definition"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Operand classification of one opcode: where result types, results, id operands, and string tails live.
+struct WordLayout {
+    result_type_pos: Option<usize>,
+    result_pos: Option<usize>,
+    id_positions: &'static [usize],
+    /// All operands at or after this position are ids (variable-length id tails).
+    ids_from: Option<usize>,
+    string_tail: bool,
+    function_scope_change: bool,
+    enter_function: bool,
+}
+
+// CEP:WHAT: Classifies the emitted opcode set for word verification.
+// CEP:WHY: Distinguishing id operands from literals requires per-opcode layout knowledge; the emitter owns that knowledge and the verifier consumes it.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns None for opcodes outside the emitter's vocabulary.
+// CEP:ASSUMES: the grammar table's opcode numbers.
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-spirv/tests/spirv_test.rs
+fn operand_layout(opc: u32) -> Option<WordLayout> {
+    let l = |rt: Option<usize>, r: Option<usize>, ids: &'static [usize]| -> WordLayout {
+        WordLayout {
+            result_type_pos: rt,
+            result_pos: r,
+            id_positions: ids,
+            ids_from: None,
+            string_tail: false,
+            function_scope_change: false,
+            enter_function: false,
+        }
+    };
+    match opc {
+        op::NOP => Some(l(None, None, &[])),
+        op::CAPABILITY => Some(l(None, None, &[])),
+        op::MEMORYMODEL => Some(l(None, None, &[])),
+        op::ENTRYPOINT => Some(WordLayout {
+            result_type_pos: None,
+            result_pos: None,
+            id_positions: &[0],
+            ids_from: None,
+            string_tail: true,
+            function_scope_change: false,
+            enter_function: false,
+        }),
+        op::EXECUTIONMODE => Some(WordLayout {
+            result_type_pos: None,
+            result_pos: None,
+            id_positions: &[0],
+            ids_from: None,
+            string_tail: false,
+            function_scope_change: false,
+            enter_function: false,
+        }),
+        op::NAME => Some(WordLayout {
+            result_type_pos: None,
+            result_pos: None,
+            id_positions: &[0],
+            ids_from: None,
+            string_tail: true,
+            function_scope_change: false,
+            enter_function: false,
+        }),
+        op::DECORATE => Some(WordLayout {
+            result_type_pos: None,
+            result_pos: None,
+            id_positions: &[0],
+            ids_from: None,
+            string_tail: false,
+            function_scope_change: false,
+            enter_function: false,
+        }),
+        op::TYPEVOID => Some(l(None, Some(0), &[])),
+        op::TYPEBOOL => Some(l(None, Some(0), &[])),
+        op::TYPEINT => Some(l(None, Some(0), &[])),
+        op::TYPEFLOAT => Some(l(None, Some(0), &[])),
+        op::TYPEVECTOR => Some(l(None, Some(0), &[1])),
+        op::TYPERUNTIMEARRAY => Some(l(None, Some(0), &[1])),
+        op::TYPESTRUCT => Some(l(None, Some(0), &[1])),
+        op::TYPEPOINTER => Some(l(None, Some(0), &[2])),
+        op::TYPEFUNCTION => Some(l(None, Some(0), &[1])),
+        op::CONSTANT => Some(l(Some(0), Some(1), &[])),
+        op::VARIABLE => Some(l(Some(0), Some(1), &[])),
+        op::FUNCTION => Some(WordLayout {
+            result_type_pos: Some(0),
+            result_pos: Some(1),
+            id_positions: &[3],
+            ids_from: None,
+            string_tail: false,
+            function_scope_change: true,
+            enter_function: true,
+        }),
+        op::FUNCTIONEND => Some(WordLayout {
+            result_type_pos: None,
+            result_pos: None,
+            id_positions: &[],
+            ids_from: None,
+            string_tail: false,
+            function_scope_change: true,
+            enter_function: false,
+        }),
+        op::LABEL => Some(l(None, Some(0), &[])),
+        op::LOAD => Some(l(Some(0), Some(1), &[2])),
+        op::STORE => Some(l(None, None, &[0, 1])),
+        op::ACCESSCHAIN => Some(WordLayout {
+            result_type_pos: Some(0),
+            result_pos: Some(1),
+            id_positions: &[],
+            ids_from: Some(2),
+            string_tail: false,
+            function_scope_change: false,
+            enter_function: false,
+        }),
+        op::COMPOSITEEXTRACT => Some(l(Some(0), Some(1), &[2])),
+        op::IADD | op::IMUL | op::UDIV | op::UMOD => Some(l(Some(0), Some(1), &[2, 3])),
+        op::FADD | op::FSUB | op::FMUL | op::FDIV => Some(l(Some(0), Some(1), &[2, 3])),
+        op::FORDGREATERTHAN => Some(l(Some(0), Some(1), &[2, 3])),
+        op::SELECTIONMERGE => Some(l(None, None, &[0])),
+        op::CONTROLBARRIER => Some(l(None, None, &[0, 1, 2])),
+        op::BRANCH => Some(l(None, None, &[0])),
+        op::BRANCHCONDITIONAL => Some(l(None, None, &[0, 1, 2])),
+        op::RETURN => Some(l(None, None, &[])),
+        _ => None,
+    }
 }

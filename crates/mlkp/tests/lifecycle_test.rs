@@ -174,7 +174,7 @@ fn drift_triggers_re_autotune() {
 fn pruner_layers_cut_the_space() {
     let pruner = mlkp_autotune::Pruner::new();
     let space = mlkp_autotune::enumerate(1 << 14);
-    let (kept, rejected) = pruner.layer1_constraints(space, [64, 64, 64], 4, 1 << 30, 4096);
+    let (kept, rejected) = pruner.layer1_constraints(space, [64, 64], 4, 1 << 30, 4096);
     assert!(
         !rejected.is_empty(),
         "illegal tiles exist for a 64x64 problem"

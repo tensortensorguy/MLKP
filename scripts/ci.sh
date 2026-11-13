@@ -20,8 +20,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 echo "== tests =="
 cargo test --workspace
 
-echo "== docs =="
-cargo doc --no-deps --document-private-items
+echo "== docs (warnings are errors per doc standard.md) =="
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
 
 echo "== cep_lint self-test =="
 cargo build -p cep_lint

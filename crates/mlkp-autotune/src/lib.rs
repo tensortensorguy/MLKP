@@ -23,10 +23,8 @@ pub mod search;
 /// The search space over the six PL practice dimensions.
 pub mod space;
 
-pub use driver::{
-    autotune, hardware_profile_hash, recompile_warm, Baseline, CacheEntry, CompileError,
-};
-pub use pgo::{Observation, PgoError, PgoRecord, PgoStore};
+pub use driver::{autotune, hardware_profile_hash, recompile_warm, CacheEntry, CompileError};
+pub use pgo::{Observation, PgoError, PgoRecord, PgoStore, StoredConfig};
 pub use pruner::{Constraint, CostModel, Evaluated, Objectives, Pruner};
 pub use search::{search, Budget, SearchContext, SearchResult};
 pub use space::{candidate_hash, enumerate, features, Candidate, Layout, PassSet};

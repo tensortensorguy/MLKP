@@ -6,7 +6,7 @@
 // CEP:FAILURE: none; enumeration is total and deterministic.
 // CEP:ASSUMES: the device dimension is filtered by the probe before enumeration; the pass registry catalog is the ground truth for dimension A.
 // CEP:COST: cold; enumeration is O(space size) and bounded by the pruner's candidate caps.
-// CEP:EVIDENCE: unit tests in crates/mlkp-autotune/tests/space_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-autotune/tests/autotune_test.rs.
 
 #![deny(missing_docs)]
 
@@ -55,7 +55,7 @@ impl PassSet {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/space_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub const ALL: PassSet = PassSet {
         algebraic: true,
         cse: true,
@@ -65,61 +65,70 @@ impl PassSet {
 
 /// Tile size candidates: powers of two within L1/L2 bounds (named constants per Law 7).
 const TILE_CHOICES: [usize; 4] = [16, 32, 64, 128];
-/// Loop order candidates for the matmul triple.
-const LOOP_ORDER_CHOICES: [u32; 2] = [0, 1];
-/// Worker counts candidates (dimension E, CPU slice).
+/// Worker count candidates (dimension E, CPU slice).
 const WORKER_CHOICES: [u32; 2] = [1, 2];
+/// Pass-set candidates (dimension A): which level-1 passes each schedule runs.
+const PASS_SET_CHOICES: [PassSet; 4] = [
+    PassSet::ALL,
+    PassSet {
+        algebraic: true,
+        cse: true,
+        dce: false,
+    },
+    PassSet {
+        algebraic: true,
+        cse: false,
+        dce: true,
+    },
+    PassSet {
+        algebraic: false,
+        cse: true,
+        dce: true,
+    },
+];
+/// Pass iteration count candidates (dimension C): algebraic fixed-point sweeps.
+const ALGEBRAIC_ITER_CHOICES: [u32; 2] = [1, 2];
 
 /// Enumerates the full search space for one problem scale.
 // CEP:WHAT: Enumerates the search space.
-// CEP:WHY: Stage 3 of the JIT pipeline produces the candidate set the pruner reduces.
+// CEP:WHY: Stage 3 of the JIT pipeline produces the candidate set the pruner reduces; every enumerated dimension reaches the backend so measured differences are schedule differences.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
 // CEP:ASSUMES: the caller caps the space through the pruner; the raw cross product is intentionally large.
 // CEP:COST: O(space size).
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/space_test.rs
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
 pub fn enumerate(problem_elements: u64) -> Vec<Candidate> {
-    // CEP:WHAT: Caps the enumerated space at the configured session bound.
-    // CEP:WHY: An unbounded cross product would let one pathological session starve the budget; the cap keeps the pruner's input bounded by a named constant.
-    // CEP:STATUS: complete
-    // CEP:FAILURE: none; enumeration truncates deterministically at the cap.
-    // CEP:ASSUMES: none
-    // CEP:COST: O(space size).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/space_test.rs
-    let cap = mlkp_config::limits::MAX_SESSION_CANDIDATES;
     let mut out = Vec::new();
-    'outer: for bm in TILE_CHOICES {
+    for bm in TILE_CHOICES {
         for bn in TILE_CHOICES {
             for bk in TILE_CHOICES {
-                for order in LOOP_ORDER_CHOICES {
-                    for layout in [Layout::RowMajor, Layout::TransposedB] {
+                for order in [0u32, 1] {
+                    for transpose_b in [false, true] {
                         for workers in WORKER_CHOICES {
                             // Small problems do not benefit from multi-worker chunking.
                             if workers > 1 && problem_elements < 1 << 16 {
                                 continue;
                             }
-                            // CEP:WHAT: Skips the phantom vector-width dimension.
-                            // CEP:WHY: The backend does not consume a width parameter yet; enumerating width duplicates would produce byte-identical plans and waste half the evaluation budget.
-                            // CEP:STATUS: complete
-                            // CEP:FAILURE: none
-                            // CEP:ASSUMES: none
-                            // CEP:COST: O(1).
-                            // CEP:EVIDENCE: doc/autotuner.md Known Limitations.
-                            out.push(Candidate {
-                                config: PassConfig {
-                                    tile: Tile { bm, bn, bk },
-                                    threads: workers,
-                                    loop_order: order,
-                                    fused_elementwise: true,
-                                    transpose_b: layout == Layout::TransposedB,
-                                },
-                                layout,
-                                device_workers: workers,
-                                passes: PassSet::ALL,
-                                algebraic_iters: 1,
-                            });
-                            if out.len() >= cap {
-                                break 'outer;
+                            for passes in PASS_SET_CHOICES {
+                                for iters in ALGEBRAIC_ITER_CHOICES {
+                                    out.push(Candidate {
+                                        config: PassConfig {
+                                            tile: Tile { bm, bn, bk },
+                                            threads: workers,
+                                            loop_order: order,
+                                            fused_elementwise: true,
+                                            transpose_b,
+                                        },
+                                        layout: if transpose_b {
+                                            Layout::TransposedB
+                                        } else {
+                                            Layout::RowMajor
+                                        },
+                                        device_workers: workers,
+                                        passes,
+                                        algebraic_iters: iters,
+                                    });
+                                }
                             }
                         }
                     }
@@ -132,12 +141,12 @@ pub fn enumerate(problem_elements: u64) -> Vec<Candidate> {
 
 /// Structural hash of one candidate for the historical cache.
 // CEP:WHAT: Hashes one candidate.
-// CEP:WHY: The historical cache layer keys on the exact config hash (design Layer 5).
+// CEP:WHY: The historical cache layer keys on the exact config hash (design Layer 5); every field that changes the executed plan must change the hash or the cache returns wrong results.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
 // CEP:ASSUMES: none
 // CEP:COST: O(fields).
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/space_test.rs
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
 pub fn candidate_hash(c: &Candidate, subgraph_hash: u64, hw_hash: u64) -> u64 {
     let mut h = cep_hash::Hasher::seeded(subgraph_hash);
     h.update_u64(hw_hash);
@@ -147,18 +156,21 @@ pub fn candidate_hash(c: &Candidate, subgraph_hash: u64, hw_hash: u64) -> u64 {
         .update_u64(u64::from(c.config.threads))
         .update_u64(u64::from(c.config.loop_order))
         .update_u64(u64::from(c.layout == Layout::TransposedB))
-        .update_u64(u64::from(c.algebraic_iters));
+        .update_u64(u64::from(c.algebraic_iters))
+        .update_u64(u64::from(c.passes.algebraic))
+        .update_u64(u64::from(c.passes.cse))
+        .update_u64(u64::from(c.passes.dce));
     h.finish()
 }
 
 /// Feature vector of one candidate for the cost model and clustering.
 // CEP:WHAT: Builds the candidate feature vector.
-// CEP:WHY: Layer 3 (cost model) and Layer 4 (similarity clustering) consume numeric features across the six dimensions.
+// CEP:WHY: Layer 3 (cost model) and Layer 4 (similarity clustering) consume numeric features across the six schedule dimensions; pass selection acts before measurement and is hashed in the cache key instead.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
 // CEP:ASSUMES: problem scale is folded in by the caller through subgraph parameters.
 // CEP:COST: O(fields).
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/space_test.rs
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
 pub fn features(c: &Candidate) -> [f64; 6] {
     [
         c.config.tile.bm as f64,

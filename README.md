@@ -33,10 +33,10 @@ cargo doc --no-deps --document-private-items
 ## Run
 
 ```sh
-cargo run --release -p mlkp -- run x --budget-ms 5000 --dim 128
+cargo run --release -p mlkp -- run --budget-ms 5000 --dim 128
 ```
 
-Prints the stage log (parse, verify, autotune winner and latency, execute checksum) and writes the PGO cache to `.mlkp-cache/`.
+Prints the stage log (parse, verify, autotune winner and latency, execute checksum) and writes the PGO cache to `.mlkp-cache/`. Pass a `.mlkp` file to compile it instead of the synthetic matmul-relu program: `mlkpc run path/to/program.mlkp`.
 
 ## Standard enforcement
 

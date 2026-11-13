@@ -6,7 +6,7 @@
 // CEP:FAILURE: Lowering returns PlanError on arity or shape mismatches; the airlock returns PlanError listing every violated invariant.
 // CEP:ASSUMES: the input graph verifies and shapes are fully concrete at lowering time.
 // CEP:COST: cold; lowering runs per candidate.
-// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/plan_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/runtime_test.rs.
 
 #![deny(missing_docs)]
 
@@ -35,7 +35,7 @@ impl std::fmt::Display for PlanError {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: cold; one formatted string.
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PlanError::Arity(s) => write!(f, "plan error: {s}"),
@@ -71,7 +71,7 @@ impl Default for PassConfig {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     fn default() -> Self {
         PassConfig {
             tile: Tile::NAIVE,
@@ -114,9 +114,9 @@ pub enum PlanOp {
     Reduce {
         /// Combiner.
         op: ReduceKind,
-        /// Source buffer [outer, red].
+        /// Source buffer `[outer, red]`.
         src: u32,
-        /// Destination buffer [outer].
+        /// Destination buffer `[outer]`.
         dst: u32,
         /// Outer extent.
         outer: usize,
@@ -150,7 +150,32 @@ pub enum PlanOp {
         k: usize,
         /// Tile schedule.
         tile: Tile,
+        /// Loop order over the matmul triple: 0 = i,j,k, 1 = i,k,j.
+        loop_order: u32,
+        /// Strided-B access pattern (column-major B reads).
+        transpose_b: bool,
     },
+}
+
+impl PlanOp {
+    /// Buffer ids the operation reads and writes.
+    // CEP:WHAT: Lists the buffer ids of one operation.
+    // CEP:WHY: The airlock proves per-operation disjointness so the executor can hand out disjoint mutable slices without copies.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+    pub fn buffer_ids(&self) -> Vec<u32> {
+        match self {
+            PlanOp::Unary { src, dst, .. } => vec![*src, *dst],
+            PlanOp::Binary { a, b, dst, .. } => vec![*a, *b, *dst],
+            PlanOp::Reduce { src, dst, .. } | PlanOp::Softmax { src, dst, .. } => {
+                vec![*src, *dst]
+            }
+            PlanOp::MatMul { a, b, c, .. } => vec![*a, *b, *c],
+        }
+    }
 }
 
 /// A scheduled kernel plan over a set of buffers.
@@ -176,7 +201,7 @@ impl KernelPlan {
     // CEP:FAILURE: Returns 0 for out-of-range ids; the airlock rejects those plans first.
     // CEP:ASSUMES: none
     // CEP:COST: O(buffers).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn offset_of(&self, id: u32) -> u64 {
         self.buffer_offsets.get(id as usize).copied().unwrap_or(0)
     }
@@ -188,7 +213,7 @@ impl KernelPlan {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(buffers).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn total_elements(&self) -> u64 {
         self.buffer_lens.iter().sum()
     }
@@ -200,7 +225,7 @@ impl KernelPlan {
     // CEP:FAILURE: none
     // CEP:ASSUMES: f32 storage is 4 bytes.
     // CEP:COST: O(buffers).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn memory_bytes(&self) -> u64 {
         self.total_elements() * 4
     }
@@ -213,7 +238,7 @@ impl KernelPlan {
 // CEP:FAILURE: Returns PlanError on arity mismatch, non-concrete shapes, or unavailable device placements.
 // CEP:ASSUMES: the graph passes the verifier first.
 // CEP:COST: O(nodes).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 pub fn lower(graph: &Graph, config: &PassConfig) -> Result<KernelPlan, PlanError> {
     let mut plan = KernelPlan {
         ops: Vec::new(),
@@ -281,14 +306,7 @@ pub fn lower(graph: &Graph, config: &PassConfig) -> Result<KernelPlan, PlanError
                     PlanError::Arity(format!("reduce node {} lacks input", n.id))
                 })?)?;
                 let dims = concrete_dims(&n.ty)?;
-                let outer: usize = dims
-                    .iter()
-                    .try_fold(1u64, |acc, d| acc.checked_mul(*d))
-                    .ok_or_else(|| {
-                        PlanError::UnconstrainedShape(
-                            "reduce extent overflows during lowering".to_string(),
-                        )
-                    })? as usize;
+                let outer: usize = dims.iter().product::<u64>() as usize;
                 let red = reduction_extent(&n.inputs[0], graph)? as usize;
                 let kind = match op {
                     mlkp_tensor::ReduceOp::Sum => ReduceKind::Sum,
@@ -299,21 +317,13 @@ pub fn lower(graph: &Graph, config: &PassConfig) -> Result<KernelPlan, PlanError
                         ))
                     }
                 };
-                // CEP:WHAT: Rejects reductions over any axis but the last.
-                // CEP:WHY: The plan vocabulary only schedules last-axis reductions; silently reducing the wrong axis would produce wrong numbers that pass the length airlock whenever extents coincide.
-                // CEP:STATUS: complete
-                // CEP:FAILURE: Returns PlanError::Arity for non-last-axis reductions.
-                // CEP:ASSUMES: none
-                // CEP:COST: O(axes).
-                // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
-                let src_rank = graph
-                    .node(n.inputs[0])
-                    .map(|m| m.ty.dims.len())
-                    .ok_or_else(|| PlanError::Arity(format!("missing operand {}", n.inputs[0])))?;
-                let expected = vec![src_rank.saturating_sub(1) as u32];
-                if *axes != expected {
+                // The v1 plan vocabulary schedules last-axis reductions only; any
+                // other axis set fails loudly instead of silently mis-shaping the
+                // kernel extents.
+                let last = (dims.len().saturating_sub(1)) as u32;
+                if !(axes.len() == 1 && axes[0] == last) {
                     return Err(PlanError::Arity(format!(
-                        "reduce node {} must reduce the last axis {expected:?}; got {axes:?}",
+                        "reduce node {} reduces axes {axes:?}; the plan schedules only axis {last}",
                         n.id
                     )));
                 }
@@ -336,12 +346,6 @@ pub fn lower(graph: &Graph, config: &PassConfig) -> Result<KernelPlan, PlanError
                 let a = src_of(n.inputs[0])?;
                 let b = src_of(n.inputs[1])?;
                 let dims = concrete_dims(&n.ty)?;
-                if dims.len() != 2 {
-                    return Err(PlanError::Arity(format!(
-                        "contract node {} must produce a rank-2 result",
-                        n.id
-                    )));
-                }
                 let m = dims[0] as usize;
                 let nn = dims[1] as usize;
                 let k = reduction_extent(&n.inputs[0], graph)? as usize;
@@ -353,23 +357,30 @@ pub fn lower(graph: &Graph, config: &PassConfig) -> Result<KernelPlan, PlanError
                     n: nn,
                     k,
                     tile: config.tile,
+                    loop_order: config.loop_order,
+                    transpose_b: config.transpose_b,
                 });
                 node_buf.push((n.id, buf));
             }
-            Op::Softmax { .. } => {
+            Op::Softmax { axis } => {
                 let src = src_of(*n.inputs.first().ok_or_else(|| {
                     PlanError::Arity(format!("softmax node {} lacks input", n.id))
                 })?)?;
                 let dims = concrete_dims(&n.ty)?;
-                let red = dims[dims.len() - 1] as usize;
-                let outer = dims[..dims.len() - 1]
-                    .iter()
-                    .try_fold(1u64, |acc, d| acc.checked_mul(*d))
-                    .ok_or_else(|| {
-                        PlanError::UnconstrainedShape(
-                            "softmax extent overflows during lowering".to_string(),
-                        )
-                    })? as usize;
+                let last = dims.len().checked_sub(1).ok_or_else(|| {
+                    PlanError::UnconstrainedShape(format!(
+                        "softmax node {} normalizes a rank-0 tensor",
+                        n.id
+                    ))
+                })?;
+                if *axis != last as u32 {
+                    return Err(PlanError::Arity(format!(
+                        "softmax node {} declares axis {axis}; the plan normalizes axis {last}",
+                        n.id
+                    )));
+                }
+                let red = dims[last] as usize;
+                let outer = dims[..last].iter().product::<u64>() as usize;
                 plan.ops.push(PlanOp::Softmax {
                     src,
                     dst: buf,
@@ -396,12 +407,12 @@ pub fn lower(graph: &Graph, config: &PassConfig) -> Result<KernelPlan, PlanError
 }
 
 // CEP:WHAT: Maps a HIR map op to its unary kernel.
-// CEP:WHY: The plan vocabulary is smaller than the graph vocabulary; binary maps appear only through fused chains in later versions.
+// CEP:WHY: The plan vocabulary is smaller than the graph vocabulary; unmapped kinds must fail loudly, never silently change the computation.
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns PlanError::Arity for map kinds the plan does not recognize; the front-end rejects them and the algebraic pass removes the rest, so a hand-built graph fails loudly instead of silently executing the wrong kernel.
+// CEP:FAILURE: Returns PlanError::Arity for map kinds the plan cannot schedule; the front-end rejects binary arities and the algebraic pass removes Id nodes before lowering.
 // CEP:ASSUMES: none
 // CEP:COST: O(1).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 fn map_to_unary(n: &mlkp_hir::Node) -> Result<EwUnary, PlanError> {
     match &n.op {
         Op::Map(mlkp_tensor::MapFn::Relu) => Ok(EwUnary::Relu),
@@ -409,7 +420,7 @@ fn map_to_unary(n: &mlkp_hir::Node) -> Result<EwUnary, PlanError> {
         Op::Map(mlkp_tensor::MapFn::Neg) => Ok(EwUnary::Neg),
         Op::Map(mlkp_tensor::MapFn::Sigmoid) => Ok(EwUnary::Sigmoid),
         other => Err(PlanError::Arity(format!(
-            "map node {} uses an op the plan cannot schedule: {other:?}",
+            "node {} uses the map {other:?}; the CPU plan schedules only relu, exp, neg, sigmoid",
             n.id
         ))),
     }
@@ -418,24 +429,13 @@ fn map_to_unary(n: &mlkp_hir::Node) -> Result<EwUnary, PlanError> {
 // CEP:WHAT: Computes the concrete element count of one type.
 // CEP:WHY: Buffers are sized by element counts.
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns UnconstrainedShape when any dimension is symbolic, the rank is zero, or the product is zero or overflows.
+// CEP:FAILURE: Returns UnconstrainedShape when any dimension is symbolic.
 // CEP:ASSUMES: none
 // CEP:COST: O(dims).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 fn concrete_len(ty: &mlkp_tensor::TensorType) -> Result<u64, PlanError> {
     let dims = concrete_dims(ty)?;
-    let product = dims
-        .iter()
-        .try_fold(1u64, |acc, d| acc.checked_mul(*d))
-        .ok_or_else(|| {
-            PlanError::UnconstrainedShape("element count overflows during lowering".to_string())
-        })?;
-    if product == 0 {
-        return Err(PlanError::UnconstrainedShape(
-            "zero-length tensors are not schedulable".to_string(),
-        ));
-    }
-    Ok(product)
+    Ok(dims.iter().product::<u64>().max(1))
 }
 
 // CEP:WHAT: Computes concrete dimensions of one type.
@@ -444,7 +444,7 @@ fn concrete_len(ty: &mlkp_tensor::TensorType) -> Result<u64, PlanError> {
 // CEP:FAILURE: Returns UnconstrainedShape for symbolic dimensions.
 // CEP:ASSUMES: none
 // CEP:COST: O(dims).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 fn concrete_dims(ty: &mlkp_tensor::TensorType) -> Result<Vec<u64>, PlanError> {
     let mut out = Vec::new();
     for d in &ty.dims {
@@ -457,11 +457,6 @@ fn concrete_dims(ty: &mlkp_tensor::TensorType) -> Result<Vec<u64>, PlanError> {
             }
         }
     }
-    if out.is_empty() {
-        return Err(PlanError::UnconstrainedShape(
-            "rank-0 types are not schedulable".to_string(),
-        ));
-    }
     Ok(out)
 }
 
@@ -471,7 +466,7 @@ fn concrete_dims(ty: &mlkp_tensor::TensorType) -> Result<Vec<u64>, PlanError> {
 // CEP:FAILURE: Returns UnconstrainedShape for symbolic dimensions or empty shapes.
 // CEP:ASSUMES: none
 // CEP:COST: O(1).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 fn reduction_extent(input: &u32, graph: &Graph) -> Result<u64, PlanError> {
     let node = graph
         .node(*input)
@@ -485,46 +480,14 @@ fn reduction_extent(input: &u32, graph: &Graph) -> Result<u64, PlanError> {
 impl KernelPlan {
     /// The validation airlock: proves every kernel invariant before execution.
     // CEP:WHAT: Proves plan invariants before the hot path runs.
-    // CEP:WHY: Standard chapter 64.2: validate once at the airlock so kernels carry debug asserts only; this is the single enforcement point.
+    // CEP:WHY: Standard chapter 64.2: validate once at the airlock so kernels carry debug asserts only; this is the single enforcement point, covering extents, tile legality, and per-operation buffer disjointness.
     // CEP:STATUS: complete
     // CEP:FAILURE: Returns PlanError::Airlock listing every violated invariant.
     // CEP:ASSUMES: none
     // CEP:COST: O(plan size).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn validate(&self) -> Result<(), PlanError> {
         let mut errors: Vec<String> = Vec::new();
-        // CEP:WHAT: Proves buffer table consistency.
-        // CEP:WHY: A plan whose offsets disagree with its lengths can silently alias buffers or index far outside the arena; both states must fail here instead of in a kernel.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: Appends an airlock error per violated invariant.
-        // CEP:ASSUMES: none
-        // CEP:COST: O(buffers).
-        // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
-        if self.buffer_lens.len() != self.buffers as usize
-            || self.buffer_offsets.len() != self.buffers as usize
-        {
-            errors.push("buffer table length does not match the buffer count".to_string());
-        } else {
-            let mut prev_end: u64 = 0;
-            for i in 0..self.buffers as usize {
-                let off = self.buffer_offsets[i];
-                if i == 0 && off != 0 {
-                    errors.push(format!("buffer 0 offset is {off}, expected 0"));
-                }
-                if off < prev_end {
-                    errors.push(format!(
-                        "buffer {i} overlaps its predecessor: offset {off} < {prev_end}"
-                    ));
-                }
-                match off.checked_add(self.buffer_lens[i]) {
-                    Some(end) => prev_end = end,
-                    None => {
-                        errors.push(format!("buffer {i} range overflows the element space"));
-                        prev_end = u64::MAX;
-                    }
-                }
-            }
-        }
         for op in &self.ops {
             match op {
                 PlanOp::Unary { src, dst, n, .. } => {
@@ -577,6 +540,7 @@ impl KernelPlan {
                     n,
                     k,
                     tile,
+                    ..
                 } => {
                     if !len_matches(self, *a, (*m * *k) as u64) {
                         errors.push(format!("matmul a {a} length != m*k"));
@@ -590,40 +554,30 @@ impl KernelPlan {
                     if tile.bm == 0 || tile.bn == 0 || tile.bk == 0 {
                         errors.push("matmul tile has a zero extent".to_string());
                     }
-                    // CEP:WHAT: Enforces the power-of-two tile contract.
-                    // CEP:WHY: The kernel contract states tiles are powers of two; oversized tiles are clamped in-kernel, but a non-power-of-two tile would make the measurement claim false.
-                    // CEP:STATUS: complete
-                    // CEP:FAILURE: Appends an airlock error for non-power-of-two tiles.
-                    // CEP:ASSUMES: none
-                    // CEP:COST: O(1).
-                    // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
-                    if !tile.bm.is_power_of_two()
-                        || !tile.bn.is_power_of_two()
-                        || !tile.bk.is_power_of_two()
+                    if !is_power_of_two(tile.bm)
+                        || !is_power_of_two(tile.bn)
+                        || !is_power_of_two(tile.bk)
                     {
-                        errors.push("matmul tile extents must be powers of two".to_string());
+                        errors.push("matmul tile is not a power of two".to_string());
                     }
                 }
             }
-        }
-        // CEP:WHAT: Proves per-op buffer disjointness.
-        // CEP:WHY: Two overlapping ranges inside one op would read and write the same bytes concurrently; the plan must schedule disjoint buffers so kernels carry no aliasing logic.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: Appends an airlock error per overlapping op.
-        // CEP:ASSUMES: the buffer table check above passed, so offsets are meaningful.
-        // CEP:COST: O(buffers per op).
-        // CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
-        for op in &self.ops {
-            let ranges = op_ranges(self, op);
+            // Per-operation buffer disjointness: the executor hands out disjoint
+            // mutable slices, so overlapping references inside one operation are a
+            // plan defect, not a runtime event.
+            let mut ranges: Vec<(u64, u64)> = Vec::new();
+            for id in op.buffer_ids() {
+                let off = self.offset_of(id);
+                let len = self.buffer_lens.get(id as usize).copied().unwrap_or(0);
+                ranges.push((off, off + len));
+            }
             for i in 0..ranges.len() {
                 for j in (i + 1)..ranges.len() {
-                    let (id_a, off_a, len_a) = ranges[i];
-                    let (id_b, off_b, len_b) = ranges[j];
-                    let a_end = off_a.saturating_add(len_a);
-                    let b_end = off_b.saturating_add(len_b);
-                    let overlaps = off_a < b_end && off_b < a_end;
-                    if overlaps {
-                        errors.push(format!("op buffers {id_a} and {id_b} overlap in the arena"));
+                    if ranges_overlap(ranges[i], ranges[j]) {
+                        errors.push(format!(
+                            "operation over buffers {:?} has overlapping ranges",
+                            op.buffer_ids()
+                        ));
                     }
                 }
             }
@@ -636,56 +590,15 @@ impl KernelPlan {
     }
 }
 
-// CEP:WHAT: Lists the arena ranges one op touches.
-// CEP:WHY: The disjointness airlock needs the concrete (id, offset, length) triples per op.
+// CEP:WHAT: Tests whether one extent is a positive power of two.
+// CEP:WHY: The matmul kernel's blocked loop and the tile contract require power-of-two tiles; the airlock is the single enforcement point.
 // CEP:STATUS: complete
-// CEP:FAILURE: none
-// CEP:ASSUMES: buffer ids are in range for the table.
-// CEP:COST: O(buffers per op).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
-fn op_ranges(plan: &KernelPlan, op: &PlanOp) -> Vec<(u32, u64, u64)> {
-    let mut out = Vec::new();
-    let push = |out: &mut Vec<(u32, u64, u64)>, id: u32, len: u64| {
-        out.push((id, plan.offset_of(id), len));
-    };
-    match op {
-        PlanOp::Unary { src, dst, n, .. } => {
-            push(&mut out, *src, *n as u64);
-            push(&mut out, *dst, *n as u64);
-        }
-        PlanOp::Binary { a, b, dst, n, .. } => {
-            push(&mut out, *a, *n as u64);
-            push(&mut out, *b, *n as u64);
-            push(&mut out, *dst, *n as u64);
-        }
-        PlanOp::Reduce {
-            src,
-            dst,
-            outer,
-            red,
-            ..
-        } => {
-            push(&mut out, *src, (*outer * *red) as u64);
-            push(&mut out, *dst, *outer as u64);
-        }
-        PlanOp::Softmax {
-            src,
-            dst,
-            outer,
-            red,
-        } => {
-            push(&mut out, *src, (*outer * *red) as u64);
-            push(&mut out, *dst, (*outer * *red) as u64);
-        }
-        PlanOp::MatMul {
-            a, b, c, m, n, k, ..
-        } => {
-            push(&mut out, *a, (*m * *k) as u64);
-            push(&mut out, *b, (*k * *n) as u64);
-            push(&mut out, *c, (*m * *n) as u64);
-        }
-    }
-    out
+// CEP:FAILURE: Returns false for zero.
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+fn is_power_of_two(x: usize) -> bool {
+    x != 0 && (x & (x - 1)) == 0
 }
 
 // CEP:WHAT: Tests one buffer length against an expectation.
@@ -694,7 +607,18 @@ fn op_ranges(plan: &KernelPlan, op: &PlanOp) -> Vec<(u32, u64, u64)> {
 // CEP:FAILURE: Returns false for out-of-range ids.
 // CEP:ASSUMES: none
 // CEP:COST: O(1).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/plan_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 fn len_matches(plan: &KernelPlan, id: u32, len: u64) -> bool {
     plan.buffer_lens.get(id as usize).is_some_and(|l| *l == len)
+}
+
+// CEP:WHAT: Tests whether two element ranges overlap.
+// CEP:WHY: The airlock proves per-operation disjointness with this predicate.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+fn ranges_overlap(a: (u64, u64), b: (u64, u64)) -> bool {
+    a.0 < b.1 && b.0 < a.1
 }

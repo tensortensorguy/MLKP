@@ -67,6 +67,10 @@ pub struct StoredConfig {
     pub loop_order: u32,
     /// Transposed B layout.
     pub transpose_b: bool,
+    /// Pass selection bits: (algebraic, cse, dce).
+    pub passes: (bool, bool, bool),
+    /// Algebraic fixed-point sweeps.
+    pub algebraic_iters: u32,
 }
 
 /// PGO record for one subgraph.
@@ -394,6 +398,18 @@ fn stored_config_json(cfg: StoredConfig) -> Json {
             Json::Num(f64::from(cfg.loop_order)),
         ),
         ("transpose_b".to_string(), Json::Bool(cfg.transpose_b)),
+        (
+            "passes".to_string(),
+            Json::Arr(vec![
+                Json::Bool(cfg.passes.0),
+                Json::Bool(cfg.passes.1),
+                Json::Bool(cfg.passes.2),
+            ]),
+        ),
+        (
+            "algebraic_iters".to_string(),
+            Json::Num(f64::from(cfg.algebraic_iters)),
+        ),
     ])
 }
 
@@ -416,6 +432,11 @@ fn parse_stored_config(rec: &Json) -> Option<StoredConfig> {
         .get("transpose_b")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+    let passes = obj.get("passes").and_then(|v| v.as_arr()).map(|arr| {
+        let bit = |i: usize| arr.get(i).and_then(|v| v.as_bool()).unwrap_or(true);
+        (bit(0), bit(1), bit(2))
+    });
+    let algebraic_iters = num("algebraic_iters").unwrap_or(1);
     Some(StoredConfig {
         bm: bm.min(u32::MAX as u64) as u32,
         bn: bn.min(u32::MAX as u64) as u32,
@@ -423,5 +444,7 @@ fn parse_stored_config(rec: &Json) -> Option<StoredConfig> {
         threads: threads.min(u32::MAX as u64) as u32,
         loop_order: loop_order.min(u32::MAX as u64) as u32,
         transpose_b,
+        passes: passes.unwrap_or((true, true, true)),
+        algebraic_iters: algebraic_iters.min(u32::MAX as u64) as u32,
     })
 }

@@ -1,12 +1,12 @@
 // CEP:FILE: crates/mlkp-autotune/src/search.rs
-// CEP:WHAT: The four-phase search: broad diverse sampling, Bayesian optimization with expected improvement over the remaining pool, evolutionary refinement with constraint-respecting mutations, and final polish with extended measurement, all under cumulative phase deadlines.
-// CEP:WHY: Design section VI defines the phases, budgets, and the multi-objective policy; the final polish re-measures the top candidates with more iterations to reduce noise per design fix 4.
+// CEP:WHAT: The four-phase search: broad diverse sampling, Bayesian-style optimization with a lower-confidence-bound acquisition, evolutionary refinement, and final polish with extended measurement and the Welch significance policy, all under a shared time budget and session cap.
+// CEP:WHY: Design section VI defines the phases, budgets, and the multi-objective policy; the final polish applies hypothesis testing rather than raw means per design fix 4, and the session cap implements the named MAX_SESSION_CANDIDATES limit.
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns the best-so-far when the budget expires (design failure mode "search budget exhausted").
-// CEP:ASSUMES: the evaluator is synchronous from the search's perspective; parallelism lives inside the evaluator.
+// CEP:ASSUMES: the evaluator is synchronous from the search's perspective; parallelism lives inside the evaluator; the candidate list is already pruned.
 // CEP:COST: cold; dominated by evaluation time.
-// CEP:EVIDENCE: unit tests in crates/mlkp-autotune/tests/search_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-autotune/tests/autotune_test.rs and crates/mlkp/tests/lifecycle_test.rs.
 
 #![deny(missing_docs)]
 
@@ -48,25 +48,12 @@ impl Budget {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn start(total: Duration) -> Budget {
         Budget {
             total,
             started: Instant::now(),
         }
-    }
-
-    /// Deadline of one phase from the configured cumulative fraction of the total.
-    // CEP:WHAT: Computes one phase's absolute deadline.
-    // CEP:WHY: The phase fractions are shares of the TOTAL budget; applying them to the remaining time compounds (0.40 of 0.75 is 0.30) and silently reallocates the search.
-    // CEP:STATUS: complete
-    // CEP:FAILURE: none
-    // CEP:ASSUMES: fractions are cumulative sums in [0, 1].
-    // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
-    pub fn deadline_for(&self, cumulative_fraction: f64) -> Instant {
-        let f = cumulative_fraction.clamp(0.0, 1.0);
-        self.started + self.total.mul_f64(f)
     }
 
     /// Remaining budget for one phase by fraction.
@@ -76,7 +63,7 @@ impl Budget {
     // CEP:FAILURE: Returns zero duration when expired.
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn remaining_for(&self, fraction: f64) -> Duration {
         let elapsed = self.started.elapsed();
         if elapsed >= self.total {
@@ -93,36 +80,24 @@ impl Budget {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn expired(&self) -> bool {
         self.started.elapsed() >= self.total
     }
 }
 
-/// Evaluator closure type: measures one candidate with `runs` timed iterations and returns its objectives.
+/// Evaluator closure type: measures one candidate with the requested run count and returns its objectives.
 pub type Evaluator<'a> = &'a mut dyn FnMut(&Candidate, u32) -> Objectives;
 
-/// Runs the four-phase search.
-// CEP:WHAT: Runs the four-phase search.
-// CEP:WHY: This is design stages 4 and 5: parallel evaluation, selection, and the multi-objective policy.
-// CEP:STATUS: complete
-// CEP:FAILURE: Returns the best-so-far at budget expiry; never panics.
-// CEP:ASSUMES: the candidate list is already pruned.
-// CEP:COST: dominated by evaluator time.
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs and crates/mlkp/tests/lifecycle_test.rs.
-pub struct SearchContext<'e> {
-    /// Baseline candidate; evaluated first and kept on budget exhaustion.
-    pub baseline: Candidate,
-    /// Its config hash.
-    pub baseline_hash: u64,
-    /// Subgraph hash for cache keys.
-    pub subgraph_hash: u64,
-    /// Hardware profile hash for cache keys.
-    pub hw_hash: u64,
-    /// The budget manager.
-    pub budget: Budget,
-    /// The evaluation closure.
-    pub evaluate: Evaluator<'e>,
+/// The total evaluation cap and early-stop bookkeeping shared by the phases.
+struct SessionState<'e> {
+    baseline: Candidate,
+    baseline_hash: u64,
+    subgraph_hash: u64,
+    hw_hash: u64,
+    budget: Budget,
+    evaluate: Evaluator<'e>,
+    evals: u32,
 }
 
 /// Runs the four-phase search over a prepared context.
@@ -133,163 +108,215 @@ pub struct SearchContext<'e> {
 // CEP:ASSUMES: the candidate list is already pruned and the baseline is included in the context.
 // CEP:COST: dominated by evaluator time.
 // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs and crates/mlkp/tests/lifecycle_test.rs.
-#[allow(clippy::too_many_lines)]
 pub fn search(
     mut candidates: Vec<Candidate>,
     pruner: &mut Pruner,
     ctx: &mut SearchContext<'_>,
 ) -> SearchResult {
     let mut phase_evals = [0u32; 4];
-    let runs = mlkp_config::limits::MEASUREMENT_RUNS;
+    let mut session = SessionState {
+        baseline: ctx.baseline.clone(),
+        baseline_hash: ctx.baseline_hash,
+        subgraph_hash: ctx.subgraph_hash,
+        hw_hash: ctx.hw_hash,
+        budget: Budget {
+            total: ctx.budget.total,
+            started: ctx.budget.started,
+        },
+        evaluate: ctx.evaluate,
+        evals: 0,
+    };
     // Baseline is always evaluated first and seeds the dominance database.
-    let base_obj = (ctx.evaluate)(&ctx.baseline, runs);
+    let base_obj = (session.evaluate)(&session.baseline, mlkp_config::limits::MEASUREMENT_RUNS);
     phase_evals[0] += 1;
-    pruner.record_result(ctx.baseline.clone(), ctx.baseline_hash, base_obj);
-    let mut best = (ctx.baseline_hash, base_obj, ctx.baseline.clone());
+    session.evals += 1;
+    pruner.record_result(session.baseline.clone(), session.baseline_hash, base_obj);
+    let mut best = (session.baseline_hash, base_obj, session.baseline.clone());
 
-    // CEP:WHAT: Evaluates one candidate through the historical cache first.
-    // CEP:WHY: Layer 5: an exact (subgraph, hardware, config) repeat reuses the measured objectives without re-running the kernel, which is where most incremental wins come from.
-    // CEP:STATUS: complete
-    // CEP:FAILURE: none
-    // CEP:ASSUMES: none
-    // CEP:COST: O(evaluated) on a hit, evaluation time on a miss.
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
-    macro_rules! evaluate_cached {
-        ($c:expr) => {{
-            let c: Candidate = $c.clone();
-            let h = candidate_hash(&c, ctx.subgraph_hash, ctx.hw_hash);
-            match pruner.layer5_cache(&c, ctx.subgraph_hash, ctx.hw_hash) {
-                Some(obj) => obj,
-                None => {
-                    let obj = (ctx.evaluate)(&c, runs);
-                    pruner.record_result(c.clone(), h, obj);
-                    obj
-                }
-            }
-        }};
-    }
-
-    // Phase 1: broad diverse sampling; the probe list is the layer-4 diverse subset
-    // placed first by the driver.
-    let p1_deadline = ctx
+    // Phase 1: broad diverse sampling. Design fix 3: the first sample must span
+    // the space, so the probe set is the greedy max-min diverse subset.
+    let p1_budget = session
         .budget
-        .deadline_for(mlkp_config::limits::PHASE1_BUDGET_FRACTION);
-    let probe = candidates
-        .len()
-        .min(mlkp_config::limits::DIVERSE_PROBE_COUNT);
-    for c in candidates.drain(..probe) {
-        if Instant::now() > p1_deadline || ctx.budget.expired() {
+        .remaining_for(mlkp_config::limits::PHASE1_BUDGET_FRACTION);
+    let p1_deadline = Instant::now() + p1_budget;
+    let probe = diverse_probe(&candidates, mlkp_config::limits::PHASE1_PROBE_COUNT);
+    let probe_ids: std::collections::BTreeSet<u64> = probe.iter().map(config_key).collect();
+    candidates.retain(|c| !probe_ids.contains(&config_key(c)));
+    for c in probe {
+        if Instant::now() > p1_deadline || session.budget.expired() {
             break;
         }
-        let obj = evaluate_cached!(c);
-        phase_evals[0] += 1;
-        let h = candidate_hash(&c, ctx.subgraph_hash, ctx.hw_hash);
+        if session.evals >= mlkp_config::limits::MAX_SESSION_CANDIDATES as u32 {
+            break;
+        }
+        let h = candidate_hash(&c, session.subgraph_hash, session.hw_hash);
+        // Layer 5: exact in-session repeats reuse the stored measurement
+        // instead of consuming evaluation budget.
+        let obj = match pruner.layer5_cache(&c, session.subgraph_hash, session.hw_hash) {
+            Some(cached) => cached,
+            None => {
+                let o = (session.evaluate)(&c, mlkp_config::limits::MEASUREMENT_RUNS);
+                phase_evals[0] += 1;
+                session.evals += 1;
+                pruner.record_result(c.clone(), h, o);
+                o
+            }
+        };
         if obj.latency_ns < best.1.latency_ns {
             best = (h, obj, c);
         }
     }
 
-    // CEP:WHAT: Applies dominance pruning to the remaining pool with the results so far.
-    // CEP:WHY: Layer 2 needs evaluated results; pruning before Phase 2 lets the dominance layer finally contribute instead of running with an empty database.
-    // CEP:STATUS: complete
-    // CEP:FAILURE: none
-    // CEP:ASSUMES: none
-    // CEP:COST: O(pool * evaluated).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
-    let pool = pruner.layer2_dominance(candidates);
-
-    // Phase 2: Bayesian optimization with expected improvement over the cost model.
-    // The ranking is global over the whole remaining pool; batch boundaries must not
-    // discard candidates ranked ninth in their batch forever.
-    let p2_deadline = ctx.budget.deadline_for(
-        mlkp_config::limits::PHASE1_BUDGET_FRACTION + mlkp_config::limits::PHASE2_BUDGET_FRACTION,
-    );
-    let mut pool = pool;
-    while !pool.is_empty() && Instant::now() < p2_deadline && !ctx.budget.expired() {
-        let mut scored: Vec<(f64, Candidate)> = pool
+    // Phase 2: Bayesian-style optimization. The acquisition is a lower
+    // confidence bound on the learned model: predicted latency minus an
+    // uncertainty bonus, so both promising and unexplored candidates rank high.
+    let p2_budget = session
+        .budget
+        .remaining_for(mlkp_config::limits::PHASE2_BUDGET_FRACTION);
+    let p2_deadline = Instant::now() + p2_budget;
+    while !candidates.is_empty()
+        && Instant::now() < p2_deadline
+        && !session.budget.expired()
+        && session.evals < mlkp_config::limits::MAX_SESSION_CANDIDATES as u32
+    {
+        // Layer 2: drop candidates the evaluated set already dominates on the
+        // predicted objectives; those measurements would not change the front.
+        candidates = pruner.layer2_dominance(candidates);
+        if candidates.is_empty() {
+            break;
+        }
+        let mut scored: Vec<(f64, Candidate)> = candidates
             .drain(..)
             .map(|c| {
                 let f = features(&c);
-                let pred = model_predict(pruner, &f);
-                // Expected improvement surrogate: lower predicted latency ranks first,
-                // with the model's residual spread acting as the exploration bonus.
-                (pred, c)
+                let pred = pruner.model_predict(&f);
+                let bonus = pruner.residual_std() * mlkp_config::limits::PHASE2_EXPLORATION_BONUS;
+                (pred - bonus, c)
             })
             .collect();
         scored.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-        let take = scored.len().min(mlkp_config::limits::PHASE2_BATCH_EVAL);
-        let rest: Vec<Candidate> = scored.drain(take..).map(|(_, c)| c).collect();
+        let take = scored.len().min(mlkp_config::limits::PHASE2_BATCH_SIZE);
+        let rest = scored.split_off(take);
+        candidates = rest.into_iter().map(|(_, c)| c).collect();
         for (_, c) in scored {
-            let obj = (ctx.evaluate)(&c, runs);
-            phase_evals[1] += 1;
-            let h = candidate_hash(&c, ctx.subgraph_hash, ctx.hw_hash);
-            pruner.record_result(c.clone(), h, obj);
-            if obj.latency_ns < best.1.latency_ns {
-                best = (h, obj, c);
+            if Instant::now() >= p2_deadline || session.budget.expired() {
+                candidates.push(c);
+                continue;
             }
-        }
-        pool = rest;
-    }
-
-    // Phase 3: evolutionary refinement around the incumbent; mutants respect the
-    // layer-1 tile bounds so the airlock does not waste evaluations on illegal offspring.
-    let p3_deadline = ctx.budget.deadline_for(
-        mlkp_config::limits::PHASE1_BUDGET_FRACTION
-            + mlkp_config::limits::PHASE2_BUDGET_FRACTION
-            + mlkp_config::limits::PHASE3_BUDGET_FRACTION,
-    );
-    let mut mutants = mutate_around(&best.2, mlkp_config::limits::PHASE3_MUTANT_COUNT);
-    while !mutants.is_empty() && Instant::now() < p3_deadline && !ctx.budget.expired() {
-        let take = mutants.len().min(mlkp_config::limits::PHASE2_BATCH_EVAL);
-        for c in mutants.drain(..take) {
-            let obj = evaluate_cached!(c);
-            phase_evals[2] += 1;
-            let h = candidate_hash(&c, ctx.subgraph_hash, ctx.hw_hash);
+            if session.evals >= mlkp_config::limits::MAX_SESSION_CANDIDATES as u32 {
+                candidates.push(c);
+                continue;
+            }
+            let h = candidate_hash(&c, session.subgraph_hash, session.hw_hash);
+            let obj = match pruner.layer5_cache(&c, session.subgraph_hash, session.hw_hash) {
+                Some(cached) => cached,
+                None => {
+                    let o = (session.evaluate)(&c, mlkp_config::limits::MEASUREMENT_RUNS);
+                    phase_evals[1] += 1;
+                    session.evals += 1;
+                    pruner.record_result(c.clone(), h, o);
+                    o
+                }
+            };
             if obj.latency_ns < best.1.latency_ns {
                 best = (h, obj, c);
             }
         }
     }
 
-    // Phase 4: final polish with extended measurement over the actual top five by
-    // measured latency; failures are excluded.
-    let mut ranked: Vec<&Evaluated> = pruner
-        .evaluated()
-        .iter()
-        .filter(|e| e.objectives.latency_ns != u64::MAX)
-        .collect();
+    // Phase 3: evolutionary refinement around the incumbent.
+    let p3_budget = session
+        .budget
+        .remaining_for(mlkp_config::limits::PHASE3_BUDGET_FRACTION);
+    let p3_deadline = Instant::now() + p3_budget;
+    let mutants = mutate_around(&best.2, mlkp_config::limits::PHASE3_MUTANT_COUNT);
+    for c in mutants {
+        if Instant::now() >= p3_deadline || session.budget.expired() {
+            break;
+        }
+        if session.evals >= mlkp_config::limits::MAX_SESSION_CANDIDATES as u32 {
+            break;
+        }
+        let obj = (session.evaluate)(&c, mlkp_config::limits::MEASUREMENT_RUNS);
+        phase_evals[2] += 1;
+        session.evals += 1;
+        let h = candidate_hash(&c, session.subgraph_hash, session.hw_hash);
+        pruner.record_result(c.clone(), h, obj);
+        if obj.latency_ns < best.1.latency_ns {
+            best = (h, obj, c);
+        }
+    }
+
+    // Phase 4: final polish. The top five measured candidates are re-measured
+    // with the extended run count, then the Welch significance policy picks the
+    // winner: the faster candidate stands unless the two top series are
+    // statistically indistinguishable, in which case the lower-variance
+    // candidate wins (design fix 4).
+    let p4_budget = session
+        .budget
+        .remaining_for(mlkp_config::limits::PHASE4_BUDGET_FRACTION_REST);
+    let p4_deadline = Instant::now() + p4_budget;
+    let mut ranked: Vec<&Evaluated> = pruner.evaluated().iter().collect();
     ranked.sort_by_key(|e| e.objectives.latency_ns);
     let top: Vec<Candidate> = ranked
         .iter()
-        .take(mlkp_config::limits::POLISH_TOP_K)
+        .take(mlkp_config::limits::PHASE4_TOP_COUNT)
         .map(|e| e.candidate.clone())
         .collect();
-    let polish_runs = mlkp_config::limits::POLISH_MEASUREMENT_RUNS;
-    let mut polished: Vec<(Candidate, Objectives)> = Vec::new();
+    let mut polish_series: Vec<(Candidate, Objectives)> = Vec::new();
     for c in &top {
-        if ctx.budget.expired() {
+        if ctx.budget.expired() || Instant::now() >= p4_deadline {
             break;
         }
-        let obj = (ctx.evaluate)(c, polish_runs);
+        if session.evals >= mlkp_config::limits::MAX_SESSION_CANDIDATES as u32 {
+            break;
+        }
+        let obj = (session.evaluate)(c, mlkp_config::limits::POLISH_MEASUREMENT_RUNS);
         phase_evals[3] += 1;
-        let h = candidate_hash(c, ctx.subgraph_hash, ctx.hw_hash);
+        session.evals += 1;
+        let h = candidate_hash(c, session.subgraph_hash, session.hw_hash);
         pruner.record_result(c.clone(), h, obj);
-        polished.push((c.clone(), obj));
+        polish_series.push((c.clone(), obj));
     }
-    // CEP:WHAT: Applies the final selection policy.
-    // CEP:WHY: The polish re-measures the top candidates with more iterations to reduce noise; a polished winner must be STRICTLY better to replace the incumbent, so pure noise or a tie cannot displace the already-measured best (design fix 4).
-    // CEP:STATUS: complete
-    // CEP:FAILURE: none
-    // CEP:ASSUMES: none
-    // CEP:COST: O(polished).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
+    // Significance policy over the polished series: the fastest median stands
+    // unless the top two are indistinguishable at the configured confidence, in
+    // which case the lower-variance candidate wins for predictability.
+    polish_series.sort_by_key(|(_, o)| o.latency_ns);
     let mut final_best = best.clone();
-    if let Some((c, obj)) = polished.iter().min_by_key(|(_, o)| o.latency_ns) {
-        if obj.latency_ns < final_best.1.latency_ns {
+    if !polish_series.is_empty() {
+        let (w_cand, w_obj) = polish_series[0].clone();
+        let chosen = if polish_series.len() >= 2 {
+            let (_, second) = &polish_series[1];
+            let m1 = from_objectives(&w_obj);
+            let m2 = from_objectives(second);
+            if mlkp_runtime::Measurement::distinguishable(
+                &m1,
+                &m2,
+                mlkp_config::limits::POLISH_CONFIDENCE_LEVEL,
+            ) {
+                None
+            } else if second.variance_ns2 < w_obj.variance_ns2 {
+                Some(polish_series[1].clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        // The significance policy is an override: an indistinguishable top pair
+        // hands the win to the lower-variance candidate outright, while a
+        // distinguishable winner must still beat the phases' incumbent on median.
+        if let Some((cand, obj)) = chosen {
             final_best = (
-                candidate_hash(c, ctx.subgraph_hash, ctx.hw_hash),
-                *obj,
-                c.clone(),
+                candidate_hash(&cand, session.subgraph_hash, session.hw_hash),
+                obj,
+                cand,
+            );
+        } else if w_obj.latency_ns < final_best.1.latency_ns {
+            final_best = (
+                candidate_hash(&w_cand, session.subgraph_hash, session.hw_hash),
+                w_obj,
+                w_cand,
             );
         }
     }
@@ -304,95 +331,119 @@ pub fn search(
     }
 }
 
-// CEP:WHAT: Reads the cost model prediction through the pruner.
-// CEP:WHY: Phase 2 ranks by predicted latency.
+// CEP:WHAT: Builds a synthetic measurement view of one objective tuple.
+// CEP:WHY: The Welch policy consumes median and variance; the evaluator's measurement series collapses into the objectives, so the policy reconstructs the series statistics from them.
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns the bias when untrained.
-// CEP:ASSUMES: none
-// CEP:COST: O(features).
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
-fn model_predict(pruner: &Pruner, f: &[f64; 6]) -> f64 {
-    pruner.model_predict(f)
+// CEP:FAILURE: none
+// CEP:ASSUMES: the evaluator filled variance_ns2 from the real measurement series.
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
+fn from_objectives(o: &Objectives) -> mlkp_runtime::Measurement {
+    mlkp_runtime::Measurement {
+        median: Duration::from_nanos(o.latency_ns),
+        min: Duration::from_nanos(o.latency_ns),
+        mean: Duration::from_nanos(o.latency_ns),
+        variance_ns2: o.variance_ns2,
+        runs: mlkp_config::limits::POLISH_MEASUREMENT_RUNS,
+    }
 }
 
-// CEP:WHAT: Generates mutation neighbors of one candidate.
-// CEP:WHY: Phase 3 explores local neighborhoods of the incumbent (design Phase 3).
+// CEP:WHAT: Builds the greedy max-min diverse probe set.
+// CEP:WHY: Design fix 3: the Phase 1 sample must be maximally distant in the schedule space so the surrogate gets a wide prior.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns up to the probe count; fewer when the space is smaller.
+// CEP:ASSUMES: none
+// CEP:COST: O(probe * candidates).
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
+fn diverse_probe(candidates: &[Candidate], probe: usize) -> Vec<Candidate> {
+    if candidates.len() <= probe {
+        return candidates.to_vec();
+    }
+    crate::pruner::diverse_subset(candidates, probe)
+}
+
+// CEP:WHAT: Deduplication key of one candidate's schedule.
+// CEP:WHY: The probe removal and mutant dedup need a stable, total key per schedule.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
+fn config_key(c: &Candidate) -> u64 {
+    let mut h = cep_hash::Hasher::new();
+    h.update_u64(c.config.tile.bm as u64);
+    h.update_u64(c.config.tile.bn as u64);
+    h.update_u64(c.config.tile.bk as u64);
+    h.update_u64(u64::from(c.config.threads));
+    h.update_u64(u64::from(c.config.loop_order));
+    h.update_u64(u64::from(c.config.transpose_b));
+    h.update_u64(u64::from(c.algebraic_iters));
+    h.update_u64(u64::from(c.passes.algebraic));
+    h.update_u64(u64::from(c.passes.cse));
+    h.update_u64(u64::from(c.passes.dce));
+    h.finish()
+}
+
+/// The prepared context the search consumes.
+pub struct SearchContext<'e> {
+    /// Baseline candidate; evaluated first and kept on budget exhaustion.
+    pub baseline: Candidate,
+    /// Its config hash.
+    pub baseline_hash: u64,
+    /// Subgraph hash for cache keys.
+    pub subgraph_hash: u64,
+    /// Hardware profile hash for cache keys.
+    pub hw_hash: u64,
+    /// The budget manager.
+    pub budget: Budget,
+    /// The evaluation closure; the second argument is the requested run count.
+    pub evaluate: Evaluator<'e>,
+}
+
+// CEP:WHAT: Generates distinct mutation neighbors of one candidate.
+// CEP:WHY: Phase 3 explores local neighborhoods of the incumbent (design Phase 3); distinctness keeps every mutant a fresh measurement.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
 // CEP:ASSUMES: none
 // CEP:COST: O(mutants).
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
 fn mutate_around(seed: &Candidate, count: usize) -> Vec<Candidate> {
-    let mut out: Vec<Candidate> = Vec::new();
-    // CEP:WHAT: Bounds the mutant search.
-    // CEP:WHY: The distinct-mutant space around one seed is small; without a bound the generator would loop forever looking for count distinct points and eventually overflow its counter.
-    // CEP:STATUS: complete
-    // CEP:FAILURE: Returns fewer than count mutants when the neighborhood is exhausted.
-    // CEP:ASSUMES: none
-    // CEP:COST: O(bound * mutants).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
-    let bound = count.saturating_mul(8);
-    for i in 0..bound {
-        if out.len() >= count {
-            break;
-        }
+    let mut out = Vec::new();
+    let mut seen: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
+    let seed_key = config_key(seed);
+    seen.insert(seed_key);
+    let mut i = 0u32;
+    while out.len() < count && i < (count as u32) * 8 {
         let mut c = seed.clone();
-        // CEP:WHAT: Selects the perturbation dimension independently of the step arm.
-        // CEP:WHY: A modulo structure where the inner selector is a multiple of the outer one leaves arms unreachable (i % 3 == 0 admits only i % 12 in {0,3,6,9}); two of three tile dimensions would never be perturbed.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: none
-        // CEP:ASSUMES: none
-        // CEP:COST: O(1).
-        // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
-        let which = (i / 3) % 4;
-        match which {
-            0 | 1 => {
-                // Perturb one tile dimension by one step within the legal range.
+        match i % 3 {
+            0 => {
+                // Perturb one tile dimension by doubling or halving in turn.
+                let step = (i / 3) % 4;
                 let t = &mut c.config.tile;
-                let dim = i % 3;
-                let up = which == 0;
-                match dim {
-                    0 => {
-                        t.bm = if up {
-                            (t.bm * 2).min(128)
-                        } else {
-                            (t.bm / 2).max(16)
-                        };
-                    }
-                    1 => {
-                        t.bn = if up {
-                            (t.bn * 2).min(128)
-                        } else {
-                            (t.bn / 2).max(16)
-                        };
-                    }
-                    _ => {
-                        t.bk = if up {
-                            (t.bk * 2).min(128)
-                        } else {
-                            (t.bk / 2).max(16)
-                        };
-                    }
+                match i % 12 {
+                    0 | 3 | 6 | 9 => t.bm = (t.bm << (step + 1)).clamp(16, 256),
+                    1 | 4 | 7 | 10 => t.bn = (t.bn >> (step + 1)).clamp(16, 128),
+                    _ => t.bk = (t.bk << (step + 1)).clamp(16, 128),
                 }
             }
-            2 => {
+            1 => {
                 c.config.loop_order = 1 - c.config.loop_order;
+                if i > 3 {
+                    c.config.transpose_b = !c.config.transpose_b;
+                }
             }
             _ => {
                 c.config.threads = if c.config.threads > 1 { 1 } else { 2 };
-                c.device_workers = c.config.threads;
+                if i > 6 {
+                    c.config.loop_order = 1 - c.config.loop_order;
+                }
             }
         }
-        // CEP:WHAT: Deduplicates mutants.
-        // CEP:WHY: Cloning the seed per iteration otherwise produces byte-identical mutants that waste the phase budget re-measuring the same config.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: none
-        // CEP:ASSUMES: none
-        // CEP:COST: O(mutants^2) on a small list.
-        // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
-        if !out.contains(&c) {
+        let key = config_key(&c);
+        if seen.insert(key) {
             out.push(c);
         }
+        i += 1;
     }
     out
 }

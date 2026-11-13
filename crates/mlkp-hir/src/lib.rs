@@ -29,7 +29,7 @@ pub use verify::verify;
 // CEP:FAILURE: none
 // CEP:ASSUMES: the graph verifies before and after; the caller runs the verifier.
 // CEP:COST: O(pass work).
-// CEP:EVIDENCE: crates/mlkp-hir/tests/passes_test.rs
+// CEP:EVIDENCE: crates/mlkp-hir/tests/hir_test.rs
 pub fn run_default_pipeline(g: &mut Graph) -> [usize; 3] {
     let folded = passes::algebraic::run(g);
     let merged = passes::cse::run(g);

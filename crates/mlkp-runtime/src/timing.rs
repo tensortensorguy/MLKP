@@ -6,7 +6,7 @@
 // CEP:FAILURE: none; measurement is total over any closure.
 // CEP:ASSUMES: the closure under measurement is deterministic in output; wall-clock noise is handled by the median and variance, not by the closure.
 // CEP:COST: cold; the closure runs warmup + runs times.
-// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/timing_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/runtime_test.rs.
 
 #![deny(missing_docs)]
 
@@ -35,7 +35,7 @@ impl Measurement {
     // CEP:FAILURE: Returns 0.0 when the mean is zero to avoid division by zero.
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/timing_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn relative_noise(&self) -> f64 {
         let mean_ns = self.mean.as_nanos() as f64;
         if mean_ns <= 0.0 {
@@ -51,7 +51,7 @@ impl Measurement {
     // CEP:FAILURE: Returns 0.0 when either variance is zero.
     // CEP:ASSUMES: both series have at least two runs.
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/timing_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn welch_t(a: &Measurement, b: &Measurement) -> f64 {
         let ma = a.mean.as_nanos() as f64;
         let mb = b.mean.as_nanos() as f64;
@@ -73,7 +73,7 @@ impl Measurement {
     // CEP:FAILURE: Returns 1.0 when the denominator degenerates.
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/timing_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn welch_df(a: &Measurement, b: &Measurement) -> f64 {
         let va = a.variance_ns2;
         let vb = b.variance_ns2;
@@ -94,7 +94,7 @@ impl Measurement {
     // CEP:FAILURE: none
     // CEP:ASSUMES: the two-tailed critical value for the normal approximation bounds the t distribution conservatively at 95 percent and 99 percent levels.
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-runtime/tests/timing_test.rs
+    // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn distinguishable(a: &Measurement, b: &Measurement, confidence: f64) -> bool {
         let t = Measurement::welch_t(a, b).abs();
         // Conservative two-tailed normal-approximation critical values.
@@ -110,7 +110,7 @@ impl Measurement {
 // CEP:FAILURE: none
 // CEP:ASSUMES: the closure is deterministic in output; each run must leave the arena so the next run measures the same work.
 // CEP:COST: O(runs * closure).
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/timing_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 pub fn measure<F: FnMut() -> Result<(), E>, E>(
     mut f: F,
     warmup: u32,

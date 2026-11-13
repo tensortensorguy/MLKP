@@ -1,7 +1,7 @@
 # Compiler Pipeline
 
 ## Abstract
-The compiler pipeline converts a `.mlkp` text program into a measured, verified kernel plan. The front-end parses and lowers into the semantic Tensor IR and the heterogeneous graph; the facade verifies, runs the level-1 passes, and drives the JIT autotune lifecycle; the runtime executes the winning plan. Inputs are the source text plus concrete operand buffers; outputs are the compiled plan and its execution results.
+The compiler pipeline converts a `.mlkp` text program into a measured, verified kernel plan. The front-end parses and lowers into the semantic Tensor IR and the heterogeneous graph; the facade verifies and drives the JIT autotune lifecycle; the autotuner applies each candidate's pass pipeline, lowers, and shadow-checks; the runtime executes the winning plan. Inputs are the source text plus concrete operand buffers; outputs are the compiled plan and its execution results.
 
 ## Formal Definitions
 The pipeline stages and their types:
@@ -16,9 +16,9 @@ pub fn execute(compiled: &Compiled, a: &[f32], b: &[f32]) -> Result<Vec<f32>, Co
 
 ## Algorithm
 1. Parse the source into a `Program` (front-end airlock enforces size and statement caps).
-2. Verify the heterogeneous graph; run algebraic simplification, CSE, and DCE in canonical order; verify again.
+2. Verify the heterogeneous graph; per candidate, run the candidate's pass set (algebraic sweeps, CSE, DCE) over the source graph and lower the result.
 3. Compute the subgraph hash (`graph.hash64`) and the hardware profile hash.
-4. Check the PGO store for a previous winner; on a hit, install and re-check.
+4. Check the PGO store for a previous winner; on a hit below the hot-path trigger, reconstruct the schedule from its hash, install, record the observation, and return.
 5. Enumerate the search space, prune through Layers 1, 4, and 3, run the four-phase search with the configured budget, and select the winner.
 6. Lower the winner to a kernel plan; validate the airlock; record the measurement in the PGO store.
 
@@ -35,4 +35,4 @@ Time is dominated by evaluation; compilation outside evaluation is O(graph + can
 * Depended on by: the `mlkpc` binary and the lifecycle integration test.
 
 ## Known Limitations
-The CPU plan schedules unary maps, last-axis reductions, softmax, and tiled matmul only; binary elementwise maps, broadcast, permute, and reshape lower to plan errors in v1. Thread chunking is reserved in `PassConfig` but the executor is single-threaded (ticket CEP-320).
+The CPU plan schedules unary maps, last-axis reductions, softmax, and tiled matmul only; binary elementwise maps, broadcast, permute, and reshape lower to plan errors in v1. The executor stages two inputs by buffer id and the facade exposes two-operand programs; multi-input programs need extended staging (ticket CEP-324). The machine backend emits reviewable assembly but is not wired into execution.

@@ -59,9 +59,9 @@ pub struct Compiled {
     pub staging: (u64, u64, u64),
 }
 
-/// Compiles one program end to end: parse, verify, pass, autotune.
+/// Compiles one program end to end: parse, verify, autotune.
 // CEP:WHAT: Compiles one program.
-// CEP:WHY: The single entry point for the CLI and the integration suite.
+// CEP:WHY: The single entry point for the CLI and the integration suite; the autotuner applies each candidate's pass pipeline over the verified source graph, so pass selection is a real search dimension.
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns CompilerError per the pipeline stage.
 // CEP:ASSUMES: none
@@ -83,22 +83,10 @@ pub fn compile(
                 .join("; "),
         )
     })?;
-    let graph = {
-        let mut g = program.graph.clone();
-        let counts = mlkp_hir::run_default_pipeline(&mut g);
-        let _ = counts;
-        g
-    };
-    mlkp_hir::verify(&graph).map_err(|errs| {
-        CompilerError::Verify(
-            errs.iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<_>>()
-                .join("; "),
-        )
-    })?;
-    let subgraph_hash = graph.hash64(0x4d_4c_4b_50);
-    let entry = mlkp_autotune::autotune(&graph, subgraph_hash, pgo, budget, inputs)
+    // The subgraph hash identifies the verified source graph; the autotuner's
+    // per-candidate pass pipelines transform it further for each schedule.
+    let subgraph_hash = program.graph.hash64(0x4d_4c_4b_50);
+    let entry = mlkp_autotune::autotune(&program.graph, subgraph_hash, pgo, budget, inputs)
         .map_err(|e| CompilerError::Compile(e.to_string()))?;
     // Staging offsets come from the plan's own offset table: inputs are buffers 0 and 1,
     // and the output is the destination of the last scheduled op.

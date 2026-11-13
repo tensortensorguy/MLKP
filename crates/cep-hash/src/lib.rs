@@ -5,8 +5,8 @@
 // CEP:STATUS: complete
 // CEP:FAILURE: none; hashing a slice cannot fail and never panics for any input.
 // CEP:ASSUMES: FNV-1a is not collision resistant; it is used for cache keys and fingerprints where inputs are compiler-generated, never for security boundaries.
-// CEP:COST: 1 multiply + 1 xor per byte; measured in benches/artifacts/hash_throughput.md.
-// CEP:EVIDENCE: benches/artifacts/hash_throughput.md and cargo test -p cep-hash.
+// CEP:COST: 1 multiply + 1 xor per byte; 1 multiply + 1 xor per byte.
+// CEP:EVIDENCE: cargo test -p cep-hash.
 
 //! Deterministic allocation-free FNV-1a hashing for cache keys and structural
 //! fingerprints. CEP-0: no allocation, no randomness, no panic.
@@ -26,7 +26,7 @@ pub const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 // CEP:FAILURE: none
 // CEP:ASSUMES: none
 // CEP:COST: 2 operations per byte, allocation-free.
-// CEP:EVIDENCE: benches/artifacts/hash_throughput.md
+// CEP:EVIDENCE: cargo test -p cep-hash
 #[inline]
 pub fn hash_bytes(bytes: &[u8], seed: u64) -> u64 {
     let mut h = seed;

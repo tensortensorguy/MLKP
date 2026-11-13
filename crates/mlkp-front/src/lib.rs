@@ -636,7 +636,7 @@ impl<'a> Parser<'a> {
             "exp" => Op::Map(MapFn::Exp),
             "neg" => Op::Map(MapFn::Neg),
             "sigmoid" => Op::Map(MapFn::Sigmoid),
-            "softmax" => Op::Softmax { axis: 1 },
+            "softmax" => Op::Softmax { axis: 0 },
             other => {
                 return Err(ParseError {
                     line,
@@ -645,6 +645,23 @@ impl<'a> Parser<'a> {
             }
         };
         let ty = self.infer_result_type(op_name, &operands, line)?;
+        // Softmax normalizes the last axis of its operand; the axis is derived
+        // from the inferred rank so rank-3 input normalizes axis 2, not a
+        // hardcoded 1.
+        let op = if let Op::Softmax { .. } = op {
+            let rank = ty.dims.len();
+            if rank == 0 {
+                return Err(ParseError {
+                    line,
+                    message: "softmax needs a ranked operand".to_string(),
+                });
+            }
+            Op::Softmax {
+                axis: (rank - 1) as u32,
+            }
+        } else {
+            op
+        };
         let id = self.next_node;
         self.next_node += 1;
         let node = Node {

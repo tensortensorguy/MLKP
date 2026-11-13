@@ -196,3 +196,79 @@ fn manifest_matches_module() {
     assert_eq!(manifest.workgroup.x, 64);
     assert_eq!(manifest.push_constant_size, 0);
 }
+
+// CEP:WHAT: Builds a kernel with a workgroup barrier and a conditional branch.
+// CEP:WHY: The barrier lowering and the branch lowering must pass the word verifier like the straight-line kernel does.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via expect.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-spirv
+fn control_kernel() -> GKernel {
+    let mut k = GKernel {
+        name: "control".to_string(),
+        workgroup: [32, 1, 1],
+        blocks: Vec::new(),
+        bindings: vec![(0, 64), (1, 64)],
+    };
+    k.push_block("entry");
+    k.push(GOpc::GlobalId(0), Some(1));
+    k.push(GOpc::Barrier, None);
+    k.push(
+        GOpc::LoadF32 {
+            binding: 0,
+            index: 1,
+        },
+        Some(2),
+    );
+    k.push(GOpc::ConstF32(0.0), Some(3));
+    k.push(GOpc::FGt(2, 3), Some(4));
+    k.push(
+        GOpc::BranchCond {
+            cond: 4,
+            true_label: "then".to_string(),
+            false_label: "exit".to_string(),
+        },
+        None,
+    );
+    k.push_block("then");
+    k.push(
+        GOpc::StoreF32 {
+            binding: 1,
+            index: 1,
+            value: 2,
+        },
+        None,
+    );
+    k.push(GOpc::Branch("exit".to_string()), None);
+    k.push_block("exit");
+    k.push(GOpc::Return, None);
+    k
+}
+
+// CEP:WHAT: Verifies the barrier and branch kernel emits valid words.
+// CEP:WHY: The word verifier must prove id discipline for every lowering path.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via expect on verifier rejection.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-spirv
+#[test]
+fn control_flow_and_barrier_verify() {
+    let k = control_kernel();
+    let m = mlkp_spirv::emit_module(&k).expect("emit control kernel");
+    assert!(m.id_bound > 10);
+    // Every control barrier must carry its three scope operands.
+    let mut saw_barrier = false;
+    let mut i = 5usize;
+    while i < m.words.len() {
+        let wc = (m.words[i] >> 16) as usize;
+        let opc = m.words[i] & 0xFFFF;
+        if opc == 224 {
+            saw_barrier = true;
+            assert_eq!(wc, 4, "control barrier carries three scope ids");
+        }
+        i += wc.max(1);
+    }
+    assert!(saw_barrier, "OpControlBarrier must appear");
+}

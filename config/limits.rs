@@ -38,6 +38,22 @@ pub const PHASE3_BUDGET_FRACTION: f64 = 0.25;
 /// Phase 4 receives the remaining budget after phases 1 through 3.
 pub const PHASE4_BUDGET_FRACTION_REST: f64 = 0.10;
 
+/// Phase 1 probe count: the diverse sample evaluated before model-guided phases.
+pub const PHASE1_PROBE_COUNT: usize = 20;
+
+/// Phase 2 batch size ranked and evaluated per acquisition round.
+pub const PHASE2_BATCH_SIZE: usize = 8;
+
+/// Multiplier on the cost model's residual standard deviation used as the
+/// lower-confidence-bound exploration bonus of the Phase 2 acquisition.
+pub const PHASE2_EXPLORATION_BONUS: f64 = 1.0;
+
+/// Mutant count generated around the incumbent in Phase 3.
+pub const PHASE3_MUTANT_COUNT: usize = 24;
+
+/// Candidates re-measured with the extended run count in Phase 4.
+pub const PHASE4_TOP_COUNT: usize = 5;
+
 /// Warmup runs discarded from each measurement series.
 pub const MEASUREMENT_WARMUP_RUNS: u32 = 3;
 
@@ -80,18 +96,6 @@ pub const MAX_SESSION_CANDIDATES: usize = 400;
 /// Early-stop margin: a candidate slower than the incumbent by this factor is aborted mid-measurement.
 pub const EARLY_STOP_FACTOR: f64 = 2.0;
 
-/// Candidates evaluated per Phase 2 ranking batch.
-pub const PHASE2_BATCH_EVAL: usize = 8;
-
-/// Mutants generated around the incumbent in Phase 3.
-pub const PHASE3_MUTANT_COUNT: usize = 24;
-
-/// Candidates re-measured in the final polish phase.
-pub const POLISH_TOP_K: usize = 5;
-
-/// Diverse probe count for Phase 1 sampling (mirrors the pruner constant).
-pub const DIVERSE_PROBE_COUNT: usize = 20;
-
 /// Maximum machine functions per compilation unit passed to the register allocator.
 pub const MAX_MIR_FUNCTIONS: usize = 64;
 
@@ -100,6 +104,10 @@ pub const MAX_SPIRV_ID_BOUND: u32 = 1_000_000;
 
 /// Workspace preallocation for the runtime arena, in bytes.
 pub const ARENA_DEFAULT_BYTES: usize = 256 * 1024 * 1024;
+
+/// Workspace preallocation for candidate evaluation arenas, in f32 elements.
+/// Sized for the largest candidate plan of the benchmark problems.
+pub const ARENA_EVAL_ELEMENTS: u64 = 64 * 1024 * 1024;
 
 const _: () = assert!(
     PHASE1_BUDGET_FRACTION

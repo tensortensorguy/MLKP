@@ -6,7 +6,7 @@
 // CEP:FAILURE: none; the probe reports availability, it never panics on a headless host.
 // CEP:ASSUMES: the Vulkan loader is named libvulkan.so.1 on linux; device enumeration beyond loader presence is deferred to the GPU runtime ticket (doc/runtime.md Known Limitations).
 // CEP:COST: cold; one dlopen attempt.
-// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/probe_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-runtime/tests/runtime_test.rs.
 
 #![deny(missing_docs)]
 
@@ -28,7 +28,7 @@ pub struct DeviceProbe {
 // CEP:FAILURE: none; failures degrade to honest unavailability.
 // CEP:ASSUMES: none
 // CEP:COST: cold; O(1) plus one dlopen.
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/probe_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 pub fn probe() -> DeviceProbe {
     let workers = std::thread::available_parallelism()
         .map(|n| n.get() as u32)
@@ -47,7 +47,7 @@ pub fn probe() -> DeviceProbe {
 // CEP:FAILURE: Returns false with the reason string.
 // CEP:ASSUMES: linux loader naming; other platforms report unavailability honestly.
 // CEP:COST: cold; one dlopen plus one dlclose.
-// CEP:EVIDENCE: crates/mlkp-runtime/tests/probe_test.rs
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
 fn probe_vulkan_loader() -> (bool, String) {
     #[cfg(target_os = "linux")]
     {

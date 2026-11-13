@@ -16,11 +16,12 @@ use std::time::Duration;
 
 const USAGE: &str = "mlkpc [command]
 Commands:
-  run <file>            parse, verify, autotune, execute; prints the run log
+  run [file]            parse, verify, autotune, execute; prints the run log.
+                        Without a file a synthetic matmul-relu program is used.
   version               print compiler version
 Options:
-  --budget-ms <n>       autotune time budget (default 5000)
-  --dim <n>             problem dimension (default 128)";
+  --budget-ms <n>       autotune time budget (default from config/limits.rs)
+  --dim <n>             problem dimension of the synthetic program (default 128)";
 
 // CEP:WHAT: CLI entry point.
 // CEP:WHY: The lifecycle is externally observable.
@@ -39,14 +40,17 @@ fn main() {
         println!("mlkp {} (CEP&CC 0.4)", env!("CARGO_PKG_VERSION"));
         return;
     }
-    let mut budget_ms: u64 = 5000;
+    let mut budget_ms: u64 = mlkp_config::limits::COLD_TIME_BUDGET_MS;
     let mut dim: usize = 128;
     let mut positional: Vec<String> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--budget-ms" => {
-                budget_ms = args.get(i + 1).and_then(|v| v.parse().ok()).unwrap_or(5000);
+                budget_ms = args
+                    .get(i + 1)
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(mlkp_config::limits::COLD_TIME_BUDGET_MS);
                 i += 2;
             }
             "--dim" => {
@@ -64,10 +68,18 @@ fn main() {
         eprintln!("usage error: unknown command '{command}'");
         std::process::exit(3);
     }
-    let source = format!(
-        "fn @net(%a: f32[{d},{d}], %b: f32[{d},{d}]) -> f32[{d},{d}] {{\n  %t = matmul(%a, %b)\n  %r = relu(%t)\n  return %r\n}}\n",
-        d = dim
-    );
+    // The documented file argument is read when present; the synthetic matmul
+    // program is the fallback so `mlkpc run` stays a one-command smoke test.
+    let source = match positional.get(1) {
+        Some(path) => std::fs::read_to_string(path).unwrap_or_else(|e| {
+            eprintln!("usage error: cannot read '{path}': {e}");
+            std::process::exit(3);
+        }),
+        None => format!(
+            "fn @net(%a: f32[{d},{d}], %b: f32[{d},{d}]) -> f32[{d},{d}] {{\n  %t = matmul(%a, %b)\n  %r = relu(%t)\n  return %r\n}}\n",
+            d = dim
+        ),
+    };
     let elements = dim * dim;
     let a: Vec<f32> = (0..elements).map(|i| ((i % 17) as f32) * 0.25).collect();
     let b: Vec<f32> = (0..elements).map(|i| ((i % 11) as f32) * 0.5).collect();

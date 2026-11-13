@@ -152,6 +152,34 @@ pub mod enumerants {
         /// Vulkan.
         pub const VULKAN: u32 = 3;
     }
+    /// scope enumerants.
+    pub mod scope {
+        /// Device.
+        pub const DEVICE: u32 = 1;
+        /// Workgroup.
+        pub const WORKGROUP: u32 = 2;
+        /// Subgroup.
+        pub const SUBGROUP: u32 = 3;
+        /// Invocation.
+        pub const INVOCATION: u32 = 4;
+    }
+    /// memory_semantics enumerants.
+    pub mod memory_semantics {
+        /// Relaxed.
+        pub const RELAXED: u32 = 0x0000;
+        /// Acquire.
+        pub const ACQUIRE: u32 = 0x0002;
+        /// Release.
+        pub const RELEASE: u32 = 0x0004;
+        /// AcquireRelease.
+        pub const ACQUIRERELEASE: u32 = 0x0008;
+        /// SequentiallyConsistent.
+        pub const SEQUENTIALLYCONSISTENT: u32 = 0x0010;
+        /// WorkgroupMemory.
+        pub const WORKGROUPMEMORY: u32 = 0x0100;
+        /// CrossWorkgroupMemory.
+        pub const CROSSWORKGROUPMEMORY: u32 = 0x0200;
+    }
     /// capability enumerants.
     pub mod capability {
         /// Shader.

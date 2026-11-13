@@ -251,3 +251,148 @@ fn measurement_statistics_behave() {
     .expect("measure");
     assert!(loud.mean > m.mean, "sleeping closure must measure slower");
 }
+
+// CEP:WHAT: Verifies the scheduled matmul variants compute the same values.
+// CEP:WHY: The search space varies loop order and the B access pattern; every schedule must be a correct matmul or the autotuner optimizes against wrong ground truth.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+#[test]
+fn matmul_schedules_match_reference() {
+    let (m, n, k) = (17, 13, 19);
+    let a: Vec<f32> = (0..m * k).map(|i| ((i % 11) as f32) * 0.25).collect();
+    let b: Vec<f32> = (0..k * n).map(|i| ((i % 7) as f32) * 0.5).collect();
+    let mut want = vec![0.0f32; m * n];
+    for i in 0..m {
+        for j in 0..n {
+            let mut acc = 0.0f32;
+            for kk in 0..k {
+                acc += a[i * k + kk] * b[kk * n + j];
+            }
+            want[i * n + j] = acc;
+        }
+    }
+    for order in [0u32, 1] {
+        for transpose_b in [false, true] {
+            let mut c = vec![0.0f32; m * n];
+            mlkp_runtime::kernels::matmul_tiled_sched(
+                &a,
+                &b,
+                &mut c,
+                m,
+                n,
+                k,
+                Tile {
+                    bm: 8,
+                    bn: 4,
+                    bk: 6,
+                },
+                order,
+                transpose_b,
+            );
+            for (idx, (got, expected)) in c.iter().zip(want.iter()).enumerate() {
+                assert!(
+                    (got - expected).abs() < 1e-3,
+                    "schedule order={order} tb={transpose_b} c[{idx}] {got} vs {expected}"
+                );
+            }
+        }
+    }
+}
+
+// CEP:WHAT: Verifies the thread-chunked matmul matches the single-threaded one.
+// CEP:WHY: The worker dimension must change execution without changing results.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+#[test]
+fn threaded_matmul_matches_single_thread() {
+    let (m, n, k) = (32, 32, 32);
+    let a: Vec<f32> = (0..m * k).map(|i| ((i % 9) as f32) - 4.0).collect();
+    let b: Vec<f32> = (0..k * n).map(|i| ((i % 5) as f32) * 0.5).collect();
+    let mut single = vec![0.0f32; m * n];
+    mlkp_runtime::kernels::matmul_tiled(
+        &a,
+        &b,
+        &mut single,
+        m,
+        n,
+        k,
+        Tile {
+            bm: 16,
+            bn: 16,
+            bk: 16,
+        },
+    );
+    let mut arena = Arena::with_capacity((m * k + k * n + m * n) as u64);
+    let off_a = arena.alloc((m * k) as u64).expect("alloc a");
+    let off_b = arena.alloc((k * n) as u64).expect("alloc b");
+    let off_c = arena.alloc((m * n) as u64).expect("alloc c");
+    arena.fill(off_a, (m * k) as u64, &a).expect("fill a");
+    arena.fill(off_b, (k * n) as u64, &b).expect("fill b");
+    let plan = KernelPlan {
+        ops: vec![PlanOp::MatMul {
+            a: 0,
+            b: 1,
+            c: 2,
+            m,
+            n,
+            k,
+            tile: Tile {
+                bm: 16,
+                bn: 16,
+                bk: 16,
+            },
+            loop_order: 1,
+            transpose_b: true,
+        }],
+        buffers: 3,
+        buffer_lens: vec![(m * k) as u64, (k * n) as u64, (m * n) as u64],
+        buffer_offsets: vec![off_a, off_b, off_c],
+        config: PassConfig {
+            tile: Tile {
+                bm: 16,
+                bn: 16,
+                bk: 16,
+            },
+            threads: 4,
+            loop_order: 1,
+            fused_elementwise: true,
+            transpose_b: true,
+        },
+    };
+    plan.validate().expect("airlock");
+    execute(&plan, &mut arena).expect("threaded execute");
+    let out = arena.slice(off_c, (m * n) as u64).expect("out");
+    for (got, expected) in out.iter().zip(single.iter()) {
+        assert!((got - expected).abs() < 1e-3, "{got} vs {expected}");
+    }
+}
+
+// CEP:WHAT: Verifies the airlock rejects overlapping per-operation buffers.
+// CEP:WHY: Disjoint per-op ranges are what makes the copy-free executor sound.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on failure.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+#[test]
+fn airlock_rejects_overlapping_op_buffers() {
+    let plan = KernelPlan {
+        ops: vec![PlanOp::Unary {
+            op: EwUnary::Relu,
+            src: 0,
+            dst: 0,
+            n: 8,
+        }],
+        buffers: 1,
+        buffer_lens: vec![8],
+        buffer_offsets: vec![0],
+        config: PassConfig::default(),
+    };
+    assert!(plan.validate().is_err(), "src == dst must be rejected");
+}

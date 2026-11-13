@@ -6,7 +6,7 @@
 // CEP:FAILURE: Compile-time assertions fire if a constant violates its structural invariant; there is no runtime failure path.
 // CEP:ASSUMES: x86_64 and aarch64 have 64-byte cache lines in the deployed fleet; unknown targets take the conservative 128-byte value; page size is 4096 on x86_64 linux and the conservative 65536 elsewhere. The conservative branches are documented assumptions, challenged by the bench suite, not silent defaults.
 // CEP:COST: compile-time only.
-// CEP:EVIDENCE: benches/artifacts/matmul_tiled.md records the tile sizing that consumes these constants.
+// CEP:EVIDENCE: benches/artifacts/matmul_128.md records the tile sizing that consumes these constants.
 
 /// Target cache line size in bytes.
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]

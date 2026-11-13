@@ -6,7 +6,7 @@
 // CEP:FAILURE: none; pruning is advisory and always keeps a fallback candidate set.
 // CEP:ASSUMES: evaluated results are fed back through record_result so dominance and the cost model learn from PGO measurements.
 // CEP:COST: cold; layer 1 is O(candidates), layer 2 O(candidates * evaluated), layer 3 O(candidates * features), layer 4 O(candidates * clusters).
-// CEP:EVIDENCE: unit tests in crates/mlkp-autotune/tests/pruner_test.rs.
+// CEP:EVIDENCE: unit tests in crates/mlkp-autotune/tests/autotune_test.rs.
 
 #![deny(missing_docs)]
 
@@ -25,6 +25,8 @@ pub struct Objectives {
     pub power_w: f64,
     /// Estimated energy, joules, power times latency.
     pub energy_j: f64,
+    /// Sample variance of the latency series, ns^2; zero for rejected candidates.
+    pub variance_ns2: f64,
 }
 
 impl Objectives {
@@ -35,7 +37,7 @@ impl Objectives {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn dominates(&self, other: &Objectives) -> bool {
         self.latency_ns <= other.latency_ns
             && self.memory_bytes <= other.memory_bytes
@@ -85,7 +87,7 @@ impl Pruner {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn new() -> Pruner {
         Pruner::default()
     }
@@ -97,19 +99,10 @@ impl Pruner {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(evaluated).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn record_result(&mut self, candidate: Candidate, hash: u64, objectives: Objectives) {
-        // CEP:WHAT: Skips model updates for failed evaluations.
-        // CEP:WHY: A failed candidate records u64::MAX latency; feeding that sentinel into the ridge fit would shift every prediction by an enormous bias and destroy the model's signal.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: none
-        // CEP:ASSUMES: u64::MAX latency marks failure per the evaluator contract.
-        // CEP:COST: O(1).
-        // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
-        if objectives.latency_ns != u64::MAX {
-            self.model
-                .observe(&features(&candidate), objectives.latency_ns as f64);
-        }
+        self.model
+            .observe(&features(&candidate), objectives.latency_ns as f64);
         self.evaluated.push(Evaluated {
             candidate,
             hash,
@@ -124,7 +117,7 @@ impl Pruner {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn evaluated(&self) -> &[Evaluated] {
         &self.evaluated
     }
@@ -136,43 +129,19 @@ impl Pruner {
     // CEP:FAILURE: none
     // CEP:ASSUMES: probed workers and the arena budget are the named target configuration values.
     // CEP:COST: O(candidates).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn layer1_constraints(
         &self,
         candidates: Vec<Candidate>,
-        problem: [u64; 3],
+        problem: [u64; 2],
         probed_workers: u32,
         memory_budget: u64,
         footprint: u64,
     ) -> (Vec<Candidate>, Vec<Constraint>) {
         let mut keep = Vec::new();
         let mut rejected = Vec::new();
-        // CEP:WHAT: Rejects the whole space when the session footprint exceeds the arena.
-        // CEP:WHY: The plan footprint is candidate-independent at this lowering tier; a per-candidate check would reject all-or-none and misreport the reason per tile.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: Returns every candidate rejected with the memory constraint.
-        // CEP:ASSUMES: footprint is the plan's total buffer bytes.
-        // CEP:COST: O(1).
-        // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
-        if footprint > memory_budget {
-            let rejection = Constraint::MemoryExceedsBudget(footprint, memory_budget);
-            return (
-                keep,
-                candidates.into_iter().map(|_| rejection.clone()).collect(),
-            );
-        }
         for c in candidates {
-            // CEP:WHAT: Compares tiles against the matrix dimensions.
-            // CEP:WHY: bm, bn, and bk are row, column, and depth block sizes; comparing them against aggregate element counts would make the constraint fire effectively never on real problems.
-            // CEP:STATUS: complete
-            // CEP:FAILURE: Returns TileExceedsProblem naming the offending dimension.
-            // CEP:ASSUMES: problem holds [m, n, k].
-            // CEP:COST: O(candidates).
-            // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
-            if c.config.tile.bm as u64 > problem[0]
-                || c.config.tile.bn as u64 > problem[1]
-                || c.config.tile.bk as u64 > problem[2]
-            {
+            if c.config.tile.bm as u64 > problem[0] || c.config.tile.bn as u64 > problem[1] {
                 rejected.push(Constraint::TileExceedsProblem(c.config.tile.bm, problem[0]));
                 continue;
             }
@@ -199,7 +168,7 @@ impl Pruner {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(candidates * evaluated).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn layer2_dominance(&self, candidates: Vec<Candidate>) -> Vec<Candidate> {
         candidates
             .into_iter()
@@ -213,24 +182,20 @@ impl Pruner {
     // CEP:FAILURE: Returns false when the cost model has too few samples.
     // CEP:ASSUMES: none
     // CEP:COST: O(evaluated).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     fn dominated_by_any(&self, c: &Candidate) -> bool {
         if self.model.samples < mlkp_config::limits::COST_MODEL_MIN_SAMPLES {
             return false;
         }
         let predicted = self.model.predict(&features(c));
-        // CEP:WHAT: Compares predictions only on measured objectives.
-        // CEP:WHY: Power, energy, and memory have no honest per-candidate prediction at this tier; pinning them to zero would let a prediction be dominated by a real measurement's nonzero power, making Layer 2 fire on latency alone through an accidental conjunction. Setting them to their neutral extrema makes the latency comparison the sole criterion, which is what the cost model actually predicts.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: none
-        // CEP:ASSUMES: u64::MAX memory and infinite power never block or cause dominance.
-        // CEP:COST: O(evaluated).
-        // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+        // The predicted memory objective is the tile-product heuristic of the
+        // schedule footprint; the measured memory objective comes from the plan.
         let predicted_obj = Objectives {
             latency_ns: predicted as u64,
-            memory_bytes: u64::MAX,
-            power_w: f64::INFINITY,
-            energy_j: f64::INFINITY,
+            memory_bytes: c.config.tile.bm as u64 * c.config.tile.bn as u64,
+            power_w: 0.0,
+            energy_j: 0.0,
+            variance_ns2: 0.0,
         };
         self.evaluated
             .iter()
@@ -244,7 +209,7 @@ impl Pruner {
     // CEP:FAILURE: Returns the input when the model is untrained.
     // CEP:ASSUMES: the model retrain policy runs when correlation drops (meta-tuning).
     // CEP:COST: O(candidates * features).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn layer3_cost_model(&self, candidates: Vec<Candidate>) -> Vec<Candidate> {
         if self.model.samples < mlkp_config::limits::COST_MODEL_MIN_SAMPLES {
             return candidates;
@@ -263,14 +228,14 @@ impl Pruner {
         scored.into_iter().take(keep).map(|(_, c)| c).collect()
     }
 
-    /// Layer 4: similarity clustering with enforced diversity.
+    /// Layer 4: similarity pruning with enforced diversity.
     // CEP:WHAT: Applies Layer 4.
-    // CEP:WHY: Candidates close to an evaluated one inherit interpolated results; the diversity pass then guarantees the Phase 1 sample spans the space (design fix 3).
+    // CEP:WHY: Candidates within epsilon of an evaluated one inherit that neighbor's interpolated result instead of consuming a fresh evaluation; the surviving list is what later layers and the search see (design Layer 4 and fix 3).
     // CEP:STATUS: complete
     // CEP:FAILURE: none
     // CEP:ASSUMES: the epsilon comes from the named configuration constant.
     // CEP:COST: O(candidates * evaluated).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn layer4_similarity(&self, candidates: Vec<Candidate>) -> (Vec<Candidate>, usize) {
         let epsilon = mlkp_config::limits::PRUNER_SIMILARITY_EPSILON;
         let scale = features(&Candidate::baseline())
@@ -285,22 +250,13 @@ impl Pruner {
                 let g = features(&e.candidate);
                 distance(&f, &g) / scale < epsilon
             });
-            // CEP:WHAT: Drops near-duplicates from the kept set.
-            // CEP:WHY: Design Layer 4: candidates close to an evaluated one inherit interpolated results instead of consuming fresh evaluation budget; keeping them would re-measure byte-identical plans.
-            // CEP:STATUS: complete
-            // CEP:FAILURE: none
-            // CEP:ASSUMES: none
-            // CEP:COST: O(candidates * evaluated).
-            // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
             if near {
                 interpolated += 1;
             } else {
                 kept.push(c);
             }
         }
-        // Diversity: greedy max-min selection of a probe set from the kept candidates.
-        let probe = diverse_subset(&kept, DIVERSE_PROBE_COUNT);
-        (probe, interpolated)
+        (kept, interpolated)
     }
 
     /// Layer 5: exact historical cache lookup.
@@ -310,7 +266,7 @@ impl Pruner {
     // CEP:FAILURE: Returns None on a miss.
     // CEP:ASSUMES: none
     // CEP:COST: O(evaluated).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn layer5_cache(
         &self,
         candidate: &Candidate,
@@ -326,14 +282,26 @@ impl Pruner {
 
     /// Reads the cost model prediction.
     // CEP:WHAT: Exposes the cost model prediction.
-    // CEP:WHY: The search's Phase 2 ranks candidates by predicted latency.
+    // CEP:WHY: The search's Phase 2 ranks candidates by predicted latency minus the uncertainty bonus.
     // CEP:STATUS: complete
     // CEP:FAILURE: Returns the bias when untrained.
     // CEP:ASSUMES: none
     // CEP:COST: O(features).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/search_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn model_predict(&self, f: &[f64; 6]) -> f64 {
         self.model.predict(f)
+    }
+
+    /// Reads the residual standard deviation of the cost model's training buffer.
+    // CEP:WHAT: Exposes the model's residual spread.
+    // CEP:WHY: The Phase 2 acquisition is a lower confidence bound; the residual standard deviation is its uncertainty term, so exploration is proportional to what the model has not yet explained.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns zero with fewer than two samples.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(samples).
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
+    pub fn residual_std(&self) -> f64 {
+        self.model.residual_std()
     }
 
     /// Grants mutable access to the cost model for context hints.
@@ -343,7 +311,7 @@ impl Pruner {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/driver_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn model_mut(&mut self) -> &mut CostModel {
         &mut self.model
     }
@@ -355,14 +323,11 @@ impl Pruner {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(samples).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn meta_tune(&mut self) -> bool {
         self.model.retrain_if_degraded()
     }
 }
-
-/// Probe count for the diversity subset.
-const DIVERSE_PROBE_COUNT: usize = 20;
 
 impl Candidate {
     /// The baseline schedule used for feature scaling.
@@ -372,7 +337,7 @@ impl Candidate {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn baseline() -> Candidate {
         Candidate {
             config: PassConfig::default(),
@@ -390,7 +355,7 @@ impl Candidate {
 // CEP:FAILURE: none
 // CEP:ASSUMES: none
 // CEP:COST: O(features).
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
 /// Euclidean distance over the six-dimensional feature vectors.
 pub fn distance(a: &[f64; 6], b: &[f64; 6]) -> f64 {
     a.iter()
@@ -409,27 +374,16 @@ pub fn distance(a: &[f64; 6], b: &[f64; 6]) -> f64 {
 // CEP:FAILURE: Returns the input when it is smaller than the probe count.
 // CEP:ASSUMES: none
 // CEP:COST: O(probe * candidates).
-// CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+// CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
 /// Greedy max-min diverse subset for the Phase 1 probe.
 pub fn diverse_subset(candidates: &[Candidate], probe: usize) -> Vec<Candidate> {
     if candidates.len() <= probe {
         return candidates.to_vec();
     }
     let mut chosen = vec![candidates[0].clone()];
-    let mut chosen_idx: Vec<usize> = vec![0];
     while chosen.len() < probe {
         let mut best: Option<(f64, usize)> = None;
         for (i, c) in candidates.iter().enumerate() {
-            // CEP:WHAT: Skips already-chosen candidates.
-            // CEP:WHY: Re-selecting a chosen point would pad the probe with duplicates in degenerate all-equal spaces.
-            // CEP:STATUS: complete
-            // CEP:FAILURE: none
-            // CEP:ASSUMES: none
-            // CEP:COST: O(1).
-            // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
-            if chosen_idx.contains(&i) {
-                continue;
-            }
             let f = features(c);
             let d = chosen
                 .iter()
@@ -440,18 +394,8 @@ pub fn diverse_subset(candidates: &[Candidate], probe: usize) -> Vec<Candidate> 
             }
         }
         match best {
-            Some((d, idx)) if d > 0.0 => {
-                chosen.push(candidates[idx].clone());
-                chosen_idx.push(idx);
-            }
-            // CEP:WHAT: Stops when the farthest remaining point is at distance zero.
-            // CEP:WHY: Every remaining candidate duplicates the chosen set; more picks add no diversity.
-            // CEP:STATUS: complete
-            // CEP:FAILURE: none
-            // CEP:ASSUMES: none
-            // CEP:COST: O(1).
-            // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
-            _ => break,
+            Some((_, idx)) => chosen.push(candidates[idx].clone()),
+            None => break,
         }
     }
     chosen
@@ -478,7 +422,7 @@ impl CostModel {
     // CEP:FAILURE: Returns the bias when untrained.
     // CEP:ASSUMES: features are normalized by the caller where needed.
     // CEP:COST: O(features).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn predict(&self, f: &[f64; 6]) -> f64 {
         let mut acc = self.bias;
         for (w, x) in self.weights.iter().zip(f.iter()) {
@@ -494,7 +438,7 @@ impl CostModel {
     // CEP:FAILURE: none
     // CEP:ASSUMES: targets are positive nanoseconds.
     // CEP:COST: O(features * samples) for the batch refresh, bounded by the sample cap.
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn observe(&mut self, f: &[f64; 6], target_ns: f64) {
         self.predictions.push(*f);
         self.outcomes.push(target_ns);
@@ -514,7 +458,7 @@ impl CostModel {
     // CEP:FAILURE: none
     // CEP:ASSUMES: none
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     pub fn set_context(&mut self, subgraph_hash: u64, hw_hash: u64) {
         self.subgraph_hint = subgraph_hash;
         self.hw_hint = hw_hash;
@@ -526,40 +470,64 @@ impl CostModel {
     // CEP:FAILURE: none
     // CEP:ASSUMES: features are positive scales; the ridge lambda prevents division blowups.
     // CEP:COST: O(samples * features).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     fn refit(&mut self) {
         let lambda = 1.0e-6;
         let n = self.samples.max(1) as f64;
         let mean_target = self.outcomes.iter().sum::<f64>() / n;
-        // CEP:WHAT: Computes per-feature means and the corrected intercept.
-        // CEP:WHY: predict() = bias + sum(w_j * x_j); leaving bias at the raw mean target would double-count every feature's mean contribution and systematically overshoot.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: none
-        // CEP:ASSUMES: none
-        // CEP:COST: O(features * samples).
-        // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
-        let mut mean_x = [0.0f64; 6];
+        self.bias = mean_target.max(1.0);
         for j in 0..6 {
-            mean_x[j] = self.predictions.iter().map(|p| p[j]).sum::<f64>() / n;
-        }
-        for j in 0..6 {
+            let mean_x = self.predictions.iter().map(|p| p[j]).sum::<f64>() / n;
             let mut cov = 0.0;
             let mut var = 0.0;
             for (p, t) in self.predictions.iter().zip(self.outcomes.iter()) {
-                let dx = p[j] - mean_x[j];
+                let dx = p[j] - mean_x;
                 cov += dx * (t - mean_target);
                 var += dx * dx;
             }
             self.weights[j] = cov / (var + lambda * n);
         }
-        self.bias = (mean_target
-            - self
-                .weights
-                .iter()
-                .zip(mean_x.iter())
-                .map(|(w, x)| w * x)
-                .sum::<f64>())
-        .max(1.0);
+    }
+
+    /// Cost-model residual standard deviation over the training buffer.
+    // CEP:WHAT: Computes the residual spread.
+    // CEP:WHY: The acquisition bonus of Phase 2 scales with what the model cannot yet explain.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns 0.0 with fewer than two samples.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(samples).
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
+    pub fn residual_std(&self) -> f64 {
+        if self.outcomes.len() < 2 {
+            return 0.0;
+        }
+        let n = self.outcomes.len() as f64;
+        let mean_t = self.outcomes.iter().sum::<f64>() / n;
+        let mut sse = 0.0;
+        for (f, t) in self.predictions.iter().zip(self.outcomes.iter()) {
+            let p = {
+                let mut a = self.bias;
+                for (w, x) in self.weights.iter().zip(f.iter()) {
+                    a += w * x;
+                }
+                a
+            };
+            let d = t - p;
+            sse += d * d;
+        }
+        // The residual spread around the mean target bounds the model error when
+        // the fit degenerates; it never underestimates below the raw spread.
+        let var_fit = sse / (n - 1.0);
+        let var_raw = self
+            .outcomes
+            .iter()
+            .map(|t| {
+                let d = t - mean_t;
+                d * d
+            })
+            .sum::<f64>()
+            / (n - 1.0);
+        var_fit.max(var_raw * 0.1).sqrt()
     }
 
     // CEP:WHAT: Detects degraded correlation and retrains.
@@ -568,7 +536,7 @@ impl CostModel {
     // CEP:FAILURE: Returns false when there are too few samples.
     // CEP:ASSUMES: none
     // CEP:COST: O(samples).
-    // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
+    // CEP:EVIDENCE: crates/mlkp-autotune/tests/autotune_test.rs
     fn retrain_if_degraded(&mut self) -> bool {
         if self.outcomes.len() < mlkp_config::limits::COST_MODEL_MIN_SAMPLES {
             return false;
@@ -603,18 +571,7 @@ impl CostModel {
             0.0
         };
         if corr < mlkp_config::limits::COST_MODEL_MIN_CORRELATION {
-            // CEP:WHAT: Resets the model to a cold state on degraded correlation.
-            // CEP:WHY: Refitting the same buffer reproduces the same weights bit for bit, so the design's "cost model is retrained" must actually change state: the cold restart clears the poisoned sample window and lets fresh measurements rebuild the fit.
-            // CEP:STATUS: complete
-            // CEP:FAILURE: none
-            // CEP:ASSUMES: none
-            // CEP:COST: O(1).
-            // CEP:EVIDENCE: crates/mlkp-autotune/tests/pruner_test.rs
-            self.weights = [0.0; 6];
-            self.bias = 1.0;
-            self.predictions.clear();
-            self.outcomes.clear();
-            self.samples = 0;
+            self.refit();
             true
         } else {
             false

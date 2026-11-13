@@ -11,11 +11,11 @@ pub struct Measurement { median: Duration, min: Duration, mean: Duration, varian
 ```
 
 ## Algorithm
-Lowering walks the verified graph, assigns buffers in order, and emits plan ops with concrete extents. The airlock proves buffer table consistency (offsets ascend without overlap), length relations for every op, per-op buffer disjointness, and the power-of-two tile contract once; the kernels then debug-assert only. Execution dispatches each op through a flat match to the CEP-0 kernels. Measurement discards warmup runs and reports the median with sample variance and the Welch t statistic for pairwise comparison.
+Lowering walks the verified graph, assigns buffers in order, and emits plan ops with concrete extents, the matmul schedule (loop order and B access pattern), and the thread chunking. The airlock proves length relations, tile legality (nonzero powers of two), and per-operation buffer disjointness once; the kernels then debug-assert only. Execution derives disjoint mutable views from one arena slice and dispatches each op through a flat match to the CEP-0 kernels with zero per-op copies; the matmul with a worker count above one splits its output rows across scoped threads, each owning a disjoint range. Measurement discards warmup runs and reports the median with sample variance and the Welch t statistic for pairwise comparison.
 
 ## Invariants
 1. The kernels allocate nothing, lock nothing, format nothing, and panic on nothing; misuse is a debug assertion.
-2. The airlock rejects any plan whose buffer table is inconsistent, whose lengths disagree with op extents, whose op buffers overlap in the arena, or whose matmul tiles are not powers of two, before execution.
+2. The airlock rejects any plan whose buffer lengths disagree with op extents before execution.
 3. The arena is allocated once per evaluation session and reset between runs; buffers never resize mid-measurement.
 4. The probe reports honest availability; absent Vulkan is a reason string, never a silent CPU assumption.
 
@@ -24,4 +24,4 @@ Lowering walks the verified graph, assigns buffers in order, and emits plan ops 
 * Depended on by: `mlkp-autotune` (evaluation), `mlkp` (execute).
 
 ## Known Limitations
-The executor is single-threaded; `PassConfig.threads` is plumbed but unused (ticket CEP-320). The probe checks loader presence, not device enumeration (ticket CEP-210). Matmul is row-major with configurable tiles; the transposed-B layout flag is plumbed but not implemented in the kernel (ticket CEP-321).
+The probe checks loader presence, not device enumeration (ticket CEP-210). Spill rewriting and rematerialization for the machine backend are deferred (ticket CEP-323). The arena reserves a fixed evaluation capacity; multi-input plans need extended staging (ticket CEP-324).
