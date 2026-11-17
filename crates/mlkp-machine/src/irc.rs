@@ -1,19 +1,32 @@
 // CEP:FILE: crates/mlkp-machine/src/irc.rs
-// CEP:WHAT: Liveness analysis, interference construction (including implicit-def preg blocking), and the George-Appel iterated register coalescing allocator with George and Briggs criteria, degree maintenance, freeze, and spill selection.
-// CEP:WHY: The design names IRC as the primary register allocation algorithm with the five operations (simplify, coalesce, freeze, spill, select) and the two conservative coalescing criteria; spill rewriting, splitting, and rematerialization are ticketed as CEP-323 and spill selection marks values for stack slots instead.
+// CEP:WHAT: Liveness analysis, interference construction (including implicit-def preg blocking), the George-Appel iterated register coalescing allocator with George and Briggs criteria, and spill rewriting with rematerialization and split-at-spill temporaries.
+// CEP:WHY: The design names IRC as the primary register allocation algorithm with the five operations (simplify, coalesce, freeze, spill, select) and the two conservative coalescing criteria; selected spills are rewritten to stack-slot homes with per-use temporaries (ticket CEP-323), and constant-defined vregs rematerialize instead of occupying slots.
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns AllocError when verification fails after rewriting; cross-class copy pairs are skipped rather than merged.
-// CEP:ASSUMES: functions are in SSA form with virtual registers; fixed constraints name physical registers by operand index.
-// CEP:COST: liveness O(n^2) over instruction counts within a block; IRC is O(n) amortized per node with the standard worklist discipline.
+// CEP:FAILURE: Returns AllocError when verification fails after rewriting or when spill rewriting does not converge within the round cap; cross-class copy pairs are skipped rather than merged.
+// CEP:ASSUMES: functions are in SSA form with virtual registers; fixed constraints name physical registers by operand index; the frame reserves the worst-case callee-saved area below rbp so baked slot displacements stay valid.
+// CEP:COST: liveness O(n^2) over instruction counts within a block; IRC is O(n) amortized per node with the standard worklist discipline; each spill round re-runs liveness and coloring over the rewritten function.
 // CEP:EVIDENCE: unit tests in crates/mlkp-machine/tests/irc_test.rs.
 
 #![deny(missing_docs)]
 
 use std::collections::BTreeSet;
 
-use crate::mir::{MFunction, Operand, RegClass};
-use crate::target::X86_64Target;
+use crate::mir::{MBlock, MFunction, MInsn, Opcode, Operand, RegClass};
+use crate::target::{preg, X86_64Target};
+
+/// Cap on spill-rewrite rounds before the allocator reports non-convergence.
+///
+/// One round removes every spilled vreg from the interference graph and
+/// replaces it with short-lived temporaries, so in practice one round
+/// converges; the cap only guards pathological inputs loudly.
+const MAX_SPILL_ROUNDS: u32 = 8;
+
+/// Slot width in bytes for scalar spills; slots stride by this under rbp.
+const SPILL_SLOT_WIDTH: i64 = 8;
+
+/// Worst-case instruction expansion of one spill-rewrite round.
+const EXPANSION_FACTOR: usize = 2;
 
 /// Allocation failure.
 #[derive(Clone, Debug, PartialEq)]
@@ -58,6 +71,17 @@ pub struct Allocation {
     pub spill_slots: u32,
     /// Copies removed by coalescing.
     pub coalesced_copies: u32,
+}
+
+/// The result of one spill-rewrite round over the function.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SpillRewrite {
+    /// Stack-slot index per rewritten vreg, in ascending vreg order.
+    pub slots: Vec<(u32, u32)>,
+    /// Rematerialized constant per spilled vreg whose single def is an immediate move.
+    pub remat: Vec<(u32, i64)>,
+    /// Number of fresh temporaries the rewrite introduced.
+    pub temps: u32,
 }
 
 /// Computes live-out sets per block over virtual registers.
@@ -320,15 +344,415 @@ pub fn build_interference(f: &MFunction, target: &X86_64Target) -> Interference 
     ig
 }
 
-/// Runs the IRC allocator over one function, rewriting coalesced copies in place.
-// CEP:WHAT: Allocates registers with IRC.
-// CEP:WHY: The design names IRC the flagship allocator; this is the five-operation loop with George and Briggs criteria, and coalescing rewrites the function so merged vregs disappear.
+/// Runs the IRC allocator to a spill-free fixpoint, rewriting spills in place.
+// CEP:WHAT: Allocates registers with IRC and rewrites spills until the function colors fully.
+// CEP:WHY: The design names IRC the flagship allocator; spill selection alone would leave spilled values unexecutable, so each round rewrites the spilled vregs to stack-slot homes with per-use split temporaries and rematerializes constant-defined vregs (ticket CEP-323), then re-runs the five-operation loop over the rewritten function.
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns AllocError per the module contract.
-// CEP:ASSUMES: the function is in SSA form; the function is rewritten by coalescing.
-// CEP:COST: O(nodes * colors) amortized.
+// CEP:FAILURE: Returns AllocError when a round fails verification or when rewriting does not converge within the round cap.
+// CEP:ASSUMES: the function is in SSA form; coalescing and spill rewriting mutate it.
+// CEP:COST: O(rounds * (nodes * colors)) amortized; one round in the common case.
 // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
 pub fn allocate(f: &mut MFunction, target: &X86_64Target) -> Result<Allocation, AllocError> {
+    let mut next_vreg = f
+        .vreg_classes
+        .iter()
+        .map(|(v, _)| *v)
+        .max()
+        .unwrap_or(0)
+        .saturating_add(1);
+    let mut total_slots = 0u32;
+    let mut rounds = 0u32;
+    loop {
+        let pass = irc_pass(f, target)?;
+        if pass.spilled.is_empty() {
+            return Ok(Allocation {
+                spill_slots: total_slots,
+                ..pass
+            });
+        }
+        rounds += 1;
+        if rounds >= MAX_SPILL_ROUNDS {
+            return Err(AllocError::Verify(format!(
+                "spill rewriting did not converge within {MAX_SPILL_ROUNDS} rounds"
+            )));
+        }
+        let rewrite = rewrite_spills(f, &pass, target, &mut next_vreg)?;
+        total_slots += rewrite.slots.len() as u32;
+    }
+}
+
+/// Rewrites every spilled vreg to its stack-slot home with folded or split access.
+///
+/// Source-side uses fold directly into immediates for rematerialized vregs or
+/// into one rbp-relative memory operand for slot-homed vregs; anything that
+/// cannot fold (fixed-constrained operands, store values, extra memory
+/// references) loads into a fresh temporary that lives only up to the
+/// consuming instruction. Destinations reroute through a fresh temporary that
+/// is pre-loaded for read-modify-write opcodes and stored to the slot after.
+// CEP:WHAT: Rewrites spilled vregs into folded operands, loads, stores, and rematerialized constants.
+// CEP:WHY: Spill selection without rewriting leaves values unexecutable; folding keeps the consumer's register pressure unchanged so the fixpoint converges, per-use temporaries split each spilled live range at its uses and defs (ticket CEP-323), and rematerialization drops constant-defined vregs from the frame entirely.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns AllocError::Verify when a spilled vreg somehow lacks a slot; the allocator's own invariants make this unreachable.
+// CEP:ASSUMES: slots are addressed at fixed rbp-relative offsets below the worst-case saved-register area, which the emitter reserves identically; x86-64 accepts at most one memory operand per instruction, so at most one slot use folds per instruction.
+// CEP:COST: O(insns * spilled) per round.
+// CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
+pub fn rewrite_spills(
+    f: &mut MFunction,
+    alloc: &Allocation,
+    target: &X86_64Target,
+    next_vreg: &mut u32,
+) -> Result<SpillRewrite, AllocError> {
+    if alloc.spilled.is_empty() {
+        return Ok(SpillRewrite::default());
+    }
+    let mut spilled = alloc.spilled.clone();
+    spilled.sort();
+    // Rematerialization scan: a spilled vreg whose single def is `mov s, imm`
+    // never needs a slot; every use rewrites to the constant itself.
+    let mut def_sites: Vec<(u32, usize, usize)> = Vec::new();
+    for (bi, block) in f.blocks.iter().enumerate() {
+        for (ii, insn) in block.insns.iter().enumerate() {
+            for d in insn.defined_vregs() {
+                if spilled.contains(&d) {
+                    def_sites.push((d, bi, ii));
+                }
+            }
+        }
+    }
+    let mut remat: Vec<(u32, i64)> = Vec::new();
+    let mut dead: Vec<(usize, usize)> = Vec::new();
+    for &s in &spilled {
+        let sites: Vec<(usize, usize)> = def_sites
+            .iter()
+            .filter(|(v, _, _)| *v == s)
+            .map(|(_, bi, ii)| (*bi, *ii))
+            .collect();
+        if sites.len() == 1 {
+            let (bi, ii) = sites[0];
+            let insn = &f.blocks[bi].insns[ii];
+            if insn.op == Opcode::Mov {
+                if let (Some(Operand::VReg { id, def: true, .. }), Some(Operand::Imm(c))) =
+                    (insn.ops.first(), insn.ops.get(1))
+                {
+                    if *id == s {
+                        remat.push((s, *c));
+                        dead.push((bi, ii));
+                    }
+                }
+            }
+        }
+    }
+    // Slot homes for the non-remat spilled vregs, in ascending vreg order.
+    let mut slots: Vec<(u32, u32)> = Vec::new();
+    for &s in &spilled {
+        if !remat.iter().any(|(id, _)| *id == s) {
+            let idx = slots.len() as u32;
+            slots.push((s, idx));
+        }
+    }
+    let slot_disp = |idx: u32| -> i64 {
+        -(SPILL_SLOT_WIDTH * target.max_saved_gprs() as i64 + SPILL_SLOT_WIDTH * (idx as i64 + 1))
+    };
+    let mut temps = 0u32;
+    let mut new_blocks: Vec<MBlock> = Vec::with_capacity(f.blocks.len());
+    for (bi, block) in f.blocks.iter().enumerate() {
+        // Worst case doubles the instruction count: one load or remat before,
+        // one store after each rewritten instruction.
+        let mut out_insns: Vec<MInsn> = Vec::with_capacity(block.insns.len() * EXPANSION_FACTOR);
+        for (ii, insn) in block.insns.iter().enumerate() {
+            if dead.iter().any(|(db, di)| *db == bi && *di == ii) {
+                // The rematerialized def disappears; its uses re-create the
+                // constant at each consume point.
+                continue;
+            }
+            let mut pre: Vec<MInsn> = Vec::new();
+            let mut post: Vec<MInsn> = Vec::new();
+            let mut mem_folded = false;
+            // One temp per spilled vreg per instruction for unfolded uses: a
+            // value read twice must read the same old value once.
+            let mut local: Vec<(u32, u32)> = Vec::new();
+            let mut rewritten = insn.clone();
+            for j in 0..rewritten.ops.len() {
+                match &mut rewritten.ops[j] {
+                    Operand::VReg { id, class, def } => {
+                        let v = *id;
+                        if !spilled.contains(&v) {
+                            continue;
+                        }
+                        let fixed_here = insn.fixed.iter().any(|(idx, _)| *idx == j);
+                        let slot = slots.iter().find(|(sv, _)| *sv == v).map(|(_, s)| *s);
+                        if *def {
+                            // Fresh def temp; read-modify-write opcodes consume
+                            // the old value, so the temp is pre-loaded from the
+                            // slot, and the store publishes the result after.
+                            let t = *next_vreg;
+                            *next_vreg += 1;
+                            temps += 1;
+                            *id = t;
+                            let idx = match slot {
+                                Some(s) => s,
+                                None => {
+                                    return Err(AllocError::Verify(format!(
+                                        "spilled vreg {v} lacks a slot home"
+                                    )))
+                                }
+                            };
+                            if insn.op.reads_dst() {
+                                pre.push(MInsn::new(
+                                    Opcode::Load,
+                                    vec![
+                                        Operand::vreg_def(t, *class),
+                                        Operand::Mem {
+                                            base: preg::RBP,
+                                            base_preg: true,
+                                            disp: slot_disp(idx),
+                                            reads: true,
+                                            writes: false,
+                                        },
+                                    ],
+                                ));
+                            }
+                            post.push(MInsn::new(
+                                Opcode::Store,
+                                vec![
+                                    Operand::vreg_use(t, *class),
+                                    Operand::Mem {
+                                        base: preg::RBP,
+                                        base_preg: true,
+                                        disp: slot_disp(idx),
+                                        reads: false,
+                                        writes: true,
+                                    },
+                                ],
+                            ));
+                        } else if fixed_here {
+                            // A constrained operand must reach the instruction
+                            // in its register, so it goes through a temporary
+                            // that inherits the constraint.
+                            let t = match local.iter().find(|(sv, _)| *sv == v) {
+                                Some((_, t)) => *t,
+                                None => {
+                                    let t = *next_vreg;
+                                    *next_vreg += 1;
+                                    temps += 1;
+                                    local.push((v, t));
+                                    match remat.iter().find(|(rv, _)| *rv == v) {
+                                        Some((_, c)) => pre.push(MInsn::new(
+                                            Opcode::Mov,
+                                            vec![Operand::vreg_def(t, *class), Operand::Imm(*c)],
+                                        )),
+                                        None => {
+                                            let idx = match slot {
+                                                Some(s) => s,
+                                                None => {
+                                                    return Err(AllocError::Verify(format!(
+                                                        "spilled vreg {v} lacks a slot home"
+                                                    )))
+                                                }
+                                            };
+                                            pre.push(MInsn::new(
+                                                Opcode::Load,
+                                                vec![
+                                                    Operand::vreg_def(t, *class),
+                                                    Operand::Mem {
+                                                        base: preg::RBP,
+                                                        base_preg: true,
+                                                        disp: slot_disp(idx),
+                                                        reads: true,
+                                                        writes: false,
+                                                    },
+                                                ],
+                                            ));
+                                        }
+                                    }
+                                    t
+                                }
+                            };
+                            *id = t;
+                        } else if j >= 1
+                            && matches!(
+                                insn.op,
+                                Opcode::Mov
+                                    | Opcode::Add
+                                    | Opcode::Sub
+                                    | Opcode::IMul
+                                    | Opcode::Cmp
+                            )
+                        {
+                            // Source operands fold without pressure: constants
+                            // fold to immediates, slot homes fold to the memory
+                            // operand the ISA accepts (one memory reference per
+                            // instruction at most).
+                            match remat.iter().find(|(rv, _)| *rv == v) {
+                                Some((_, c)) => {
+                                    rewritten.ops[j] = Operand::Imm(*c);
+                                }
+                                None => {
+                                    let idx = match slot {
+                                        Some(s) => s,
+                                        None => {
+                                            return Err(AllocError::Verify(format!(
+                                                "spilled vreg {v} lacks a slot home"
+                                            )))
+                                        }
+                                    };
+                                    if !mem_folded {
+                                        mem_folded = true;
+                                        rewritten.ops[j] = Operand::Mem {
+                                            base: preg::RBP,
+                                            base_preg: true,
+                                            disp: slot_disp(idx),
+                                            reads: true,
+                                            writes: false,
+                                        };
+                                    } else {
+                                        let t = match local.iter().find(|(sv, _)| *sv == v) {
+                                            Some((_, t)) => *t,
+                                            None => {
+                                                let t = *next_vreg;
+                                                *next_vreg += 1;
+                                                temps += 1;
+                                                local.push((v, t));
+                                                pre.push(MInsn::new(
+                                                    Opcode::Load,
+                                                    vec![
+                                                        Operand::vreg_def(t, *class),
+                                                        Operand::Mem {
+                                                            base: preg::RBP,
+                                                            base_preg: true,
+                                                            disp: slot_disp(idx),
+                                                            reads: true,
+                                                            writes: false,
+                                                        },
+                                                    ],
+                                                ));
+                                                t
+                                            }
+                                        };
+                                        *id = t;
+                                    }
+                                }
+                            }
+                        } else {
+                            // Unfolded use: load (or rematerialize) into a
+                            // short-lived temporary.
+                            let t = match local.iter().find(|(sv, _)| *sv == v) {
+                                Some((_, t)) => *t,
+                                None => {
+                                    let t = *next_vreg;
+                                    *next_vreg += 1;
+                                    temps += 1;
+                                    local.push((v, t));
+                                    match remat.iter().find(|(rv, _)| *rv == v) {
+                                        Some((_, c)) => pre.push(MInsn::new(
+                                            Opcode::Mov,
+                                            vec![Operand::vreg_def(t, *class), Operand::Imm(*c)],
+                                        )),
+                                        None => {
+                                            let idx = match slot {
+                                                Some(s) => s,
+                                                None => {
+                                                    return Err(AllocError::Verify(format!(
+                                                        "spilled vreg {v} lacks a slot home"
+                                                    )))
+                                                }
+                                            };
+                                            pre.push(MInsn::new(
+                                                Opcode::Load,
+                                                vec![
+                                                    Operand::vreg_def(t, *class),
+                                                    Operand::Mem {
+                                                        base: preg::RBP,
+                                                        base_preg: true,
+                                                        disp: slot_disp(idx),
+                                                        reads: true,
+                                                        writes: false,
+                                                    },
+                                                ],
+                                            ));
+                                        }
+                                    }
+                                    t
+                                }
+                            };
+                            *id = t;
+                        }
+                    }
+                    Operand::Mem {
+                        base, base_preg, ..
+                    } => {
+                        // A memory operand addressed by a spilled vreg needs
+                        // the base in a register.
+                        if !*base_preg && spilled.contains(base) {
+                            let v = *base;
+                            let idx = match slots.iter().find(|(sv, _)| *sv == v) {
+                                Some((_, s)) => *s,
+                                None => {
+                                    return Err(AllocError::Verify(format!(
+                                        "spilled vreg {v} lacks a slot home"
+                                    )))
+                                }
+                            };
+                            let class = f
+                                .vreg_classes
+                                .iter()
+                                .find(|(cid, _)| *cid == v)
+                                .map(|(_, c)| *c)
+                                .unwrap_or(RegClass::Gpr64);
+                            let t = *next_vreg;
+                            *next_vreg += 1;
+                            temps += 1;
+                            pre.push(MInsn::new(
+                                Opcode::Load,
+                                vec![
+                                    Operand::vreg_def(t, RegClass::Gpr64),
+                                    Operand::Mem {
+                                        base: preg::RBP,
+                                        base_preg: true,
+                                        disp: slot_disp(idx),
+                                        reads: true,
+                                        writes: false,
+                                    },
+                                ],
+                            ));
+                            *base = t;
+                            let _ = class;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            out_insns.extend(pre);
+            out_insns.push(rewritten);
+            out_insns.extend(post);
+        }
+        new_blocks.push(MBlock {
+            label: block.label.clone(),
+            insns: out_insns,
+            succs: block.succs.clone(),
+        });
+    }
+    f.blocks = new_blocks;
+    // The spilled vregs are memory-resident now; they leave the class table so
+    // the next round colors only live values and the verifier sees a complete
+    // assignment over the remaining vregs.
+    f.vreg_classes.retain(|(id, _)| !spilled.contains(id));
+    Ok(SpillRewrite {
+        slots,
+        remat,
+        temps,
+    })
+}
+
+/// One IRC pass over the function: coalescing, simplify, freeze, spill selection, and coloring.
+// CEP:WHAT: Runs one full IRC pass.
+// CEP:WHY: The five-operation loop is the allocation core; the driver re-runs it after each spill rewrite until nothing spills.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns AllocError per the module contract.
+// CEP:ASSUMES: the function is in SSA form; the pass rewrites it by coalescing.
+// CEP:COST: O(nodes * colors) amortized.
+// CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
+fn irc_pass(f: &mut MFunction, target: &X86_64Target) -> Result<Allocation, AllocError> {
     let mut ig = build_interference(f, target);
     let mut coalesced = 0u32;
     // Coalescing phase: attempt to merge every copy pair that passes a criterion.

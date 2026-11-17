@@ -103,6 +103,21 @@ impl Opcode {
     pub fn is_copy(self) -> bool {
         matches!(self, Opcode::Mov)
     }
+
+    /// True when the instruction implicitly reads the register it defines.
+    // CEP:WHAT: Reports read-modify-write destinations.
+    // CEP:WHY: Add, Sub, IMul, and the SSE ops compute into their destination and consume its old value; when the spill rewriter reroutes a spilled destination through a temporary, the temporary must be pre-loaded with the slot's old content or the instruction would consume garbage (ticket CEP-323).
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: the two-operand form where the destination is both read and written by these opcodes.
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
+    pub fn reads_dst(self) -> bool {
+        matches!(
+            self,
+            Opcode::Add | Opcode::Sub | Opcode::IMul | Opcode::AddSd | Opcode::MulSd
+        )
+    }
 }
 
 /// Register classes of the x86-64-ish target.
@@ -137,10 +152,12 @@ pub enum Operand {
     },
     /// Immediate integer.
     Imm(i64),
-    /// Memory reference [base + disp]; base is a virtual or physical register operand id space shared with VReg ids.
+    /// Memory reference [base + disp]; the base names a register, either a virtual id when `base_preg` is false or a target physical id when true.
     Mem {
-        /// Base register (virtual id when below the vreg boundary).
+        /// Base register id (virtual or physical per `base_preg`).
         base: u32,
+        /// True when the base id names a physical register from the target table.
+        base_preg: bool,
         /// Displacement.
         disp: i64,
         /// True when the memory is read.

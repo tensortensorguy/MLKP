@@ -1,10 +1,10 @@
 // CEP:FILE: crates/mlkp-machine/src/emit.rs
-// CEP:WHAT: Assembly emission: renders an allocated machine function as deterministic AT&T-style x86-64 text with a prologue and epilogue that save used callee-saved registers and address spill slots off the frame pointer.
+// CEP:WHAT: Assembly emission: renders an allocated machine function as deterministic AT&T-style x86-64 text with a prologue and epilogue that save used callee-saved registers and address spill slots off the frame pointer at the fixed displacements the spill rewriter baked into its loads and stores.
 // CEP:WHY: The design's implementation order ends at machine code emission; textual assembly is the reviewable, testable artifact for v1, and byte-level encoding is deferred with a ticket (doc/machine_ir.md Known Limitations).
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
-// CEP:FAILURE: Returns an EmitError when an operand still holds an unresolved virtual register or when a spilled value is referenced, because spill rewriting is a documented limitation in v1.
-// CEP:ASSUMES: the allocation is verified before emission.
+// CEP:FAILURE: Returns an EmitError when an operand still holds an unresolved virtual register or when a spilled value is still referenced, which only a hand-built or corrupt allocation can produce because allocate() rewrites spills away.
+// CEP:ASSUMES: the allocation is verified before emission; the frame reserves the worst-case callee-saved area below rbp, matching the rewriter's slot displacements.
 // CEP:COST: cold; O(insns).
 // CEP:EVIDENCE: unit tests in crates/mlkp-machine/tests/irc_test.rs.
 
@@ -19,6 +19,9 @@ pub enum EmitError {
     /// An operand still references a virtual register after allocation.
     UnresolvedVReg(u32),
     /// A spilled value was referenced without a stack slot.
+    ///
+    /// allocate() rewrites spills away (CEP-323), so only a hand-built or
+    /// corrupt allocation reaches this path.
     UnresolvedSpill(u32),
 }
 
@@ -73,22 +76,23 @@ pub fn emit(
         }
     }
     let spill_area = 8 * alloc.spill_slots as i64;
-    // CEP:WHAT: Aligns the spill area to the SysV 16-byte stack boundary.
-    // CEP:WHY: An odd spill count would leave rsp misaligned at call sites and fault vector instructions in callees.
+    // CEP:WHAT: Sizes the frame from the worst-case saved area plus the spill slots, aligned to the SysV 16-byte stack boundary.
+    // CEP:WHY: The spill rewriter baked displacements of -(8*max_saved + 8*(i+1)) into its loads and stores, so the frame must reserve that whole depth regardless of how many callee-saved registers this allocation actually pushes; an odd total would leave rsp misaligned at call sites and fault vector instructions in callees.
     // CEP:STATUS: complete
     // CEP:FAILURE: none
-    // CEP:ASSUMES: none
+    // CEP:ASSUMES: the rewriter and the emitter derive slot addresses from the same target constant.
     // CEP:COST: O(1).
-    // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
-    let spill_aligned = (spill_area + 15) / 16 * 16;
-    let frame = 8 * saved.len() as i64 + spill_aligned;
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
+    let frame_depth = 8 * target.max_saved_gprs() as i64 + spill_area;
+    let frame = (frame_depth + 15) / 16 * 16;
     out.push_str(&format!(".text\n.globl {}\n{}:\n", f.name, f.name));
     out.push_str("  pushq %rbp\n  movq %rsp, %rbp\n");
     for p in &saved {
         out.push_str(&format!("  pushq %{}\n", target.reg_name(*p)));
     }
     out.push_str(&format!("  subq ${frame}, %rsp\n"));
-    // Spill slot offsets relative to rbp: spill slot i lives at -(8*saved + 8*(i+1)) once spill rewriting lands (CEP-323).
+    // Spill slot i lives at -(8*max_saved_gprs + 8*(i+1)) relative to rbp; the
+    // rewriter baked exactly that displacement into its loads and stores.
     for block in f.blocks.iter() {
         // CEP:WHAT: Emits every block label, including the entry block.
         // CEP:WHY: A branch to the entry block would otherwise reference an undefined label at assembly time.
@@ -142,21 +146,31 @@ fn render_insn(
             Operand::VReg { id, .. } => {
                 let p = preg_of(*id)?;
                 if p == u32::MAX {
-                    // The sentinel marks a spilled value; spill rewriting is not
-                    // implemented in v1 (doc/machine_ir.md Known Limitations), so
-                    // emission fails loudly instead of printing a fake register.
+                    // The sentinel marks a spilled value; after the CEP-323
+                    // rewrite no instruction references one, so a remaining
+                    // reference is a broken allocation and fails loudly.
                     return Err(EmitError::UnresolvedSpill(*id));
                 }
                 Ok(format!("%{}", target.reg_name(p)))
             }
             Operand::PReg { id, .. } => Ok(format!("%{}", target.reg_name(*id))),
             Operand::Imm(v) => Ok(format!("${v}")),
-            Operand::Mem { base, disp, .. } => {
-                let p = preg_of(*base)?;
-                if p == u32::MAX {
-                    return Err(EmitError::UnresolvedSpill(*base));
-                }
-                Ok(format!("{}(%{})", disp, target.reg_name(p)))
+            Operand::Mem {
+                base,
+                base_preg,
+                disp,
+                ..
+            } => {
+                let name = if *base_preg {
+                    target.reg_name(*base).to_string()
+                } else {
+                    let p = preg_of(*base)?;
+                    if p == u32::MAX {
+                        return Err(EmitError::UnresolvedSpill(*base));
+                    }
+                    target.reg_name(p).to_string()
+                };
+                Ok(format!("{disp}(%{name})"))
             }
             Operand::Block(label) => Ok(format!(".L{label}")),
             Operand::Symbol(name) => Ok(name.clone()),

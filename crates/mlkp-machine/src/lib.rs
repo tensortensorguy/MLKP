@@ -22,6 +22,9 @@ pub mod mir;
 pub mod target;
 
 pub use emit::{emit, verify_allocation, EmitError};
-pub use irc::{allocate, block_live_out, build_interference, AllocError, Allocation, Interference};
+pub use irc::{
+    allocate, block_live_out, build_interference, rewrite_spills, AllocError, Allocation,
+    Interference, SpillRewrite,
+};
 pub use mir::{MBlock, MFunction, MInsn, Opcode, Operand, RegClass};
 pub use target::{preg, X86_64Target};

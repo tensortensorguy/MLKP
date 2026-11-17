@@ -25,4 +25,4 @@ Block liveness is a bounded backward dataflow to fixed point. Interference conne
 * Depended on by: reserved for kernel-native lowering (design implementation order step 10); the CPU plan path executes via the interpreter kernels in v1.
 
 ## Known Limitations
-Emission is textual, not encoded object code (ticket CEP-322). Register-unit modeling covers GPR and XMM views without subregister aliasing. Live-range splitting, block-local spilling, rematerialization, and spill rewriting are listed in the design but not implemented: spilled vregs hold the sentinel assignment and emission fails loudly on any use of one (ticket CEP-323).
+Emission is textual, not encoded object code (ticket CEP-322). Register-unit modeling covers GPR and XMM views without subregister aliasing. Spill rewriting, rematerialization of constant-defined vregs, split-at-spill temporaries, and fixed rbp-relative slot addressing are implemented (ticket CEP-323); pressure-driven block-local spill decisions and subregister aliasing remain future work.

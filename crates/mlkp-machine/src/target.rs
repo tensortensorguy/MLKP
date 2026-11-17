@@ -233,6 +233,18 @@ impl X86_64Target {
     pub fn reg_name(&self, id: u32) -> &str {
         self.reg(id).map(|r| r.name).unwrap_or("unknown")
     }
+
+    /// The maximum number of callee-saved GPRs any allocation can require.
+    // CEP:WHAT: Counts allocatable callee-saved GPRs.
+    // CEP:WHY: Spill slots live at fixed rbp-relative offsets below the worst-case saved-register area (ticket CEP-323); both the spill rewriter and the emitter derive the layout from this one number so the baked displacements stay valid regardless of which registers the final allocation picks.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: the prologue saves at most every allocatable callee-saved GPR.
+    // CEP:COST: O(registers).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
+    pub fn max_saved_gprs(&self) -> usize {
+        self.callee_saved(RegClass::Gpr64).len()
+    }
 }
 
 impl Default for X86_64Target {
