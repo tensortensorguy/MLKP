@@ -3,7 +3,10 @@ name = "mlkp-machine"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Machine IR for x86-64: instructions with constraints, liveness, interference, the IRC register allocator, spill rewriting, verification, and assembly emission."
+description = "Machine IR for x86-64: instructions with constraints, liveness, interference, the IRC register allocator, spill rewriting, verification, assembly emission, byte-level encoding, and ELF64 object emission."
+
+[dependencies]
+cep-hash = { workspace = true }
 
 [lib]
 path = "src/lib.rs"

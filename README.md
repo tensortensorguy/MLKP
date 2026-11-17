@@ -4,7 +4,7 @@ A JIT compiler for tensor programs with a PGO-driven autotuner, implemented in R
 
 ## Architecture
 
-Tensor IR (mathematics) -> Heterogeneous Sea of Nodes (placement, PGO) -> Kernel Plans (schedules) -> execution, plus a machine backend (Machine IR with IRC register allocation) and a GPU code-generation tier (GPU Machine IR -> SPIR-V + manifest).
+Tensor IR (mathematics) -> Heterogeneous Sea of Nodes (placement, PGO) -> Kernel Plans (schedules) -> execution, plus a machine backend (Machine IR with IRC register allocation, byte-level x86-64 encoding, and ELF64 object emission) and a GPU code-generation tier (GPU Machine IR -> SPIR-V + manifest).
 
 | Crate | Concern |
 |---|---|
@@ -15,7 +15,7 @@ Tensor IR (mathematics) -> Heterogeneous Sea of Nodes (placement, PGO) -> Kernel
 | `mlkp-hir` | Heterogeneous Sea of Nodes, verifier, level-1 passes (algebraic, CSE, DCE) |
 | `mlkp-front` | `.mlkp` text front-end |
 | `mlkp-runtime` | CEP-0 kernels, plans with validation airlock, arena, probe, measurement discipline |
-| `mlkp-machine` | Machine IR, x86-64 target description, liveness, interference, IRC allocator, emission, verification |
+| `mlkp-machine` | Machine IR, x86-64 target description, liveness, interference, IRC allocator, assembly emission, byte-level encoding, ELF64 object emission, subset disassembler, verification |
 | `mlkp-spirv` | GPU Machine IR, native SPIR-V emitter, module verifier, kernel manifests |
 | `mlkp-autotune` | PGO store, search space, five-layer pruner, four-phase search, JIT driver |
 | `mlkp` | Facade and the `mlkpc` CLI |

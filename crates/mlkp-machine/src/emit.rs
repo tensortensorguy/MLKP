@@ -100,7 +100,7 @@ pub fn emit(
         // CEP:FAILURE: none
         // CEP:ASSUMES: none
         // CEP:COST: O(blocks).
-        // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+        // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
         out.push_str(&format!(".L{}:\n", block.label));
         for insn in &block.insns {
             let line = render_insn(insn, alloc, target)?;
@@ -113,6 +113,29 @@ pub fn emit(
     }
     out.push_str("  movq %rbp, %rsp\n  popq %rbp\n  ret\n\n");
     Ok(out)
+}
+
+/// True when the instruction moves an xmm register (operand 0 carries the class).
+// CEP:WHAT: Reports xmm-class operands.
+// CEP:WHY: The text emitter prints movapd and movsd for xmm moves so the rendered assembly is directly assemblable; the encoder and the decoder use the same class distinction.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn dst_is_xmm(insn: &crate::mir::MInsn) -> bool {
+    insn.ops.first().is_some_and(|o| {
+        matches!(
+            o,
+            Operand::VReg {
+                class: crate::mir::RegClass::Xmm64,
+                ..
+            } | Operand::PReg {
+                class: crate::mir::RegClass::Xmm64,
+                ..
+            }
+        )
+    })
 }
 
 // CEP:WHAT: Renders one instruction line.
@@ -136,7 +159,7 @@ fn render_insn(
             // CEP:FAILURE: Returns EmitError::UnresolvedSpill for u32::MAX assignments.
             // CEP:ASSUMES: none
             // CEP:COST: O(assignment).
-            // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+            // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
             Some(_) => Err(EmitError::UnresolvedSpill(v)),
             None => Err(EmitError::UnresolvedVReg(v)),
         }
@@ -177,7 +200,13 @@ fn render_insn(
         }
     };
     let mnemonic = match insn.op {
-        Opcode::Mov => "movq",
+        Opcode::Mov => {
+            if dst_is_xmm(insn) {
+                "movapd"
+            } else {
+                "movq"
+            }
+        }
         Opcode::Add => "addq",
         Opcode::Sub => "subq",
         Opcode::IMul => "imulq",
@@ -187,8 +216,20 @@ fn render_insn(
         Opcode::Jmp => "jmp",
         Opcode::Call => "call",
         Opcode::Ret => "ret",
-        Opcode::Load => "movq",
-        Opcode::Store => "movq",
+        Opcode::Load => {
+            if dst_is_xmm(insn) {
+                "movsd"
+            } else {
+                "movq"
+            }
+        }
+        Opcode::Store => {
+            if dst_is_xmm(insn) {
+                "movsd"
+            } else {
+                "movq"
+            }
+        }
         Opcode::AddSd => "addsd",
         Opcode::MulSd => "mulsd",
     };
@@ -202,12 +243,12 @@ fn render_insn(
     let line = match insn.op {
         Opcode::Load => {
             let addr = opnd(&insn.ops[1])?;
-            format!("  movq {}, {}\n", addr, dst)
+            format!("  {mnemonic} {}, {}\n", addr, dst)
         }
         Opcode::Store => {
             let addr = opnd(&insn.ops[1])?;
             let val = dst;
-            format!("  movq {}, {}\n", val, addr)
+            format!("  {mnemonic} {}, {}\n", val, addr)
         }
         Opcode::Ret => "  jmp .Lret\n".to_string(),
         Opcode::Jl | Opcode::Jge | Opcode::Jmp => format!("  {mnemonic} {dst}\n"),
@@ -308,7 +349,7 @@ pub fn verify_allocation(
     // CEP:FAILURE: Pushes an error per violation.
     // CEP:ASSUMES: none
     // CEP:COST: O(blocked).
-    // CEP:EVIDENCE: crates/mlkp-machine/tests/emit_test.rs
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
     let ig2 = crate::irc::build_interference(f, target);
     for (v, pg) in &ig2.blocked_pregs {
         if let Some((_, p)) = alloc.assignment.iter().find(|(id, _)| id == v) {

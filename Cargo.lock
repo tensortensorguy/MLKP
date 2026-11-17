@@ -66,6 +66,9 @@ dependencies = [
 [[package]]
 name = "mlkp-machine"
 version = "0.1.0"
+dependencies = [
+ "cep-hash",
+]
 
 [[package]]
 name = "mlkp-runtime"

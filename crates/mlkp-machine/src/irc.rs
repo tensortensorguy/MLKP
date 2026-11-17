@@ -278,6 +278,14 @@ pub fn build_interference(f: &MFunction, target: &X86_64Target) -> Interference 
     let live_out = block_live_out(f);
     for (bi, block) in f.blocks.iter().enumerate() {
         let mut live: BTreeSet<u32> = live_out[bi].1.clone();
+        // CEP:WHAT: Tracks the vregs defined earlier in this block.
+        // CEP:WHY: A PReg use reads a value the ABI placed in that register at entry; any vreg defined before the read would have clobbered it with its def even if its range has already ended, so use-blocking must cover same-block defs as well as values live across the read.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: none
+        // CEP:ASSUMES: same-block coverage; a PReg use in a block whose reaching defs live elsewhere is not modeled (ABI arguments are read at entry in practice).
+        // CEP:COST: O(insns).
+        // CEP:EVIDENCE: crates/mlkp-machine/tests/exec_test.rs
+        let mut defined_before: BTreeSet<u32> = BTreeSet::new();
         for insn in block.insns.iter().rev() {
             // Defs interfere with everything live after this instruction.
             let defs = insn.defined_vregs();
@@ -314,12 +322,50 @@ pub fn build_interference(f: &MFunction, target: &X86_64Target) -> Interference 
                     }
                 }
             }
+            // CEP:WHAT: Blocks explicit PReg operands from vregs whose live ranges conflict with them.
+            // CEP:WHY: A PReg use reads a value the ABI or a fixed constraint placed in that register; a vreg defined earlier and still live would have overwritten it before the read (the incoming-argument aliasing bug), so every vreg live across the read is blocked conservatively, including the instruction's own defs. A PReg def clobbers everything live across it, matching the implicit-def rule, except the instruction's own vreg uses: reading and writing the same register is a legal self-move.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: none
+            // CEP:ASSUMES: explicit PReg operands name physical register ids; PReg-use instructions in this subset are plain moves that read before writing, so exempting their own defs is sound; cross-block incoming-argument liveness beyond the block's live-out set is not modeled (ABI arguments are read at entry in practice).
+            // CEP:COST: O(PReg operands * live).
+            // CEP:EVIDENCE: crates/mlkp-machine/tests/exec_test.rs
+            for o in &insn.ops {
+                if let Operand::PReg { id, def, .. } = o {
+                    if *def {
+                        for l in &live {
+                            if insn.used_vregs().contains(l) {
+                                continue;
+                            }
+                            if !defs.contains(l) {
+                                ig.blocked_pregs.push((*l, *id));
+                            }
+                        }
+                    } else {
+                        // A PReg use: the register must still hold the value the
+                        // ABI or a fixed constraint put there. Block every vreg
+                        // live across the read plus every same-block def, whose
+                        // def instruction would have clobbered it first. The
+                        // instruction's own defs are exempt: a plain move reads
+                        // before it writes, so a def may take the source register
+                        // itself as a legal self-move.
+                        let mut blocked: BTreeSet<u32> = live.clone();
+                        blocked.extend(defined_before.iter().copied());
+                        for d in &defs {
+                            blocked.remove(d);
+                        }
+                        for l in &blocked {
+                            ig.blocked_pregs.push((*l, *id));
+                        }
+                    }
+                }
+            }
             for d in &defs {
                 live.remove(d);
             }
             for u in insn.used_vregs() {
                 live.insert(u);
             }
+            defined_before.extend(defs.iter().copied());
         }
     }
     // Deduplicate adjacency and degrees.
@@ -454,6 +500,9 @@ pub fn rewrite_spills(
         -(SPILL_SLOT_WIDTH * target.max_saved_gprs() as i64 + SPILL_SLOT_WIDTH * (idx as i64 + 1))
     };
     let mut temps = 0u32;
+    // Every fresh temporary with its register class; registered in the class
+    // table after the walk so the next round colors and assigns them.
+    let mut new_temps: Vec<(u32, RegClass)> = Vec::new();
     let mut new_blocks: Vec<MBlock> = Vec::with_capacity(f.blocks.len());
     for (bi, block) in f.blocks.iter().enumerate() {
         // Worst case doubles the instruction count: one load or remat before,
@@ -488,6 +537,7 @@ pub fn rewrite_spills(
                             let t = *next_vreg;
                             *next_vreg += 1;
                             temps += 1;
+                            new_temps.push((t, *class));
                             *id = t;
                             let idx = match slot {
                                 Some(s) => s,
@@ -535,6 +585,7 @@ pub fn rewrite_spills(
                                     let t = *next_vreg;
                                     *next_vreg += 1;
                                     temps += 1;
+                                    new_temps.push((t, *class));
                                     local.push((v, t));
                                     match remat.iter().find(|(rv, _)| *rv == v) {
                                         Some((_, c)) => pre.push(MInsn::new(
@@ -612,6 +663,7 @@ pub fn rewrite_spills(
                                                 let t = *next_vreg;
                                                 *next_vreg += 1;
                                                 temps += 1;
+                                                new_temps.push((t, *class));
                                                 local.push((v, t));
                                                 pre.push(MInsn::new(
                                                     Opcode::Load,
@@ -642,6 +694,7 @@ pub fn rewrite_spills(
                                     let t = *next_vreg;
                                     *next_vreg += 1;
                                     temps += 1;
+                                    new_temps.push((t, *class));
                                     local.push((v, t));
                                     match remat.iter().find(|(rv, _)| *rv == v) {
                                         Some((_, c)) => pre.push(MInsn::new(
@@ -702,6 +755,7 @@ pub fn rewrite_spills(
                             let t = *next_vreg;
                             *next_vreg += 1;
                             temps += 1;
+                            new_temps.push((t, RegClass::Gpr64));
                             pre.push(MInsn::new(
                                 Opcode::Load,
                                 vec![
@@ -733,6 +787,16 @@ pub fn rewrite_spills(
         });
     }
     f.blocks = new_blocks;
+    // CEP:WHAT: Registers the rewrite's fresh temporaries in the class table.
+    // CEP:WHY: The next coloring round builds interference from the class table; unregistered temps would escape assignment and surface later as unresolved registers at emission.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: temp ids are fresh (next_vreg monotonically increases).
+    // CEP:COST: O(temps).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+    for (t, class) in &new_temps {
+        f.vreg_classes.push((*t, *class));
+    }
     // The spilled vregs are memory-resident now; they leave the class table so
     // the next round colors only live values and the verifier sees a complete
     // assignment over the remaining vregs.

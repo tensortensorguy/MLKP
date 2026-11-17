@@ -35,4 +35,4 @@ Time is dominated by evaluation; compilation outside evaluation is O(graph + can
 * Depended on by: the `mlkpc` binary and the lifecycle integration test.
 
 ## Known Limitations
-The CPU plan schedules unary maps, last-axis reductions, softmax, and tiled matmul only; binary elementwise maps, broadcast, permute, and reshape lower to plan errors in v1. The executor stages two inputs by buffer id and the facade exposes two-operand programs; multi-input programs need extended staging (ticket CEP-324). The machine backend emits reviewable assembly but is not wired into execution.
+The CPU plan schedules unary maps, last-axis reductions, softmax, and tiled matmul only; binary elementwise maps, broadcast, permute, and reshape lower to plan errors in v1. The executor stages two inputs by buffer id and the facade exposes two-operand programs; multi-input programs need extended staging (ticket CEP-324). The machine backend emits reviewable assembly and executable encoded bytes with ELF64 object emission (ticket CEP-322), verified against GNU as and executed through a mapped code cache, but is not wired into plan execution.
