@@ -207,23 +207,50 @@ fn render_insn(
                 "movq"
             }
         }
+        Opcode::MovZx8 => "movzbq",
+        Opcode::MovZx32 => "movl",
+        Opcode::MovSx32 => "movslq",
+        Opcode::Lea => "leaq",
         Opcode::Add => "addq",
         Opcode::Sub => "subq",
         Opcode::IMul => "imulq",
+        Opcode::IMul3 => "imulq",
+        Opcode::IDiv => "idivq",
+        Opcode::Cqo => "cqto",
+        Opcode::And => "andq",
+        Opcode::Or => "orq",
+        Opcode::Xor => "xorq",
+        Opcode::Not => "notq",
+        Opcode::Neg => "negq",
+        Opcode::Shl => "shlq",
+        Opcode::Shr => "shrq",
+        Opcode::Sar => "sarq",
         Opcode::Cmp => "cmpq",
+        Opcode::Test => "testq",
+        Opcode::Push => "pushq",
+        Opcode::Pop => "popq",
+        Opcode::Je => "je",
+        Opcode::Jne => "jne",
         Opcode::Jl => "jl",
+        Opcode::Jle => "jle",
+        Opcode::Jg => "jg",
         Opcode::Jge => "jge",
+        Opcode::Ja => "ja",
+        Opcode::Jae => "jae",
+        Opcode::Jb => "jb",
+        Opcode::Jbe => "jbe",
+        Opcode::Js => "js",
+        Opcode::Jns => "jns",
+        Opcode::Jo => "jo",
+        Opcode::Jno => "jno",
+        Opcode::Jp => "jp",
+        Opcode::Jnp => "jnp",
         Opcode::Jmp => "jmp",
         Opcode::Call => "call",
         Opcode::Ret => "ret",
-        Opcode::Load => {
-            if dst_is_xmm(insn) {
-                "movsd"
-            } else {
-                "movq"
-            }
-        }
-        Opcode::Store => {
+        Opcode::Store8 => "movb",
+        Opcode::Store32 => "movl",
+        Opcode::Load | Opcode::Store => {
             if dst_is_xmm(insn) {
                 "movsd"
             } else {
@@ -231,7 +258,13 @@ fn render_insn(
             }
         }
         Opcode::AddSd => "addsd",
+        Opcode::SubSd => "subsd",
         Opcode::MulSd => "mulsd",
+        Opcode::DivSd => "divsd",
+        Opcode::SqrtSd => "sqrtsd",
+        Opcode::UComisd => "ucomisd",
+        Opcode::CvtSi2Sd => "cvtsi2sdq",
+        Opcode::CvtSd2Si => "cvttsd2siq",
     };
     let src = if insn.ops.len() >= 2 {
         opnd(&insn.ops[1])?
@@ -251,8 +284,23 @@ fn render_insn(
             format!("  {mnemonic} {}, {}\n", val, addr)
         }
         Opcode::Ret => "  jmp .Lret\n".to_string(),
-        Opcode::Jl | Opcode::Jge | Opcode::Jmp => format!("  {mnemonic} {dst}\n"),
+        Opcode::Jmp => format!("  {mnemonic} {dst}\n"),
         Opcode::Call => format!("  call {dst}\n"),
+        Opcode::Cqo => "  cqto\n".to_string(),
+        Opcode::IMul3 => {
+            // AT&T order: imul imm, src, dst.
+            let imm = insn.imm_value().unwrap_or_default();
+            format!("  {mnemonic} ${imm}, {src}, {dst}\n")
+        }
+        Opcode::Shl | Opcode::Shr | Opcode::Sar => {
+            // The CL-count form renders the byte view of the count register.
+            if let Some(Operand::PReg { id, .. }) = insn.ops.get(1) {
+                format!("  {mnemonic} %{}, {}\n", crate::target::reg_name8(*id), dst)
+            } else {
+                format!("  {mnemonic} {src}, {dst}\n")
+            }
+        }
+        _ if insn.op.is_conditional_branch() => format!("  {mnemonic} {dst}\n"),
         _ => {
             if src.is_empty() {
                 format!("  {mnemonic} {dst}\n")

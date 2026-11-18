@@ -15,7 +15,7 @@ Tensor IR (mathematics) -> Heterogeneous Sea of Nodes (placement, PGO) -> Kernel
 | `mlkp-hir` | Heterogeneous Sea of Nodes, verifier, level-1 passes (algebraic, CSE, DCE) |
 | `mlkp-front` | `.mlkp` text front-end |
 | `mlkp-runtime` | CEP-0 kernels, plans with validation airlock, arena, probe, measurement discipline |
-| `mlkp-machine` | Machine IR, x86-64 target description, liveness, interference, IRC allocator, assembly emission, byte-level encoding, ELF64 object emission, subset disassembler, verification |
+| `mlkp-machine` | Machine IR with the complete scalar x86-64 ISA, x86-64 target description, liveness, interference, IRC allocator, assembly emission, byte-level encoding, ELF64 object emission, disassembler, verification |
 | `mlkp-spirv` | GPU Machine IR, native SPIR-V emitter, module verifier, kernel manifests |
 | `mlkp-autotune` | PGO store, search space, five-layer pruner, four-phase search, JIT driver |
 | `mlkp` | Facade and the `mlkpc` CLI |

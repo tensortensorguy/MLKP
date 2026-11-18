@@ -10,23 +10,91 @@
 
 #![deny(missing_docs)]
 
-/// Machine opcodes for the x86-64-ish scalar subset.
+/// Machine opcodes of the complete scalar x86-64 surface the backend emits:
+/// every two-operand integer ALU form (register, memory-source, memory-destination,
+/// and immediate shapes), width-specific moves, shifts, division, address
+/// computation, stack operations, the full conditional-branch family, and the
+/// scalar-double SSE set with conversions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Opcode {
-    /// Move register to register or immediate to register.
+    /// Move register to register or immediate to register (64-bit or xmm).
     Mov,
+    /// Zero-extend an 8-bit value to 64 bits (movzbq).
+    MovZx8,
+    /// Move a 32-bit value, zero-extending to 64 bits (movl with 64-bit destination).
+    MovZx32,
+    /// Sign-extend a 32-bit value to 64 bits (movslq).
+    MovSx32,
+    /// Compute an address into a register without accessing memory (lea).
+    Lea,
     /// Integer add.
     Add,
     /// Integer subtract.
     Sub,
-    /// Integer multiply.
+    /// Integer multiply (two-operand form).
     IMul,
+    /// Integer multiply with immediate (three-operand form: dst = src * imm).
+    IMul3,
+    /// Signed division; consumes RDX:RAX implicitly and produces RAX (quotient) and RDX (remainder).
+    IDiv,
+    /// Sign-extend RAX into RDX (cqo).
+    Cqo,
+    /// Bitwise and.
+    And,
+    /// Bitwise or.
+    Or,
+    /// Bitwise exclusive or.
+    Xor,
+    /// Bitwise complement.
+    Not,
+    /// Two's-complement negation.
+    Neg,
+    /// Shift left.
+    Shl,
+    /// Logical shift right.
+    Shr,
+    /// Arithmetic shift right.
+    Sar,
     /// Compare; defines flags.
     Cmp,
-    /// Conditional jump on less-than flags.
+    /// Bitwise test; defines flags.
+    Test,
+    /// Push a register or immediate onto the stack.
+    Push,
+    /// Pop a value from the stack into a register.
+    Pop,
+    /// Conditional jump on equal (ZF).
+    Je,
+    /// Conditional jump on not-equal.
+    Jne,
+    /// Conditional jump on less-than flags (signed).
     Jl,
-    /// Conditional jump on greater-or-equal flags.
+    /// Conditional jump on less-or-equal flags (signed).
+    Jle,
+    /// Conditional jump on greater flags (signed).
+    Jg,
+    /// Conditional jump on greater-or-equal flags (signed).
     Jge,
+    /// Conditional jump on above flags (unsigned).
+    Ja,
+    /// Conditional jump on above-or-equal flags (unsigned).
+    Jae,
+    /// Conditional jump on below flags (unsigned).
+    Jb,
+    /// Conditional jump on below-or-equal flags (unsigned).
+    Jbe,
+    /// Conditional jump on sign flag.
+    Js,
+    /// Conditional jump on not-sign flag.
+    Jns,
+    /// Conditional jump on overflow flag.
+    Jo,
+    /// Conditional jump on not-overflow flag.
+    Jno,
+    /// Conditional jump on parity flag.
+    Jp,
+    /// Conditional jump on not-parity flag.
+    Jnp,
     /// Unconditional jump.
     Jmp,
     /// Call a function symbol.
@@ -37,10 +105,26 @@ pub enum Opcode {
     Load,
     /// Store to memory [base + disp].
     Store,
+    /// Store the low byte of a register to memory (movb).
+    Store8,
+    /// Store the low 32 bits of a register to memory (movl).
+    Store32,
     /// Floating add (scalar, SSE).
     AddSd,
+    /// Floating subtract (scalar, SSE).
+    SubSd,
     /// Floating multiply (scalar, SSE).
     MulSd,
+    /// Floating divide (scalar, SSE).
+    DivSd,
+    /// Floating square root (scalar, SSE).
+    SqrtSd,
+    /// Unordered floating compare; defines flags (scalar, SSE).
+    UComisd,
+    /// Convert a signed 64-bit integer to a scalar double (cvtsi2sd).
+    CvtSi2Sd,
+    /// Convert a scalar double to a signed 64-bit integer by truncation (cvttsd2si).
+    CvtSd2Si,
 }
 
 impl Opcode {
@@ -53,7 +137,10 @@ impl Opcode {
     // CEP:COST: O(1).
     // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
     pub fn reads_memory(self) -> bool {
-        matches!(self, Opcode::Load)
+        matches!(
+            self,
+            Opcode::Load | Opcode::MovZx8 | Opcode::MovZx32 | Opcode::MovSx32 | Opcode::IDiv
+        )
     }
 
     /// True when the instruction writes memory.
@@ -65,7 +152,7 @@ impl Opcode {
     // CEP:COST: O(1).
     // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
     pub fn writes_memory(self) -> bool {
-        matches!(self, Opcode::Store)
+        matches!(self, Opcode::Store | Opcode::Store8 | Opcode::Store32)
     }
 
     /// True when the instruction defines FLAGS.
@@ -77,7 +164,54 @@ impl Opcode {
     // CEP:COST: O(1).
     // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
     pub fn defines_flags(self) -> bool {
-        matches!(self, Opcode::Cmp)
+        matches!(
+            self,
+            Opcode::Cmp
+                | Opcode::Test
+                | Opcode::Add
+                | Opcode::Sub
+                | Opcode::IMul
+                | Opcode::IMul3
+                | Opcode::IDiv
+                | Opcode::And
+                | Opcode::Or
+                | Opcode::Xor
+                | Opcode::Neg
+                | Opcode::Shl
+                | Opcode::Shr
+                | Opcode::Sar
+                | Opcode::UComisd
+        )
+    }
+
+    /// True when the instruction is a conditional branch.
+    // CEP:WHAT: Reports conditional-branch status.
+    // CEP:WHY: The encoder, decoder, and verifier share one predicate instead of repeating the sixteen-variant match.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: none
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+    pub fn is_conditional_branch(self) -> bool {
+        matches!(
+            self,
+            Opcode::Je
+                | Opcode::Jne
+                | Opcode::Jl
+                | Opcode::Jle
+                | Opcode::Jg
+                | Opcode::Jge
+                | Opcode::Ja
+                | Opcode::Jae
+                | Opcode::Jb
+                | Opcode::Jbe
+                | Opcode::Js
+                | Opcode::Jns
+                | Opcode::Jo
+                | Opcode::Jno
+                | Opcode::Jp
+                | Opcode::Jnp
+        )
     }
 
     /// True when the instruction ends control flow.
@@ -89,7 +223,7 @@ impl Opcode {
     // CEP:COST: O(1).
     // CEP:EVIDENCE: crates/mlkp-machine/tests/irc_test.rs
     pub fn is_terminator(self) -> bool {
-        matches!(self, Opcode::Jl | Opcode::Jge | Opcode::Jmp | Opcode::Ret)
+        self.is_conditional_branch() || matches!(self, Opcode::Jmp | Opcode::Ret)
     }
 
     /// True when the instruction is a copy the coalescer may remove.
@@ -115,7 +249,21 @@ impl Opcode {
     pub fn reads_dst(self) -> bool {
         matches!(
             self,
-            Opcode::Add | Opcode::Sub | Opcode::IMul | Opcode::AddSd | Opcode::MulSd
+            Opcode::Add
+                | Opcode::Sub
+                | Opcode::IMul
+                | Opcode::And
+                | Opcode::Or
+                | Opcode::Xor
+                | Opcode::Not
+                | Opcode::Neg
+                | Opcode::Shl
+                | Opcode::Shr
+                | Opcode::Sar
+                | Opcode::AddSd
+                | Opcode::SubSd
+                | Opcode::MulSd
+                | Opcode::DivSd
         )
     }
 }
@@ -315,6 +463,21 @@ impl MInsn {
             .filter(|o| o.is_use())
             .filter_map(|o| o.vreg())
             .collect()
+    }
+
+    /// The third-operand immediate when present (three-operand multiply).
+    // CEP:WHAT: Reads the third-operand immediate.
+    // CEP:WHY: The text emitter renders imul with the immediate first in AT&T order.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Returns None when the instruction has no third operand.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+    pub fn imm_value(&self) -> Option<i64> {
+        match self.ops.get(2) {
+            Some(Operand::Imm(v)) => Some(*v),
+            _ => None,
+        }
     }
 
     /// Defs among the explicit vreg operands.

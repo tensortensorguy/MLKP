@@ -124,10 +124,6 @@ mod d {
     pub const JL_REL8: u8 = crate::encode::op::JL_REL8;
     /// JGE rel8.
     pub const JGE_REL8: u8 = crate::encode::op::JGE_REL8;
-    /// JL rel32 (after escape).
-    pub const JL_REL32: u8 = crate::encode::op::JL_REL32;
-    /// JGE rel32 (after escape).
-    pub const JGE_REL32: u8 = crate::encode::op::JGE_REL32;
     /// Group imm8 opcode.
     pub const GRP1_IB: u8 = crate::encode::op::GRP1_IB;
     /// Group imm32 opcode.
@@ -138,12 +134,178 @@ mod d {
     pub const EXT_SUB: u8 = crate::encode::op::EXT_SUB;
     /// CMP group extension.
     pub const EXT_CMP: u8 = crate::encode::op::EXT_CMP;
+    /// MOV r/m8, r8 (byte store).
+    pub const MOV8_MR: u8 = crate::encode::op::MOV8_MR;
+    /// AND r/m64, r64.
+    pub const AND_MR: u8 = crate::encode::op::AND_MR;
+    /// AND r64, r/m64.
+    pub const AND_RM: u8 = crate::encode::op::AND_RM;
+    /// OR r/m64, r64.
+    pub const OR_MR: u8 = crate::encode::op::OR_MR;
+    /// OR r64, r/m64.
+    pub const OR_RM: u8 = crate::encode::op::OR_RM;
+    /// XOR r/m64, r64.
+    pub const XOR_MR: u8 = crate::encode::op::XOR_MR;
+    /// XOR r64, r/m64.
+    pub const XOR_RM: u8 = crate::encode::op::XOR_RM;
+    /// AND accumulator short form.
+    /// OR accumulator short form.
+    /// XOR accumulator short form.
+    /// OR group /1 extension.
+    pub const EXT_OR: u8 = crate::encode::op::EXT_OR;
+    /// AND group /4 extension.
+    pub const EXT_AND: u8 = crate::encode::op::EXT_AND;
+    /// XOR group /6 extension.
+    pub const EXT_XOR: u8 = crate::encode::op::EXT_XOR;
+    /// NOT group /2 extension.
+    pub const EXT_NOT: u8 = crate::encode::op::EXT_NOT;
+    /// NEG group /3 extension.
+    pub const EXT_NEG: u8 = crate::encode::op::EXT_NEG;
+    /// IDIV group /7 extension.
+    pub const EXT_IDIV: u8 = crate::encode::op::EXT_IDIV;
+    /// TEST group /0 extension.
+    pub const EXT_TEST: u8 = crate::encode::op::EXT_TEST;
+    /// Shift immediate group opcode.
+    pub const SHIFT_IMM: u8 = crate::encode::op::SHIFT_IMM;
+    /// Shift by CL group opcode.
+    pub const SHIFT_CL: u8 = crate::encode::op::SHIFT_CL;
+    /// Shift with the implicit count of one.
+    pub const SHIFT_ONE: u8 = crate::encode::op::SHIFT_ONE;
+    /// SHL group /4 extension.
+    pub const EXT_SHL: u8 = crate::encode::op::EXT_SHL;
+    /// SHR group /5 extension.
+    pub const EXT_SHR: u8 = crate::encode::op::EXT_SHR;
+    /// CQO.
+    pub const CQO: u8 = crate::encode::op::CQO;
+    /// LEA.
+    pub const LEA: u8 = crate::encode::op::LEA;
+    /// IMUL three-operand imm8.
+    pub const IMUL3_IMM8: u8 = crate::encode::op::IMUL3_IMM8;
+    /// IMUL three-operand imm32.
+    pub const IMUL3_IMM32: u8 = crate::encode::op::IMUL3_IMM32;
+    /// MOVZX r64, r/m8.
+    pub const MOVZ8: u8 = crate::encode::op::MOVZ8;
+    /// MOVSXD r64, r/m32.
+    pub const MOVSX32: u8 = crate::encode::op::MOVSX32;
+    /// PUSH imm8.
+    pub const PUSH_IMM8: u8 = crate::encode::op::PUSH_IMM8;
+    /// PUSH imm32.
+    pub const PUSH_IMM32: u8 = crate::encode::op::PUSH_IMM32;
+    /// SUBSD.
+    pub const SUBSD: u8 = crate::encode::op::SUBSD;
+    /// DIVSD.
+    pub const DIVSD: u8 = crate::encode::op::DIVSD;
+    /// SQRTSD.
+    pub const SQRTSD: u8 = crate::encode::op::SQRTSD;
+    /// UCOMISD.
+    pub const UCOMISD: u8 = crate::encode::op::UCOMISD;
+    /// CVTSI2SD.
+    pub const CVTSI2SD: u8 = crate::encode::op::CVTSI2SD;
+    /// CVTTSD2SI.
+    pub const CVTTSD2SI: u8 = crate::encode::op::CVTTSD2SI;
+    /// TEST r/m64, r64.
+    pub const TEST_MR: u8 = crate::encode::op::TEST_MR;
+    /// Unary group (F7 /0 /2 /3 /7).
+    pub const GRP3: u8 = crate::encode::op::GRP3;
+    /// TEST EAX, imm32 short form.
+    pub const TEST_EAX_ID: u8 = crate::encode::op::TEST_EAX_ID;
     /// ADD accumulator short form.
     pub const ADD_EAX_ID: u8 = crate::encode::op::ADD_EAX_ID;
     /// SUB accumulator short form.
     pub const SUB_EAX_ID: u8 = crate::encode::op::SUB_EAX_ID;
     /// CMP accumulator short form.
     pub const CMP_EAX_ID: u8 = crate::encode::op::CMP_EAX_ID;
+    /// JE rel8.
+    pub const JE_REL8: u8 = crate::encode::op::JE_REL8;
+    /// JNE rel8.
+    pub const JNE_REL8: u8 = crate::encode::op::JNE_REL8;
+    /// JLE rel8.
+    pub const JLE_REL8: u8 = crate::encode::op::JLE_REL8;
+    /// JG rel8.
+    pub const JG_REL8: u8 = crate::encode::op::JG_REL8;
+    /// JA rel8.
+    pub const JA_REL8: u8 = crate::encode::op::JA_REL8;
+    /// JAE rel8.
+    pub const JAE_REL8: u8 = crate::encode::op::JAE_REL8;
+    /// JB rel8.
+    pub const JB_REL8: u8 = crate::encode::op::JB_REL8;
+    /// JBE rel8.
+    pub const JBE_REL8: u8 = crate::encode::op::JBE_REL8;
+    /// JS rel8.
+    pub const JS_REL8: u8 = crate::encode::op::JS_REL8;
+    /// JNS rel8.
+    pub const JNS_REL8: u8 = crate::encode::op::JNS_REL8;
+    /// JO rel8.
+    pub const JO_REL8: u8 = crate::encode::op::JO_REL8;
+    /// JNO rel8.
+    pub const JNO_REL8: u8 = crate::encode::op::JNO_REL8;
+    /// JP rel8.
+    pub const JP_REL8: u8 = crate::encode::op::JP_REL8;
+    /// JNP rel8.
+    pub const JNP_REL8: u8 = crate::encode::op::JNP_REL8;
+    /// JGE rel32 second byte.
+    pub const JGE_REL32: u8 = crate::encode::op::JGE_REL32;
+    /// JL rel32 second byte.
+    pub const JL_REL32: u8 = crate::encode::op::JL_REL32;
+    /// First rel32 Jcc second byte.
+    pub const JCC_REL32_FIRST: u8 = 0x80;
+    /// Last rel32 Jcc second byte.
+    pub const JCC_REL32_LAST: u8 = 0x8F;
+    /// JO rel32 second byte.
+    pub const JO_REL32: u8 = 0x80;
+    /// JNO rel32 second byte.
+    pub const JNO_REL32: u8 = 0x81;
+    /// JB rel32 second byte.
+    pub const JB_REL32: u8 = 0x82;
+    /// JAE rel32 second byte.
+    pub const JAE_REL32: u8 = 0x83;
+    /// JE rel32 second byte.
+    pub const JE_REL32: u8 = crate::encode::op::JE_REL32;
+    /// JNE rel32 second byte.
+    pub const JNE_REL32: u8 = crate::encode::op::JNE_REL32;
+    /// JBE rel32 second byte.
+    pub const JBE_REL32: u8 = crate::encode::op::JBE_REL32;
+    /// JA rel32 second byte.
+    pub const JA_REL32: u8 = crate::encode::op::JA_REL32;
+    /// JS rel32 second byte.
+    pub const JS_REL32: u8 = crate::encode::op::JS_REL32;
+    /// JNS rel32 second byte.
+    pub const JNS_REL32: u8 = crate::encode::op::JNS_REL32;
+    /// JP rel32 second byte.
+    pub const JP_REL32: u8 = crate::encode::op::JP_REL32;
+    /// JNP rel32 second byte.
+    pub const JNP_REL32: u8 = crate::encode::op::JNP_REL32;
+    /// JLE rel32 second byte.
+    pub const JLE_REL32: u8 = crate::encode::op::JLE_REL32;
+}
+
+/// Maps a Jcc rel32 second byte to its condition.
+// CEP:WHAT: Resolves Jcc conditions from rel32 opcodes.
+// CEP:WHY: The two-byte conditional forms 0F 80..8F differ only in the second byte.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics only for bytes outside 80..8F, which the caller's range check excludes.
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn jcc_from_rel32(second: u8) -> Opcode {
+    match second {
+        x if x == d::JO_REL32 => Opcode::Jo,
+        x if x == d::JNO_REL32 => Opcode::Jno,
+        x if x == d::JB_REL32 => Opcode::Jb,
+        x if x == d::JAE_REL32 => Opcode::Jae,
+        x if x == d::JE_REL32 => Opcode::Je,
+        x if x == d::JNE_REL32 => Opcode::Jne,
+        x if x == d::JBE_REL32 => Opcode::Jbe,
+        x if x == d::JA_REL32 => Opcode::Ja,
+        x if x == d::JS_REL32 => Opcode::Js,
+        x if x == d::JNS_REL32 => Opcode::Jns,
+        x if x == d::JP_REL32 => Opcode::Jp,
+        x if x == d::JNP_REL32 => Opcode::Jnp,
+        x if x == d::JL_REL32 => Opcode::Jl,
+        x if x == d::JGE_REL32 => Opcode::Jge,
+        x if x == d::JLE_REL32 => Opcode::Jle,
+        _ => Opcode::Jg,
+    }
 }
 
 /// Decoder failure modes.
@@ -189,6 +351,22 @@ pub enum DecKind {
     Pop,
 }
 
+/// One decoded destination location: a register, a memory operand, or nothing.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DecDst {
+    /// Physical register id from the target table (xmm ids offset by 16).
+    Reg(u32),
+    /// Memory destination [base + disp] for read-modify-write forms.
+    Mem {
+        /// Base register id.
+        base: u32,
+        /// Displacement.
+        disp: i64,
+    },
+    /// No destination operand.
+    None,
+}
+
 /// One decoded instruction at a known offset.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DecInsn {
@@ -196,12 +374,31 @@ pub struct DecInsn {
     pub kind: DecKind,
     /// Byte offset in the text section.
     pub offset: u32,
-    /// Physical register of operand 0 (destination, store value, or pushed or popped register).
-    pub dst: u32,
+    /// Destination location (register, memory, or none).
+    pub dst: DecDst,
     /// Operand 1 when present.
     pub src: Option<DecSrc>,
+    /// Secondary source operand (the true source of a three-operand multiply).
+    pub src2: Option<DecSrc>,
     /// Resolved branch or call target: a label for internal targets, a symbol for external calls.
     pub target: Option<String>,
+}
+
+impl DecKind {
+    /// The Machine-IR opcode of a regular instruction.
+    // CEP:WHAT: Unwraps the instruction kind.
+    // CEP:WHY: The renderer keys mnemonic selection off the opcode.
+    // CEP:STATUS: complete
+    // CEP:FAILURE: Panics for Push and Pop, which the renderer handles separately.
+    // CEP:ASSUMES: none
+    // CEP:COST: O(1).
+    // CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+    pub fn into_op(self) -> Opcode {
+        match self {
+            DecKind::Insn(op) => op,
+            _ => panic!("into_op() on a push or pop"),
+        }
+    }
 }
 
 /// One decoded source operand.
@@ -457,8 +654,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             return Ok(DecInsn {
                 kind: DecKind::Push,
                 offset: start,
-                dst: from_hw(reg),
+                dst: DecDst::Reg(from_hw(reg)),
                 src: None,
+                src2: None,
                 target: None,
             });
         }
@@ -467,8 +665,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             return Ok(DecInsn {
                 kind: DecKind::Pop,
                 offset: start,
-                dst: from_hw(reg),
+                dst: DecDst::Reg(from_hw(reg)),
                 src: None,
+                src2: None,
                 target: None,
             });
         }
@@ -477,11 +676,30 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
         d::RET if !p.rex_w && !p.f2 && !p.p66 => Ok(DecInsn {
             kind: DecKind::Insn(Opcode::Ret),
             offset: start,
-            dst: u32::MAX,
+            dst: DecDst::None,
             src: None,
+            src2: None,
             target: None,
         }),
-        d::JMP_REL8 | d::JL_REL8 | d::JGE_REL8 if !p.rex_w && !p.f2 && !p.p66 => {
+        d::JMP_REL8
+        | d::JL_REL8
+        | d::JGE_REL8
+        | d::JE_REL8
+        | d::JNE_REL8
+        | d::JLE_REL8
+        | d::JG_REL8
+        | d::JA_REL8
+        | d::JAE_REL8
+        | d::JB_REL8
+        | d::JBE_REL8
+        | d::JS_REL8
+        | d::JNS_REL8
+        | d::JO_REL8
+        | d::JNO_REL8
+        | d::JP_REL8
+        | d::JNP_REL8
+            if !p.rex_w && !p.f2 && !p.p66 =>
+        {
             let rel = r.take_int(d::IMM8);
             let end = r.pos as i64;
             let label = resolve_branch(co, end + rel)?;
@@ -489,11 +707,26 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
                 kind: DecKind::Insn(match opc {
                     d::JMP_REL8 => Opcode::Jmp,
                     d::JL_REL8 => Opcode::Jl,
-                    _ => Opcode::Jge,
+                    d::JGE_REL8 => Opcode::Jge,
+                    d::JE_REL8 => Opcode::Je,
+                    d::JNE_REL8 => Opcode::Jne,
+                    d::JLE_REL8 => Opcode::Jle,
+                    d::JG_REL8 => Opcode::Jg,
+                    d::JA_REL8 => Opcode::Ja,
+                    d::JAE_REL8 => Opcode::Jae,
+                    d::JB_REL8 => Opcode::Jb,
+                    d::JBE_REL8 => Opcode::Jbe,
+                    d::JS_REL8 => Opcode::Js,
+                    d::JNS_REL8 => Opcode::Jns,
+                    d::JO_REL8 => Opcode::Jo,
+                    d::JNO_REL8 => Opcode::Jno,
+                    d::JP_REL8 => Opcode::Jp,
+                    _ => Opcode::Jnp,
                 }),
                 offset: start,
-                dst: u32::MAX,
+                dst: DecDst::None,
                 src: None,
+                src2: None,
                 target: Some(label),
             })
         }
@@ -504,8 +737,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             Ok(DecInsn {
                 kind: DecKind::Insn(Opcode::Jmp),
                 offset: start,
-                dst: u32::MAX,
+                dst: DecDst::None,
                 src: None,
+                src2: None,
                 target: Some(label),
             })
         }
@@ -524,8 +758,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             Ok(DecInsn {
                 kind: DecKind::Insn(Opcode::Call),
                 offset: start,
-                dst: u32::MAX,
+                dst: DecDst::None,
                 src: None,
+                src2: None,
                 target: Some(target),
             })
         }
@@ -535,8 +770,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             Ok(DecInsn {
                 kind: DecKind::Insn(Opcode::Mov),
                 offset: start,
-                dst: from_hw(reg),
+                dst: DecDst::Reg(from_hw(reg)),
                 src: Some(DecSrc::Imm(imm)),
+                src2: None,
                 target: None,
             })
         }
@@ -550,44 +786,87 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             Ok(DecInsn {
                 kind: DecKind::Insn(Opcode::Mov),
                 offset: start,
-                dst: from_hw(rm),
+                dst: DecDst::Reg(from_hw(rm)),
                 src: Some(DecSrc::Imm(imm)),
+                src2: None,
                 target: None,
             })
         }
-        d::MOV_MR | d::MOV_RM if p.rex_w && !p.f2 && !p.p66 => {
+        d::MOV_MR | d::MOV_RM | d::MOV8_MR if !p.f2 && !p.p66 => {
             let modrm = r.take();
             let (m, reg, rm) = decode_modrm(modrm, &p);
-            if m == d::MOD_REG as u8 {
-                let (dst, src) = if opc == d::MOV_MR {
-                    (from_hw(rm), DecSrc::Reg(from_hw(reg)))
-                } else {
-                    (from_hw(reg), DecSrc::Reg(from_hw(rm)))
-                };
-                Ok(DecInsn {
-                    kind: DecKind::Insn(Opcode::Mov),
-                    offset: start,
-                    dst,
-                    src: Some(src),
-                    target: None,
-                })
-            } else {
+            // The width follows REX.W: set for 64-bit moves, clear for the
+            // 32-bit zero-extending moves, and the byte store never sets it.
+            if opc == d::MOV8_MR {
+                // Byte store: value in reg field, memory in rm.
+                if m == d::MOD_REG as u8 {
+                    return Err(DecodeError::UnknownEncoding(start));
+                }
                 let (base, disp) = read_mem(r, m, rm, &p)?;
-                let kind = if opc == d::MOV_MR {
-                    Opcode::Store
-                } else {
+                return Ok(DecInsn {
+                    kind: DecKind::Insn(Opcode::Store8),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(reg)),
+                    src: Some(DecSrc::Mem { base, disp }),
+                    src2: None,
+                    target: None,
+                });
+            }
+            // Kind depends on the opcode, the width bit, and the operand location.
+            let kind: Opcode = if p.rex_w {
+                if opc == d::MOV_RM {
                     Opcode::Load
+                } else if m == d::MOD_REG as u8 {
+                    Opcode::Mov
+                } else {
+                    Opcode::Store
+                }
+            } else if opc == d::MOV_MR {
+                Opcode::Store32
+            } else {
+                Opcode::MovZx32
+            };
+            if m == d::MOD_REG as u8 {
+                // Register-register: 89 moves rm <- reg; 8B moves reg <- rm.
+                let (dst, src) = if opc == d::MOV_MR {
+                    (DecDst::Reg(from_hw(rm)), DecSrc::Reg(from_hw(reg)))
+                } else {
+                    (DecDst::Reg(from_hw(reg)), DecSrc::Reg(from_hw(rm)))
                 };
                 Ok(DecInsn {
                     kind: DecKind::Insn(kind),
                     offset: start,
-                    dst: reg,
+                    dst,
+                    src: Some(src),
+                    src2: None,
+                    target: None,
+                })
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                // Store, Store32, and Store8 put the value in the reg field;
+                // Load and MovZx32 put the destination there.
+                Ok(DecInsn {
+                    kind: DecKind::Insn(kind),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(reg)),
                     src: Some(DecSrc::Mem { base, disp }),
+                    src2: None,
                     target: None,
                 })
             }
         }
-        d::ADD_MR | d::SUB_MR | d::CMP_MR | d::ADD_RM | d::SUB_RM | d::CMP_RM
+        d::ADD_MR
+        | d::SUB_MR
+        | d::CMP_MR
+        | d::ADD_RM
+        | d::SUB_RM
+        | d::CMP_RM
+        | d::AND_MR
+        | d::AND_RM
+        | d::OR_MR
+        | d::OR_RM
+        | d::XOR_MR
+        | d::XOR_RM
             if p.rex_w && !p.f2 && !p.p66 =>
         {
             let modrm = r.take();
@@ -595,24 +874,48 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             let op = match opc {
                 d::ADD_MR | d::ADD_RM => Opcode::Add,
                 d::SUB_MR | d::SUB_RM => Opcode::Sub,
+                d::AND_MR | d::AND_RM => Opcode::And,
+                d::OR_MR | d::OR_RM => Opcode::Or,
+                d::XOR_MR | d::XOR_RM => Opcode::Xor,
                 _ => Opcode::Cmp,
             };
+            let is_mr = matches!(
+                opc,
+                d::ADD_MR | d::SUB_MR | d::CMP_MR | d::AND_MR | d::OR_MR | d::XOR_MR
+            );
             if m == d::MOD_REG as u8 {
+                // Register-register: destination in rm, source in reg.
                 Ok(DecInsn {
                     kind: DecKind::Insn(op),
                     offset: start,
-                    dst: from_hw(rm),
+                    dst: DecDst::Reg(from_hw(rm)),
                     src: Some(DecSrc::Reg(from_hw(reg))),
+                    src2: None,
                     target: None,
                 })
-            } else {
-                // A folded slot source: op reg, [base+disp].
+            } else if is_mr {
+                // Memory-destination read-modify-write: op [mem], reg.
                 let (base, disp) = read_mem(r, m, rm, &p)?;
                 Ok(DecInsn {
                     kind: DecKind::Insn(op),
                     offset: start,
-                    dst: from_hw(reg),
+                    dst: DecDst::Mem {
+                        base: from_hw(base),
+                        disp,
+                    },
+                    src: Some(DecSrc::Reg(from_hw(reg))),
+                    src2: None,
+                    target: None,
+                })
+            } else {
+                // Memory-source load form: op reg, [base+disp].
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(reg)),
                     src: Some(DecSrc::Mem { base, disp }),
+                    src2: None,
                     target: None,
                 })
             }
@@ -627,15 +930,301 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
                 x if x == u32::from(d::EXT_ADD) => Opcode::Add,
                 x if x == u32::from(d::EXT_SUB) => Opcode::Sub,
                 x if x == u32::from(d::EXT_CMP) => Opcode::Cmp,
+                x if x == u32::from(d::EXT_AND) => Opcode::And,
+                x if x == u32::from(d::EXT_OR) => Opcode::Or,
+                x if x == u32::from(d::EXT_XOR) => Opcode::Xor,
                 _ => return Err(DecodeError::UnknownEncoding(start)),
             };
             let width = if opc == d::GRP1_IB { d::IMM8 } else { d::IMM32 };
             let imm = r.take_int(width);
+            if m == d::MOD_REG as u8 {
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(rm)),
+                    src: Some(DecSrc::Imm(imm)),
+                    src2: None,
+                    target: None,
+                })
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Mem {
+                        base: from_hw(base),
+                        disp,
+                    },
+                    src: Some(DecSrc::Imm(imm)),
+                    src2: None,
+                    target: None,
+                })
+            }
+        }
+        // TEST r/m64, r64: destination side in rm, source in reg.
+        d::TEST_MR if p.rex_w && !p.f2 && !p.p66 => {
+            let modrm = r.take();
+            let (m, reg, rm) = decode_modrm(modrm, &p);
+            if m == d::MOD_REG as u8 {
+                Ok(DecInsn {
+                    kind: DecKind::Insn(Opcode::Test),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(rm)),
+                    src: Some(DecSrc::Reg(from_hw(reg))),
+                    src2: None,
+                    target: None,
+                })
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                Ok(DecInsn {
+                    kind: DecKind::Insn(Opcode::Test),
+                    offset: start,
+                    dst: DecDst::Mem {
+                        base: from_hw(base),
+                        disp,
+                    },
+                    src: Some(DecSrc::Reg(from_hw(reg))),
+                    src2: None,
+                    target: None,
+                })
+            }
+        }
+        // F7 unary group: test imm32 (/0), not (/2), neg (/3), idiv (/7).
+        d::GRP3 if p.rex_w && !p.f2 && !p.p66 => {
+            let modrm = r.take();
+            let (m, ext, rm) = decode_modrm(modrm, &p);
+            let dst = if m == d::MOD_REG as u8 {
+                DecDst::Reg(from_hw(rm))
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                DecDst::Mem {
+                    base: from_hw(base),
+                    disp,
+                }
+            };
+            match ext {
+                x if x == u32::from(d::EXT_TEST) => {
+                    // The encoder uses the A9 short form for RAX, so F7 /0 only
+                    // appears for other registers and for memory.
+                    let imm = r.take_int(d::IMM32);
+                    Ok(DecInsn {
+                        kind: DecKind::Insn(Opcode::Test),
+                        offset: start,
+                        dst,
+                        src: Some(DecSrc::Imm(imm)),
+                        src2: None,
+                        target: None,
+                    })
+                }
+                x if x == u32::from(d::EXT_NOT) => Ok(DecInsn {
+                    kind: DecKind::Insn(Opcode::Not),
+                    offset: start,
+                    dst,
+                    src: None,
+                    src2: None,
+                    target: None,
+                }),
+                x if x == u32::from(d::EXT_NEG) => Ok(DecInsn {
+                    kind: DecKind::Insn(Opcode::Neg),
+                    offset: start,
+                    dst,
+                    src: None,
+                    src2: None,
+                    target: None,
+                }),
+                x if x == u32::from(d::EXT_IDIV) => Ok(DecInsn {
+                    kind: DecKind::Insn(Opcode::IDiv),
+                    offset: start,
+                    dst,
+                    src: None,
+                    src2: None,
+                    target: None,
+                }),
+                _ => Err(DecodeError::UnknownEncoding(start)),
+            }
+        }
+        d::TEST_EAX_ID if p.rex_w && !p.f2 && !p.p66 => {
+            let imm = r.take_int(d::IMM32);
             Ok(DecInsn {
-                kind: DecKind::Insn(op),
+                kind: DecKind::Insn(Opcode::Test),
                 offset: start,
-                dst: from_hw(rm),
+                dst: DecDst::Reg(preg::RAX),
                 src: Some(DecSrc::Imm(imm)),
+                src2: None,
+                target: None,
+            })
+        }
+        // Shifts: immediate counts and the CL form.
+        d::SHIFT_IMM if p.rex_w && !p.f2 && !p.p66 => {
+            let modrm = r.take();
+            let (m, ext, rm) = decode_modrm(modrm, &p);
+            let op = match ext {
+                x if x == u32::from(d::EXT_SHL) => Opcode::Shl,
+                x if x == u32::from(d::EXT_SHR) => Opcode::Shr,
+                x if x == u32::from(d::EXT_IDIV) => Opcode::Sar, // SAR shares /7.
+                _ => return Err(DecodeError::UnknownEncoding(start)),
+            };
+            let cnt = r.take_int(d::IMM8);
+            if m == d::MOD_REG as u8 {
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(rm)),
+                    src: Some(DecSrc::Imm(cnt)),
+                    src2: None,
+                    target: None,
+                })
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Mem {
+                        base: from_hw(base),
+                        disp,
+                    },
+                    src: Some(DecSrc::Imm(cnt)),
+                    src2: None,
+                    target: None,
+                })
+            }
+        }
+        d::SHIFT_ONE if p.rex_w && !p.f2 && !p.p66 => {
+            let modrm = r.take();
+            let (m, ext, rm) = decode_modrm(modrm, &p);
+            let op = match ext {
+                x if x == u32::from(d::EXT_SHL) => Opcode::Shl,
+                x if x == u32::from(d::EXT_SHR) => Opcode::Shr,
+                x if x == u32::from(d::EXT_IDIV) => Opcode::Sar,
+                _ => return Err(DecodeError::UnknownEncoding(start)),
+            };
+            if m == d::MOD_REG as u8 {
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(rm)),
+                    src: Some(DecSrc::Imm(1)),
+                    src2: None,
+                    target: None,
+                })
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Mem {
+                        base: from_hw(base),
+                        disp,
+                    },
+                    src: Some(DecSrc::Imm(1)),
+                    src2: None,
+                    target: None,
+                })
+            }
+        }
+        d::SHIFT_CL if p.rex_w && !p.f2 && !p.p66 => {
+            let modrm = r.take();
+            let (m, ext, rm) = decode_modrm(modrm, &p);
+            let op = match ext {
+                x if x == u32::from(d::EXT_SHL) => Opcode::Shl,
+                x if x == u32::from(d::EXT_SHR) => Opcode::Shr,
+                x if x == u32::from(d::EXT_IDIV) => Opcode::Sar,
+                _ => return Err(DecodeError::UnknownEncoding(start)),
+            };
+            if m == d::MOD_REG as u8 {
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Reg(from_hw(rm)),
+                    src: Some(DecSrc::Reg(preg::RCX)),
+                    src2: None,
+                    target: None,
+                })
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                Ok(DecInsn {
+                    kind: DecKind::Insn(op),
+                    offset: start,
+                    dst: DecDst::Mem {
+                        base: from_hw(base),
+                        disp,
+                    },
+                    src: Some(DecSrc::Reg(preg::RCX)),
+                    src2: None,
+                    target: None,
+                })
+            }
+        }
+        // CQO.
+        d::CQO if p.rex_w && !p.f2 && !p.p66 => Ok(DecInsn {
+            kind: DecKind::Insn(Opcode::Cqo),
+            offset: start,
+            dst: DecDst::None,
+            src: None,
+            src2: None,
+            target: None,
+        }),
+        // LEA.
+        d::LEA if p.rex_w && !p.f2 && !p.p66 => {
+            let modrm = r.take();
+            let (m, reg, rm) = decode_modrm(modrm, &p);
+            if m == d::MOD_REG as u8 {
+                return Err(DecodeError::UnknownEncoding(start));
+            }
+            let (base, disp) = read_mem(r, m, rm, &p)?;
+            Ok(DecInsn {
+                kind: DecKind::Insn(Opcode::Lea),
+                offset: start,
+                dst: DecDst::Reg(from_hw(reg)),
+                src: Some(DecSrc::Mem { base, disp }),
+                src2: None,
+                target: None,
+            })
+        }
+        // Three-operand multiply.
+        d::IMUL3_IMM8 | d::IMUL3_IMM32 if p.rex_w && !p.f2 && !p.p66 => {
+            let modrm = r.take();
+            let (m, reg, rm) = decode_modrm(modrm, &p);
+            let src2 = if m == d::MOD_REG as u8 {
+                DecSrc::Reg(from_hw(rm))
+            } else {
+                let (base, disp) = read_mem(r, m, rm, &p)?;
+                DecSrc::Mem { base, disp }
+            };
+            let imm = if opc == d::IMUL3_IMM8 {
+                r.take_int(d::IMM8)
+            } else {
+                r.take_int(d::IMM32)
+            };
+            Ok(DecInsn {
+                kind: DecKind::Insn(Opcode::IMul3),
+                offset: start,
+                dst: DecDst::Reg(from_hw(reg)),
+                src: Some(DecSrc::Imm(imm)),
+                src2: Some(src2),
+                target: None,
+            })
+        }
+        // PUSH imm.
+        d::PUSH_IMM8 if !p.rex_w && !p.f2 && !p.p66 => {
+            let imm = r.take_int(d::IMM8);
+            Ok(DecInsn {
+                kind: DecKind::Push,
+                offset: start,
+                dst: DecDst::None,
+                src: Some(DecSrc::Imm(imm)),
+                src2: None,
+                target: None,
+            })
+        }
+        d::PUSH_IMM32 if !p.rex_w && !p.f2 && !p.p66 => {
+            let imm = r.take_int(d::IMM32);
+            Ok(DecInsn {
+                kind: DecKind::Push,
+                offset: start,
+                dst: DecDst::None,
+                src: Some(DecSrc::Imm(imm)),
+                src2: None,
                 target: None,
             })
         }
@@ -649,8 +1238,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
             Ok(DecInsn {
                 kind: DecKind::Insn(op),
                 offset: start,
-                dst: preg::RAX,
+                dst: DecDst::Reg(preg::RAX),
                 src: Some(DecSrc::Imm(imm)),
+                src2: None,
                 target: None,
             })
         }
@@ -661,23 +1251,65 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
                 return Err(DecodeError::Truncated(start));
             };
             match (p.f2, p.p66, opc2) {
-                (true, false, d::ADDSD | d::MULSD | d::MOVSD_LOAD | d::MOVSD_STORE) => {
-                    decode_sse(r, opc2, &p, start)
-                }
-                (false, true, d::MOVAPD) => {
-                    // movapd reg-reg: 66 [REX] 0F 28 /r; REX.W is never set.
-                    // SSE ModRM: reg is the destination, rm the source.
-                    let modrm = r.take();
-                    let (m, reg, rm) = decode_modrm(modrm, &p);
-                    if m != d::MOD_REG as u8 {
+                (
+                    true,
+                    false,
+                    d::ADDSD
+                    | d::MULSD
+                    | d::SUBSD
+                    | d::DIVSD
+                    | d::SQRTSD
+                    | d::MOVSD_LOAD
+                    | d::MOVSD_STORE
+                    | d::CVTSI2SD
+                    | d::CVTTSD2SI,
+                ) => decode_sse(r, opc2, &p, start),
+                (false, true, d::UCOMISD | d::MOVAPD) => decode_sse(r, opc2, &p, start),
+                (false, false, d::MOVZ8 | d::MOVSX32) => {
+                    if !p.rex_w {
                         return Err(DecodeError::UnknownEncoding(start));
                     }
+                    let modrm = r.take();
+                    let (m, reg, rm) = decode_modrm(modrm, &p);
+                    let op = if opc2 == d::MOVZ8 {
+                        Opcode::MovZx8
+                    } else {
+                        Opcode::MovSx32
+                    };
+                    if m == d::MOD_REG as u8 {
+                        Ok(DecInsn {
+                            kind: DecKind::Insn(op),
+                            offset: start,
+                            dst: DecDst::Reg(from_hw(reg)),
+                            src: Some(DecSrc::Reg(from_hw(rm))),
+                            src2: None,
+                            target: None,
+                        })
+                    } else {
+                        let (base, disp) = read_mem(r, m, rm, &p)?;
+                        Ok(DecInsn {
+                            kind: DecKind::Insn(op),
+                            offset: start,
+                            dst: DecDst::Reg(from_hw(reg)),
+                            src: Some(DecSrc::Mem { base, disp }),
+                            src2: None,
+                            target: None,
+                        })
+                    }
+                }
+                (false, false, second)
+                    if (d::JCC_REL32_FIRST..=d::JCC_REL32_LAST).contains(&second) =>
+                {
+                    let rel = r.take_int(d::IMM32);
+                    let end = r.pos as i64;
+                    let label = resolve_branch(co, end + rel)?;
                     Ok(DecInsn {
-                        kind: DecKind::Insn(Opcode::Mov),
+                        kind: DecKind::Insn(jcc_from_rel32(second)),
                         offset: start,
-                        dst: reg + d::XMM_TABLE_BASE,
-                        src: Some(DecSrc::Reg(rm + d::XMM_TABLE_BASE)),
-                        target: None,
+                        dst: DecDst::None,
+                        src: None,
+                        src2: None,
+                        target: Some(label),
                     })
                 }
                 (false, false, d::IMUL_RM) => {
@@ -690,8 +1322,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
                         Ok(DecInsn {
                             kind: DecKind::Insn(Opcode::IMul),
                             offset: start,
-                            dst: from_hw(rm),
+                            dst: DecDst::Reg(from_hw(rm)),
                             src: Some(DecSrc::Reg(from_hw(reg))),
+                            src2: None,
                             target: None,
                         })
                     } else {
@@ -699,8 +1332,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
                         Ok(DecInsn {
                             kind: DecKind::Insn(Opcode::IMul),
                             offset: start,
-                            dst: from_hw(reg),
+                            dst: DecDst::Reg(from_hw(reg)),
                             src: Some(DecSrc::Mem { base, disp }),
+                            src2: None,
                             target: None,
                         })
                     }
@@ -716,8 +1350,9 @@ fn decode_one(r: &mut Reader, co: &CodeObject, start: u32) -> Result<DecInsn, De
                             Opcode::Jge
                         }),
                         offset: start,
-                        dst: u32::MAX,
+                        dst: DecDst::None,
                         src: None,
+                        src2: None,
                         target: Some(label),
                     })
                 }
@@ -740,29 +1375,91 @@ fn decode_sse(r: &mut Reader, opc2: u8, p: &Prefixes, start: u32) -> Result<DecI
     let modrm = r.take();
     let (m, reg, rm) = decode_modrm(modrm, p);
     let xmm_id = |v: u32| v + d::XMM_TABLE_BASE;
+    // Scalar-double binary operations: destination in reg, source in rm.
+    let binop = match opc2 {
+        x if x == d::ADDSD => Some(Opcode::AddSd),
+        x if x == d::SUBSD => Some(Opcode::SubSd),
+        x if x == d::MULSD => Some(Opcode::MulSd),
+        x if x == d::DIVSD => Some(Opcode::DivSd),
+        x if x == d::SQRTSD => Some(Opcode::SqrtSd),
+        x if x == d::UCOMISD && p.p66 => Some(Opcode::UComisd),
+        _ => None,
+    };
+    if let Some(op) = binop {
+        return if m == d::MOD_REG as u8 {
+            // SSE ModRM: reg is the destination, rm the source.
+            Ok(DecInsn {
+                kind: DecKind::Insn(op),
+                offset: start,
+                dst: DecDst::Reg(xmm_id(reg)),
+                src: Some(DecSrc::Reg(xmm_id(rm))),
+                src2: None,
+                target: None,
+            })
+        } else {
+            let (base, disp) = read_mem(r, m, rm, p)?;
+            Ok(DecInsn {
+                kind: DecKind::Insn(op),
+                offset: start,
+                dst: DecDst::Reg(xmm_id(reg)),
+                src: Some(DecSrc::Mem { base, disp }),
+                src2: None,
+                target: None,
+            })
+        };
+    }
+    // Integer-to-double and double-to-integer conversions.
+    if opc2 == d::CVTSI2SD && p.f2 && p.rex_w {
+        if m == d::MOD_REG as u8 {
+            return Ok(DecInsn {
+                kind: DecKind::Insn(Opcode::CvtSi2Sd),
+                offset: start,
+                dst: DecDst::Reg(xmm_id(reg)),
+                src: Some(DecSrc::Reg(from_hw(rm))),
+                src2: None,
+                target: None,
+            });
+        }
+        let (base, disp) = read_mem(r, m, rm, p)?;
+        return Ok(DecInsn {
+            kind: DecKind::Insn(Opcode::CvtSi2Sd),
+            offset: start,
+            dst: DecDst::Reg(xmm_id(reg)),
+            src: Some(DecSrc::Mem { base, disp }),
+            src2: None,
+            target: None,
+        });
+    }
+    if opc2 == d::CVTTSD2SI && p.f2 && p.rex_w {
+        if m == d::MOD_REG as u8 {
+            return Ok(DecInsn {
+                kind: DecKind::Insn(Opcode::CvtSd2Si),
+                offset: start,
+                dst: DecDst::Reg(from_hw(reg)),
+                src: Some(DecSrc::Reg(xmm_id(rm))),
+                src2: None,
+                target: None,
+            });
+        }
+        let (base, disp) = read_mem(r, m, rm, p)?;
+        return Ok(DecInsn {
+            kind: DecKind::Insn(Opcode::CvtSd2Si),
+            offset: start,
+            dst: DecDst::Reg(from_hw(reg)),
+            src: Some(DecSrc::Mem { base, disp }),
+            src2: None,
+            target: None,
+        });
+    }
     match (opc2, m) {
-        // SSE ModRM: reg is the destination, rm the source.
-        (d::ADDSD, m) if m == d::MOD_REG as u8 => Ok(DecInsn {
-            kind: DecKind::Insn(Opcode::AddSd),
-            offset: start,
-            dst: xmm_id(reg),
-            src: Some(DecSrc::Reg(xmm_id(rm))),
-            target: None,
-        }),
-        (d::MULSD, m) if m == d::MOD_REG as u8 => Ok(DecInsn {
-            kind: DecKind::Insn(Opcode::MulSd),
-            offset: start,
-            dst: xmm_id(reg),
-            src: Some(DecSrc::Reg(xmm_id(rm))),
-            target: None,
-        }),
         (d::MOVSD_LOAD, m) if m <= d::MOD_DISP32 as u8 => {
             let (base, disp) = read_mem(r, m, rm, p)?;
             Ok(DecInsn {
                 kind: DecKind::Insn(Opcode::Load),
                 offset: start,
-                dst: xmm_id(reg),
+                dst: DecDst::Reg(xmm_id(reg)),
                 src: Some(DecSrc::Mem { base, disp }),
+                src2: None,
                 target: None,
             })
         }
@@ -771,8 +1468,20 @@ fn decode_sse(r: &mut Reader, opc2: u8, p: &Prefixes, start: u32) -> Result<DecI
             Ok(DecInsn {
                 kind: DecKind::Insn(Opcode::Store),
                 offset: start,
-                dst: xmm_id(reg),
+                dst: DecDst::Reg(xmm_id(reg)),
                 src: Some(DecSrc::Mem { base, disp }),
+                src2: None,
+                target: None,
+            })
+        }
+        (d::MOVAPD, m) if m == d::MOD_REG as u8 && p.p66 => {
+            // movapd reg-reg: SSE ModRM puts the destination in reg.
+            Ok(DecInsn {
+                kind: DecKind::Insn(Opcode::Mov),
+                offset: start,
+                dst: DecDst::Reg(xmm_id(reg)),
+                src: Some(DecSrc::Reg(xmm_id(rm))),
+                src2: None,
                 target: None,
             })
         }
@@ -790,83 +1499,157 @@ fn decode_sse(r: &mut Reader, opc2: u8, p: &Prefixes, start: u32) -> Result<DecI
 // CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
 fn render(insn: &DecInsn, target: &crate::target::X86_64Target) -> String {
     let name = |id: u32| -> String { format!("%{}", target.reg_name(id)) };
-    let mem = |s: &DecSrc| match s {
-        DecSrc::Mem { base, disp } => format!("{disp}({})", name(*base)),
-        _ => String::new(),
+    let name32 = |id: u32| -> String { format!("%{}", crate::target::reg_name32(id)) };
+    let name8 = |id: u32| -> String { format!("%{}", crate::target::reg_name8(id)) };
+    let dst_str = match &insn.dst {
+        DecDst::Reg(r) => name(*r),
+        DecDst::Mem { base, disp } => format!("{disp}({})", name(*base)),
+        DecDst::None => String::new(),
+    };
+    let src_str = match &insn.src {
+        Some(DecSrc::Reg(r)) => name(*r),
+        Some(DecSrc::Imm(v)) => format!("${v}"),
+        Some(DecSrc::Mem { base, disp }) => format!("{disp}({})", name(*base)),
+        None => String::new(),
+    };
+    // The ISA renames narrower register views; width moves must render the
+    // names the width actually addresses.
+    let width_dst = match (&insn.dst, insn.kind) {
+        (DecDst::Reg(r), DecKind::Insn(Opcode::MovZx32 | Opcode::Store32)) => name32(*r),
+        (DecDst::Reg(r), DecKind::Insn(Opcode::Store8)) => name8(*r),
+        (r, _) => match r {
+            DecDst::Reg(v) => name(*v),
+            DecDst::Mem { base, disp } => format!("{disp}({})", name(*base)),
+            DecDst::None => String::new(),
+        },
+    };
+    let mnemonic = |op: Opcode| -> &'static str {
+        match op {
+            Opcode::Mov => match &insn.dst {
+                DecDst::Reg(r) if *r >= d::XMM_MIN_ID => "movapd",
+                _ => "movq",
+            },
+            Opcode::MovZx8 => "movzbq",
+            Opcode::MovZx32 => "movl",
+            Opcode::MovSx32 => "movslq",
+            Opcode::Lea => "leaq",
+            Opcode::Add => "addq",
+            Opcode::Sub => "subq",
+            Opcode::IMul => "imulq",
+            Opcode::IMul3 => "imulq",
+            Opcode::IDiv => "idivq",
+            Opcode::Cqo => "cqto",
+            Opcode::And => "andq",
+            Opcode::Or => "orq",
+            Opcode::Xor => "xorq",
+            Opcode::Not => "notq",
+            Opcode::Neg => "negq",
+            Opcode::Shl => "shlq",
+            Opcode::Shr => "shrq",
+            Opcode::Sar => "sarq",
+            Opcode::Cmp => "cmpq",
+            Opcode::Test => "testq",
+            Opcode::Push => "pushq",
+            Opcode::Pop => "popq",
+            Opcode::Je => "je",
+            Opcode::Jne => "jne",
+            Opcode::Jl => "jl",
+            Opcode::Jle => "jle",
+            Opcode::Jg => "jg",
+            Opcode::Jge => "jge",
+            Opcode::Ja => "ja",
+            Opcode::Jae => "jae",
+            Opcode::Jb => "jb",
+            Opcode::Jbe => "jbe",
+            Opcode::Js => "js",
+            Opcode::Jns => "jns",
+            Opcode::Jo => "jo",
+            Opcode::Jno => "jno",
+            Opcode::Jp => "jp",
+            Opcode::Jnp => "jnp",
+            Opcode::Jmp => "jmp",
+            Opcode::Call => "call",
+            Opcode::Ret => "ret",
+            Opcode::Load => match &insn.dst {
+                DecDst::Reg(r) if *r >= d::XMM_MIN_ID => "movsd",
+                _ => "movq",
+            },
+            Opcode::Store => match &insn.src {
+                Some(DecSrc::Reg(r)) if *r >= d::XMM_MIN_ID => "movsd",
+                _ => "movq",
+            },
+            Opcode::Store8 => "movb",
+            Opcode::Store32 => "movl",
+            Opcode::AddSd => "addsd",
+            Opcode::SubSd => "subsd",
+            Opcode::MulSd => "mulsd",
+            Opcode::DivSd => "divsd",
+            Opcode::SqrtSd => "sqrtsd",
+            Opcode::UComisd => "ucomisd",
+            Opcode::CvtSi2Sd => "cvtsi2sdq",
+            Opcode::CvtSd2Si => "cvttsd2siq",
+        }
     };
     match insn.kind {
-        DecKind::Push => format!("  pushq {}\n", name(insn.dst)),
-        DecKind::Pop => format!("  popq {}\n", name(insn.dst)),
-        DecKind::Insn(op) => match (op, &insn.src) {
-            (Opcode::Mov, Some(DecSrc::Reg(s))) => {
-                if insn.dst >= d::XMM_MIN_ID {
-                    format!("  movapd {}, {}\n", name(*s), name(insn.dst))
-                } else {
-                    format!("  movq {}, {}\n", name(*s), name(insn.dst))
-                }
-            }
-            (Opcode::Mov, Some(DecSrc::Imm(v))) => format!("  movq ${v}, {}\n", name(insn.dst)),
-            (Opcode::Load, Some(s @ DecSrc::Mem { .. })) => {
-                if insn.dst >= d::XMM_MIN_ID {
-                    format!("  movsd {}, {}\n", mem(s), name(insn.dst))
-                } else {
-                    format!("  movq {}, {}\n", mem(s), name(insn.dst))
-                }
-            }
-            (Opcode::Store, Some(s @ DecSrc::Mem { .. })) => {
-                if insn.dst >= d::XMM_MIN_ID {
-                    format!("  movsd {}, {}\n", name(insn.dst), mem(s))
-                } else {
-                    format!("  movq {}, {}\n", name(insn.dst), mem(s))
-                }
-            }
-            (Opcode::Add, Some(DecSrc::Reg(s))) => {
-                format!("  addq {}, {}\n", name(*s), name(insn.dst))
-            }
-            (Opcode::Add, Some(DecSrc::Imm(v))) => format!("  addq ${v}, {}\n", name(insn.dst)),
-            (Opcode::Add, Some(s @ DecSrc::Mem { .. })) => {
-                format!("  addq {}, {}\n", mem(s), name(insn.dst))
-            }
-            (Opcode::Sub, Some(DecSrc::Reg(s))) => {
-                format!("  subq {}, {}\n", name(*s), name(insn.dst))
-            }
-            (Opcode::Sub, Some(DecSrc::Imm(v))) => format!("  subq ${v}, {}\n", name(insn.dst)),
-            (Opcode::Sub, Some(s @ DecSrc::Mem { .. })) => {
-                format!("  subq {}, {}\n", mem(s), name(insn.dst))
-            }
-            (Opcode::IMul, Some(DecSrc::Reg(s))) => {
-                format!("  imulq {}, {}\n", name(*s), name(insn.dst))
-            }
-            (Opcode::IMul, Some(s @ DecSrc::Mem { .. })) => {
-                format!("  imulq {}, {}\n", mem(s), name(insn.dst))
-            }
-            (Opcode::Cmp, Some(DecSrc::Reg(s))) => {
-                format!("  cmpq {}, {}\n", name(*s), name(insn.dst))
-            }
-            (Opcode::Cmp, Some(DecSrc::Imm(v))) => format!("  cmpq ${v}, {}\n", name(insn.dst)),
-            (Opcode::Cmp, Some(s @ DecSrc::Mem { .. })) => {
-                format!("  cmpq {}, {}\n", mem(s), name(insn.dst))
-            }
-            (Opcode::AddSd, Some(DecSrc::Reg(s))) => {
-                format!("  addsd {}, {}\n", name(*s), name(insn.dst))
-            }
-            (Opcode::MulSd, Some(DecSrc::Reg(s))) => {
-                format!("  mulsd {}, {}\n", name(*s), name(insn.dst))
-            }
-            (Opcode::Jmp, _) => format!("  jmp .L{}\n", insn.target.clone().unwrap_or_default()),
-            (Opcode::Jl, _) => format!("  jl .L{}\n", insn.target.clone().unwrap_or_default()),
-            (Opcode::Jge, _) => format!("  jge .L{}\n", insn.target.clone().unwrap_or_default()),
-            (Opcode::Ret, _) => "  ret\n".to_string(),
-            // Internal call targets already carry the ".L" label prefix; external
-            // symbols print bare, exactly as emit() does.
-            (Opcode::Call, _) => {
-                format!("  call {}\n", insn.target.clone().unwrap_or_default())
-            }
-            _ => String::new(),
+        DecKind::Push => match &insn.src {
+            Some(DecSrc::Imm(v)) => format!("  pushq ${v}\n"),
+            _ => format!("  pushq {}\n", width_dst),
         },
+        DecKind::Pop => format!("  popq {}\n", width_dst),
+        DecKind::Insn(op) => {
+            let m = mnemonic(op);
+            match op {
+                Opcode::Load => format!("  {m} {src_str}, {width_dst}\n"),
+                // AT&T stores print the value first, then the address.
+                Opcode::Store | Opcode::Store8 | Opcode::Store32 => {
+                    format!("  {m} {dst_str}, {src_str}\n")
+                }
+                Opcode::Ret => "  ret\n".to_string(),
+                Opcode::Cqo => "  cqto\n".to_string(),
+                Opcode::Jmp => format!("  jmp .L{}\n", insn.target.clone().unwrap_or_default()),
+                Opcode::Call => format!("  call {}\n", insn.target.clone().unwrap_or_default()),
+                op if op.is_conditional_branch() => {
+                    format!("  {m} .L{}\n", insn.target.clone().unwrap_or_default())
+                }
+                Opcode::IMul3 => {
+                    let imm = match &insn.src {
+                        Some(DecSrc::Imm(v)) => *v,
+                        _ => 0,
+                    };
+                    let true_src = match &insn.src2 {
+                        Some(x) => match x {
+                            DecSrc::Reg(r) => name(*r),
+                            DecSrc::Mem { base, disp } => format!("{disp}({})", name(*base)),
+                            DecSrc::Imm(_) => String::new(),
+                        },
+                        None => String::new(),
+                    };
+                    format!("  {m} ${imm}, {true_src}, {width_dst}\n")
+                }
+                Opcode::Shl | Opcode::Shr | Opcode::Sar => match &insn.src {
+                    Some(DecSrc::Reg(r)) => format!("  {m} {}, {}\n", name8(*r), width_dst),
+                    _ => format!("  {m} {src_str}, {width_dst}\n"),
+                },
+                Opcode::MovSx32 => match &insn.src {
+                    Some(DecSrc::Reg(r)) => format!("  {m} {}, {}\n", name32(*r), width_dst),
+                    _ => format!("  {m} {src_str}, {width_dst}\n"),
+                },
+                Opcode::MovZx8 => match &insn.src {
+                    Some(DecSrc::Reg(r)) => format!("  {m} {}, {}\n", name8(*r), width_dst),
+                    _ => format!("  {m} {src_str}, {width_dst}\n"),
+                },
+                Opcode::CvtSd2Si | Opcode::CvtSi2Sd => format!("  {m} {src_str}, {width_dst}\n"),
+                _ => {
+                    if src_str.is_empty() {
+                        format!("  {m} {width_dst}\n")
+                    } else {
+                        format!("  {m} {src_str}, {width_dst}\n")
+                    }
+                }
+            }
+        }
     }
 }
-
 /// Disassembles one CodeObject into assembly text matching emit() minus its header comments.
 // CEP:WHAT: Disassembles one CodeObject.
 // CEP:WHY: The standard's disassembly-hash evidence and the mechanical bytes-versus-text equivalence check.

@@ -322,6 +322,23 @@ pub fn build_interference(f: &MFunction, target: &X86_64Target) -> Interference 
                     }
                 }
             }
+            // CEP:WHAT: Blocks implicit-use pregs like explicit register reads.
+            // CEP:WHY: Division consumes RDX:RAX implicitly; a vreg defined earlier in the block or live across the divide would have clobbered the quotient or remainder register before the read, exactly like an explicit PReg use. The blocking is conservative: a vreg is excluded from the referenced register even when a careful sequence could share it.
+            // CEP:STATUS: complete
+            // CEP:FAILURE: none
+            // CEP:ASSUMES: implicit uses name physical register ids; sequences that feed the implicit registers do so immediately before the consuming instruction.
+            // CEP:COST: O(implicit uses * blocked set).
+            // CEP:EVIDENCE: crates/mlkp-machine/tests/exec_test.rs
+            for preg_id in &insn.implicit_uses {
+                let mut blocked: BTreeSet<u32> = live.clone();
+                blocked.extend(defined_before.iter().copied());
+                for d in &defs {
+                    blocked.remove(d);
+                }
+                for l in &blocked {
+                    ig.blocked_pregs.push((*l, *preg_id));
+                }
+            }
             // CEP:WHAT: Blocks explicit PReg operands from vregs whose live ranges conflict with them.
             // CEP:WHY: A PReg use reads a value the ABI or a fixed constraint placed in that register; a vreg defined earlier and still live would have overwritten it before the read (the incoming-argument aliasing bug), so every vreg live across the read is blocked conservatively, including the instruction's own defs. A PReg def clobbers everything live across it, matching the implicit-def rule, except the instruction's own vreg uses: reading and writing the same register is a legal self-move.
             // CEP:STATUS: complete

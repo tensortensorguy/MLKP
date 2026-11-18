@@ -75,6 +75,31 @@ pub mod preg {
     pub const XMM1: u32 = 17;
 }
 
+/// Width-specific register names. The target table carries 64-bit names; the
+/// ISA reuses the same encoding numbers for narrower views with different names.
+mod width_names {
+    /// Low-byte names by hardware number.
+    pub const BYTE: [&str; 16] = [
+        "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil", "r8b", "r9b", "r10b", "r11b", "r12b",
+        "r13b", "r14b", "r15b",
+    ];
+    /// Dword names by hardware number.
+    pub const DWORD: [&str; 16] = [
+        "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi", "r8d", "r9d", "r10d", "r11d",
+        "r12d", "r13d", "r14d", "r15d",
+    ];
+    /// Hardware number of a table register id.
+    pub fn hw_of(id: u32) -> u32 {
+        match id {
+            4 => 6, // RSI
+            5 => 7, // RDI
+            6 => 5, // RBP
+            7 => 4, // RSP
+            _ => id,
+        }
+    }
+}
+
 impl X86_64Target {
     /// Builds the standard x86-64 description.
     // CEP:WHAT: Builds the target description.
@@ -258,4 +283,28 @@ impl Default for X86_64Target {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// The 32-bit view name of a GPR table id.
+// CEP:WHAT: Names the 32-bit register view.
+// CEP:WHY: Width-specific moves render faithful AT&T text; the ISA names the 32-bit views eax/edi/r8d while the table stores the 64-bit names.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: the id names a GPR in the target table.
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+pub fn reg_name32(id: u32) -> &'static str {
+    width_names::DWORD[width_names::hw_of(id) as usize]
+}
+
+/// The low-byte view name of a GPR table id.
+// CEP:WHAT: Names the 8-bit register view.
+// CEP:WHY: Byte stores and zero-extensions render the byte view names the ISA requires.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: the id names a GPR in the target table.
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+pub fn reg_name8(id: u32) -> &'static str {
+    width_names::BYTE[width_names::hw_of(id) as usize]
 }

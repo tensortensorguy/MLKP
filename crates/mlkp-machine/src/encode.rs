@@ -103,10 +103,174 @@ pub(crate) mod op {
     pub const POP_RBP: u8 = 0x5D;
     /// REX byte used for R12..R15 pushes and pops (B bit set).
     pub const REX_B_ONLY: u8 = 0x41;
+    /// AND r/m64, r64.
+    pub const AND_MR: u8 = 0x21;
+    /// AND r64, r/m64 (memory-source load form).
+    pub const AND_RM: u8 = 0x23;
+    /// OR r/m64, r64.
+    pub const OR_MR: u8 = 0x09;
+    /// OR r64, r/m64.
+    pub const OR_RM: u8 = 0x0B;
+    /// XOR r/m64, r64.
+    pub const XOR_MR: u8 = 0x31;
+    /// XOR r64, r/m64.
+    pub const XOR_RM: u8 = 0x33;
+    /// AND EAX, imm32 short form.
+    pub const AND_EAX_ID: u8 = 0x25;
+    /// OR EAX, imm32 short form.
+    pub const OR_EAX_ID: u8 = 0x0D;
+    /// XOR EAX, imm32 short form.
+    pub const XOR_EAX_ID: u8 = 0x35;
+    /// OR group /1 extension.
+    pub const EXT_OR: u8 = 1;
+    /// AND group /4 extension.
+    pub const EXT_AND: u8 = 4;
+    /// XOR group /6 extension.
+    pub const EXT_XOR: u8 = 6;
+    /// NOT group /2 extension.
+    pub const EXT_NOT: u8 = 2;
+    /// NEG group /3 extension.
+    pub const EXT_NEG: u8 = 3;
+    /// IDIV group /7 extension.
+    pub const EXT_IDIV: u8 = 7;
+    /// TEST group /0 extension.
+    pub const EXT_TEST: u8 = 0;
+    /// TEST r/m64, r64.
+    pub const TEST_MR: u8 = 0x85;
+    /// Unary group with id immediates and division (F7 /0 /2 /3 /7).
+    pub const GRP3: u8 = 0xF7;
+    /// TEST EAX, imm32 short form.
+    pub const TEST_EAX_ID: u8 = 0xA9;
+    /// Shift immediate group opcode.
+    pub const SHIFT_IMM: u8 = 0xC1;
+    /// Shift by CL group opcode.
+    pub const SHIFT_CL: u8 = 0xD3;
+    /// Shift with the implicit count of one (word/dword/qword form).
+    pub const SHIFT_ONE: u8 = 0xD1;
+    /// SHL group /4 extension.
+    pub const EXT_SHL: u8 = 4;
+    /// SHR group /5 extension.
+    pub const EXT_SHR: u8 = 5;
+    /// CQO (sign-extend RAX into RDX).
+    pub const CQO: u8 = 0x99;
+    /// JE rel8.
+    pub const JE_REL8: u8 = 0x74;
+    /// JNE rel8.
+    pub const JNE_REL8: u8 = 0x75;
+    /// JLE rel8.
+    pub const JLE_REL8: u8 = 0x7E;
+    /// JG rel8.
+    pub const JG_REL8: u8 = 0x7F;
+    /// JA rel8.
+    pub const JA_REL8: u8 = 0x77;
+    /// JAE rel8.
+    pub const JAE_REL8: u8 = 0x73;
+    /// JB rel8.
+    pub const JB_REL8: u8 = 0x72;
+    /// JBE rel8.
+    pub const JBE_REL8: u8 = 0x76;
+    /// JS rel8.
+    pub const JS_REL8: u8 = 0x78;
+    /// JNS rel8.
+    pub const JNS_REL8: u8 = 0x79;
+    /// JO rel8.
+    pub const JO_REL8: u8 = 0x70;
+    /// JNO rel8.
+    pub const JNO_REL8: u8 = 0x71;
+    /// JP rel8.
+    pub const JP_REL8: u8 = 0x7A;
+    /// JNP rel8.
+    pub const JNP_REL8: u8 = 0x7B;
+    /// JE rel32 second byte.
+    pub const JE_REL32: u8 = 0x84;
+    /// JNE rel32 second byte.
+    pub const JNE_REL32: u8 = 0x85;
+    /// JLE rel32 second byte.
+    pub const JLE_REL32: u8 = 0x8E;
+    /// JG rel32 second byte.
+    pub const JG_REL32: u8 = 0x8F;
+    /// JA rel32 second byte.
+    pub const JA_REL32: u8 = 0x87;
+    /// JAE rel32 second byte.
+    pub const JAE_REL32: u8 = 0x83;
+    /// JB rel32 second byte.
+    pub const JB_REL32: u8 = 0x82;
+    /// JBE rel32 second byte.
+    pub const JBE_REL32: u8 = 0x86;
+    /// JS rel32 second byte.
+    pub const JS_REL32: u8 = 0x88;
+    /// JNS rel32 second byte.
+    pub const JNS_REL32: u8 = 0x89;
+    /// JO rel32 second byte.
+    pub const JO_REL32: u8 = 0x80;
+    /// JNO rel32 second byte.
+    pub const JNO_REL32: u8 = 0x81;
+    /// JP rel32 second byte.
+    pub const JP_REL32: u8 = 0x8A;
+    /// JNP rel32 second byte.
+    pub const JNP_REL32: u8 = 0x8B;
+    /// LEA r64, m.
+    pub const LEA: u8 = 0x8D;
+    /// IMUL r64, r/m64, imm8 (three-operand form).
+    pub const IMUL3_IMM8: u8 = 0x6B;
+    /// IMUL r64, r/m64, imm32 (three-operand form).
+    pub const IMUL3_IMM32: u8 = 0x69;
+    /// MOVZX r64, r/m8 (after the escape).
+    pub const MOVZ8: u8 = 0xB6;
+    /// MOVSXD r64, r/m32 (after the escape).
+    pub const MOVSX32: u8 = 0x63;
+    /// PUSH imm8.
+    pub const PUSH_IMM8: u8 = 0x6A;
+    /// PUSH imm32.
+    pub const PUSH_IMM32: u8 = 0x68;
+    /// SUBSD (after the escape).
+    pub const SUBSD: u8 = 0x5C;
+    /// DIVSD (after the escape).
+    pub const DIVSD: u8 = 0x5E;
+    /// SQRTSD (after the escape).
+    pub const SQRTSD: u8 = 0x51;
+    /// UCOMISD (after the escape).
+    pub const UCOMISD: u8 = 0x2E;
+    /// CVTSI2SD (after the escape, with REX.W).
+    pub const CVTSI2SD: u8 = 0x2A;
+    /// CVTTSD2SI (after the escape, with REX.W).
+    pub const CVTTSD2SI: u8 = 0x2C;
+    /// MOV r/m8, r8 (byte store).
+    pub const MOV8_MR: u8 = 0x88;
     /// ModRM of movq %rsp, %rbp (reg = RSP, rm = RBP in hardware numbers).
     pub const MODRM_MOV_RSP_RBP: u8 = 0xE5;
     /// ModRM of movq %rbp, %rsp (reg = RBP, rm = RSP in hardware numbers).
     pub const MODRM_MOV_RBP_RSP: u8 = 0xEC;
+}
+
+/// Conditional-branch opcode pairs: (rel8 opcode, rel32 second byte).
+// CEP:WHAT: Maps conditional branches to their opcode pairs.
+// CEP:WHY: All sixteen conditions share the branch machinery; the table is the one place the ISA opcode assignments live.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns None for non-branch opcodes.
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn jcc_encoding(opc: Opcode) -> Option<(u8, u8)> {
+    match opc {
+        Opcode::Je => Some((op::JE_REL8, op::JE_REL32)),
+        Opcode::Jne => Some((op::JNE_REL8, op::JNE_REL32)),
+        Opcode::Jl => Some((op::JL_REL8, op::JL_REL32)),
+        Opcode::Jle => Some((op::JLE_REL8, op::JLE_REL32)),
+        Opcode::Jg => Some((op::JG_REL8, op::JG_REL32)),
+        Opcode::Jge => Some((op::JGE_REL8, op::JGE_REL32)),
+        Opcode::Ja => Some((op::JA_REL8, op::JA_REL32)),
+        Opcode::Jae => Some((op::JAE_REL8, op::JAE_REL32)),
+        Opcode::Jb => Some((op::JB_REL8, op::JB_REL32)),
+        Opcode::Jbe => Some((op::JBE_REL8, op::JBE_REL32)),
+        Opcode::Js => Some((op::JS_REL8, op::JS_REL32)),
+        Opcode::Jns => Some((op::JNS_REL8, op::JNS_REL32)),
+        Opcode::Jo => Some((op::JO_REL8, op::JO_REL32)),
+        Opcode::Jno => Some((op::JNO_REL8, op::JNO_REL32)),
+        Opcode::Jp => Some((op::JP_REL8, op::JP_REL32)),
+        Opcode::Jnp => Some((op::JNP_REL8, op::JNP_REL32)),
+        _ => None,
+    }
 }
 
 /// Hardware register numbers of the ABI registers the target table reorders.
@@ -127,6 +291,8 @@ mod hw_num {
     pub const XMM_TABLE_BASE: u32 = 16;
     /// Table id of xmm8: ids at or above it need a REX extension bit.
     pub const XMM8_TABLE_ID: u32 = 24;
+    /// First hardware number whose low-byte view needs a REX prefix.
+    pub const BYTE_REX_MIN: u32 = 4;
 }
 
 /// Structural byte counts the size fixpoint and the emit pass share.
@@ -167,6 +333,14 @@ mod len {
     pub const CALL_ADDEND: i64 = -4;
     /// pop rbp plus ret at the epilogue tail.
     pub const POP_RET: usize = 2;
+    /// Maximum shift count the ISA uses before masking.
+    pub const SHIFT_COUNT_MAX: i64 = 63;
+    /// Push imm32.
+    pub const PUSH_IMM32_LEN: usize = 5;
+    /// Push imm8.
+    pub const PUSH_IMM8_LEN: usize = 2;
+    /// The Cqo pair (REX.W + 99).
+    pub const CQO: usize = 2;
 }
 
 /// ModRM and SIB shape constants.
@@ -369,8 +543,12 @@ struct EncInsn {
     op: Opcode,
     /// Resolved operand 0 when register-bearing.
     dst: Option<Resolved>,
+    /// Memory destination (base, disp) for read-modify-write forms.
+    dst_mem: Option<(u32, i64)>,
     /// Resolved operand 1.
     src: Option<Src>,
+    /// Third operand immediate (three-operand multiply).
+    imm: Option<i64>,
     /// Branch or call target label when present.
     target: Option<String>,
 }
@@ -413,11 +591,32 @@ fn resolve_insn(
     insn: &crate::mir::MInsn,
     alloc: &crate::irc::Allocation,
 ) -> Result<EncInsn, EncodeError> {
-    let dst = match insn.ops.first() {
-        Some(o @ (Operand::VReg { .. } | Operand::PReg { .. })) => Some(resolve_reg(o, alloc)?),
-        Some(_) => None,
-        None => None,
-    };
+    let mut dst: Option<Resolved> = None;
+    let mut dst_mem: Option<(u32, i64)> = None;
+    match insn.ops.first() {
+        Some(o @ (Operand::VReg { .. } | Operand::PReg { .. })) => {
+            dst = Some(resolve_reg(o, alloc)?);
+        }
+        Some(Operand::Mem {
+            base,
+            base_preg,
+            disp,
+            ..
+        }) => {
+            let b = if *base_preg {
+                *base
+            } else {
+                let probe = Operand::VReg {
+                    id: *base,
+                    class: RegClass::Gpr64,
+                    def: false,
+                };
+                resolve_reg(&probe, alloc)?.preg
+            };
+            dst_mem = Some((b, *disp));
+        }
+        _ => {}
+    }
     let src = match insn.ops.get(1) {
         Some(Operand::Imm(v)) => Some(Src::Imm(*v)),
         Some(o @ (Operand::VReg { .. } | Operand::PReg { .. })) => {
@@ -446,6 +645,10 @@ fn resolve_insn(
         }
         _ => None,
     };
+    let imm = match insn.ops.get(2) {
+        Some(Operand::Imm(v)) => Some(*v),
+        _ => None,
+    };
     let target = insn.ops.iter().find_map(|o| match o {
         Operand::Block(name) | Operand::Symbol(name) => Some(name.clone()),
         _ => None,
@@ -453,7 +656,9 @@ fn resolve_insn(
     let e = EncInsn {
         op: insn.op,
         dst,
+        dst_mem,
         src,
+        imm,
         target,
     };
     validate(&e)?;
@@ -471,11 +676,10 @@ fn resolve_insn(
 fn validate(e: &EncInsn) -> Result<(), EncodeError> {
     match e.op {
         Opcode::Mov => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Imm(v))) => {
+            (Some(d), Some(Src::Imm(_))) => {
                 if d.class != RegClass::Gpr64 {
                     return Err(EncodeError::BadClass("mov immediate needs a GPR"));
                 }
-                let _ = v; // i64 is the widest encodable immediate (movabs); nothing narrower to check.
                 Ok(())
             }
             (Some(d), Some(Src::Reg(s))) => {
@@ -490,33 +694,57 @@ fn validate(e: &EncInsn) -> Result<(), EncodeError> {
                 "mov needs dst plus reg, imm, or mem",
             )),
         },
-        Opcode::Add | Opcode::Sub | Opcode::Cmp => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Reg(_))) => {
-                if d.class != RegClass::Gpr64 {
-                    return Err(EncodeError::BadClass("integer op needs GPRs"));
-                }
-                Ok(())
-            }
-            (Some(d), Some(Src::Imm(v))) => {
-                if d.class != RegClass::Gpr64 {
-                    return Err(EncodeError::BadClass("integer op needs a GPR"));
-                }
-                if !fits_i32(*v) {
-                    return Err(EncodeError::ImmOutOfRange(*v));
-                }
-                Ok(())
-            }
-            // The spill rewriter folds a slot-homed source into one memory operand.
+        Opcode::Lea => match (&e.dst, &e.src) {
             (Some(d), Some(Src::Mem { .. })) => {
                 if d.class != RegClass::Gpr64 {
-                    return Err(EncodeError::BadClass("integer op needs a GPR"));
+                    return Err(EncodeError::BadClass("lea needs a GPR destination"));
                 }
                 Ok(())
             }
-            _ => Err(EncodeError::BadOperand(
-                "integer op needs reg, imm, or mem source",
-            )),
+            _ => Err(EncodeError::BadOperand("lea needs reg dst and mem src")),
         },
+        Opcode::Add | Opcode::Sub | Opcode::And | Opcode::Or | Opcode::Xor | Opcode::Cmp => {
+            match (&e.dst, &e.dst_mem, &e.src) {
+                (Some(d), None, Some(Src::Reg(_))) => {
+                    if d.class != RegClass::Gpr64 {
+                        return Err(EncodeError::BadClass("integer op needs GPRs"));
+                    }
+                    Ok(())
+                }
+                (Some(d), None, Some(Src::Imm(v))) => {
+                    if d.class != RegClass::Gpr64 {
+                        return Err(EncodeError::BadClass("integer op needs a GPR"));
+                    }
+                    if !fits_i32(*v) {
+                        return Err(EncodeError::ImmOutOfRange(*v));
+                    }
+                    Ok(())
+                }
+                // Memory-source load form (spill folding).
+                (Some(d), None, Some(Src::Mem { .. })) => {
+                    if d.class != RegClass::Gpr64 {
+                        return Err(EncodeError::BadClass("integer op needs a GPR"));
+                    }
+                    Ok(())
+                }
+                // Memory-destination read-modify-write forms.
+                (None, Some(_), Some(Src::Reg(s))) => {
+                    if s.class != RegClass::Gpr64 {
+                        return Err(EncodeError::BadClass("integer op needs a GPR"));
+                    }
+                    Ok(())
+                }
+                (None, Some(_), Some(Src::Imm(v))) => {
+                    if !fits_i32(*v) {
+                        return Err(EncodeError::ImmOutOfRange(*v));
+                    }
+                    Ok(())
+                }
+                _ => Err(EncodeError::BadOperand(
+                    "integer op needs reg or mem dst plus reg, imm, or mem src",
+                )),
+            }
+        }
         Opcode::IMul => match (&e.dst, &e.src) {
             (Some(_), Some(Src::Reg(_))) => Ok(()),
             (Some(_), Some(Src::Mem { .. })) => Ok(()),
@@ -524,11 +752,162 @@ fn validate(e: &EncInsn) -> Result<(), EncodeError> {
                 "imul needs a register or memory source",
             )),
         },
-        Opcode::Jmp | Opcode::Jl | Opcode::Jge => match &e.target {
+        Opcode::IMul3 => match (&e.dst, &e.src, e.imm) {
+            (Some(d), Some(Src::Reg(s)), Some(v)) => {
+                if d.class != RegClass::Gpr64 || s.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("imul3 needs GPR operands"));
+                }
+                if !fits_i32(v) {
+                    return Err(EncodeError::ImmOutOfRange(v));
+                }
+                Ok(())
+            }
+            (Some(d), Some(Src::Mem { .. }), Some(v)) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("imul3 needs a GPR destination"));
+                }
+                if !fits_i32(v) {
+                    return Err(EncodeError::ImmOutOfRange(v));
+                }
+                Ok(())
+            }
+            _ => Err(EncodeError::BadOperand("imul3 needs dst, src, and imm")),
+        },
+        Opcode::IDiv => match (&e.dst, &e.dst_mem, &e.src) {
+            (Some(d), None, None) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("idiv needs a GPR"));
+                }
+                Ok(())
+            }
+            (None, Some(_), None) => Ok(()),
+            _ => Err(EncodeError::BadOperand("idiv takes one reg or mem operand")),
+        },
+        Opcode::Cqo => {
+            if e.dst.is_some() || e.dst_mem.is_some() || e.src.is_some() {
+                return Err(EncodeError::BadOperand("cqo takes no operands"));
+            }
+            Ok(())
+        }
+        Opcode::Not | Opcode::Neg => match (&e.dst, &e.dst_mem) {
+            (Some(d), None) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("unary op needs a GPR"));
+                }
+                Ok(())
+            }
+            (None, Some(_)) => Ok(()),
+            _ => Err(EncodeError::BadOperand(
+                "unary op takes one reg or mem operand",
+            )),
+        },
+        Opcode::Shl | Opcode::Shr | Opcode::Sar => {
+            let ext_ok = match e.op {
+                Opcode::Shl => true,
+                Opcode::Shr => true,
+                _ => true,
+            };
+            let _ = ext_ok;
+            match (&e.dst, &e.dst_mem, &e.src) {
+                (Some(d), None, Some(Src::Imm(v))) => {
+                    if d.class != RegClass::Gpr64 {
+                        return Err(EncodeError::BadClass("shift needs a GPR"));
+                    }
+                    // Hardware masks the count to six bits; a larger immediate
+                    // would silently shift by a different amount.
+                    if !(0..=len::SHIFT_COUNT_MAX).contains(v) {
+                        return Err(EncodeError::ImmOutOfRange(*v));
+                    }
+                    Ok(())
+                }
+                (Some(d), None, Some(Src::Reg(s))) => {
+                    if d.class != RegClass::Gpr64 {
+                        return Err(EncodeError::BadClass("shift needs a GPR"));
+                    }
+                    if s.preg != preg::RCX {
+                        return Err(EncodeError::BadOperand("shift count register must be rcx"));
+                    }
+                    Ok(())
+                }
+                (None, Some(_), Some(Src::Imm(_))) => Ok(()),
+                (None, Some(_), Some(Src::Reg(s))) => {
+                    if s.preg != preg::RCX {
+                        return Err(EncodeError::BadOperand("shift count register must be rcx"));
+                    }
+                    Ok(())
+                }
+                _ => Err(EncodeError::BadOperand("shift needs imm or rcx source")),
+            }
+        }
+        Opcode::Test => match (&e.dst, &e.dst_mem, &e.src) {
+            (Some(d), None, Some(Src::Reg(_))) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("test needs GPRs"));
+                }
+                Ok(())
+            }
+            (Some(d), None, Some(Src::Imm(v))) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("test needs a GPR"));
+                }
+                if !fits_i32(*v) {
+                    return Err(EncodeError::ImmOutOfRange(*v));
+                }
+                Ok(())
+            }
+            (None, Some(_), Some(Src::Reg(_))) => Ok(()),
+            _ => Err(EncodeError::BadOperand(
+                "test needs reg dst plus reg or imm src",
+            )),
+        },
+        Opcode::Push => match (&e.dst, &e.src) {
+            (Some(d), None) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("push needs a GPR"));
+                }
+                Ok(())
+            }
+            (None, Some(Src::Imm(v))) => {
+                if !fits_i32(*v) {
+                    return Err(EncodeError::ImmOutOfRange(*v));
+                }
+                Ok(())
+            }
+            _ => Err(EncodeError::BadOperand("push takes one reg or imm operand")),
+        },
+        Opcode::Pop => match (&e.dst, &e.src) {
+            (Some(d), None) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("pop needs a GPR"));
+                }
+                Ok(())
+            }
+            _ => Err(EncodeError::BadOperand("pop takes one reg operand")),
+        },
+        Opcode::Jmp => match &e.target {
             Some(_) => Ok(()),
             None => Err(EncodeError::BadOperand("branch needs a block target")),
         },
         Opcode::Ret => Ok(()),
+        Opcode::Je
+        | Opcode::Jne
+        | Opcode::Jl
+        | Opcode::Jle
+        | Opcode::Jg
+        | Opcode::Jge
+        | Opcode::Ja
+        | Opcode::Jae
+        | Opcode::Jb
+        | Opcode::Jbe
+        | Opcode::Js
+        | Opcode::Jns
+        | Opcode::Jo
+        | Opcode::Jno
+        | Opcode::Jp
+        | Opcode::Jnp => match &e.target {
+            Some(_) => Ok(()),
+            None => Err(EncodeError::BadOperand("branch needs a block target")),
+        },
         Opcode::Call => match (&e.dst, &e.target) {
             (None, Some(_)) => Ok(()),
             _ => Err(EncodeError::BadOperand("call takes only a target")),
@@ -537,18 +916,83 @@ fn validate(e: &EncInsn) -> Result<(), EncodeError> {
             (Some(_), Some(Src::Mem { .. })) => Ok(()),
             _ => Err(EncodeError::BadOperand("load needs reg dst and mem src")),
         },
-        Opcode::Store => match (&e.dst, &e.src) {
-            (Some(_), Some(Src::Mem { .. })) => Ok(()),
+        Opcode::Store | Opcode::Store8 | Opcode::Store32 => match (&e.dst, &e.src) {
+            (Some(d), Some(Src::Mem { .. })) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("width store needs a GPR"));
+                }
+                Ok(())
+            }
             _ => Err(EncodeError::BadOperand("store needs reg dst and mem src")),
         },
-        Opcode::AddSd | Opcode::MulSd => match (&e.dst, &e.src) {
+        Opcode::AddSd
+        | Opcode::SubSd
+        | Opcode::MulSd
+        | Opcode::DivSd
+        | Opcode::SqrtSd
+        | Opcode::UComisd => match (&e.dst, &e.src) {
             (Some(d), Some(Src::Reg(_))) => {
                 if d.class != RegClass::Xmm64 {
                     return Err(EncodeError::BadClass("sse op needs XMM operands"));
                 }
                 Ok(())
             }
-            _ => Err(EncodeError::BadOperand("sse op needs a register source")),
+            (Some(d), Some(Src::Mem { .. })) => {
+                if d.class != RegClass::Xmm64 {
+                    return Err(EncodeError::BadClass("sse op needs an XMM destination"));
+                }
+                Ok(())
+            }
+            _ => Err(EncodeError::BadOperand(
+                "sse op needs a register or memory source",
+            )),
+        },
+        Opcode::CvtSi2Sd => match (&e.dst, &e.src) {
+            (Some(d), Some(Src::Reg(_))) => {
+                if d.class != RegClass::Xmm64 {
+                    return Err(EncodeError::BadClass("cvtsi2sd needs an XMM destination"));
+                }
+                Ok(())
+            }
+            (Some(d), Some(Src::Mem { .. })) => {
+                if d.class != RegClass::Xmm64 {
+                    return Err(EncodeError::BadClass("cvtsi2sd needs an XMM destination"));
+                }
+                Ok(())
+            }
+            _ => Err(EncodeError::BadOperand("cvtsi2sd needs reg or mem source")),
+        },
+        Opcode::CvtSd2Si => match (&e.dst, &e.src) {
+            (Some(d), Some(Src::Reg(_))) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("cvttsd2si needs a GPR destination"));
+                }
+                Ok(())
+            }
+            (Some(d), Some(Src::Mem { .. })) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("cvttsd2si needs a GPR destination"));
+                }
+                Ok(())
+            }
+            _ => Err(EncodeError::BadOperand("cvttsd2si needs reg or mem source")),
+        },
+        Opcode::MovZx8 | Opcode::MovZx32 | Opcode::MovSx32 => match (&e.dst, &e.src) {
+            (Some(d), Some(Src::Reg(s))) => {
+                if d.class != RegClass::Gpr64 || s.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("width move needs GPRs"));
+                }
+                Ok(())
+            }
+            (Some(d), Some(Src::Mem { .. })) => {
+                if d.class != RegClass::Gpr64 {
+                    return Err(EncodeError::BadClass("width move needs a GPR destination"));
+                }
+                Ok(())
+            }
+            _ => Err(EncodeError::BadOperand(
+                "width move needs reg dst plus reg or mem src",
+            )),
         },
     }
 }
@@ -760,65 +1204,356 @@ fn insn_size(e: &EncInsn, long: bool) -> usize {
                 &EncInsn {
                     op: Opcode::Load,
                     dst: e.dst,
+                    dst_mem: None,
                     src: e.src.clone(),
+                    imm: None,
                     target: None,
                 },
                 long,
             ),
             _ => 0,
         },
-        Opcode::Add | Opcode::Sub | Opcode::Cmp => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Imm(v))) => {
-                // REX.W is always set for 64-bit integer forms, so the prefix is always present.
-                if fits_i8(*v) {
-                    len::GRP1_IB // REX 83 /d ib
-                } else if d.preg == preg::RAX {
-                    len::ACC_IMM32 // REX 3d id (accumulator short form)
-                } else {
-                    len::GRP1_ID // REX 81 /d id
-                }
-            }
-            (Some(d), Some(Src::Reg(s))) => rex_len(rex_rr(d, s)) + len::OPCODE_MODRM,
+        Opcode::Lea => match (&e.dst, &e.src) {
             (Some(d), Some(Src::Mem { base, disp })) => {
-                // REX + opcode + memory tail.
                 rex_len(rex_rmem(d, *base)) + 1 + mem_tail(*base, *disp)
             }
             _ => 0,
         },
+        Opcode::Add | Opcode::Sub | Opcode::And | Opcode::Or | Opcode::Xor | Opcode::Cmp => {
+            match (&e.dst, &e.dst_mem, &e.src) {
+                (Some(d), None, Some(Src::Reg(s))) => rex_len(rex_rr(d, s)) + len::OPCODE_MODRM,
+                (Some(d), None, Some(Src::Imm(v))) => {
+                    // REX.W is always set for 64-bit integer forms.
+                    if fits_i8(*v) {
+                        len::GRP1_IB
+                    } else if d.preg == preg::RAX {
+                        len::ACC_IMM32
+                    } else {
+                        len::GRP1_ID
+                    }
+                }
+                (Some(d), None, Some(Src::Mem { base, disp })) => {
+                    rex_len(rex_rmem(d, *base)) + 1 + mem_tail(*base, *disp)
+                }
+                (None, Some((base, disp)), Some(Src::Reg(s))) => {
+                    rex_len(rex_rmem(s, *base)) + 1 + mem_tail(*base, *disp)
+                }
+                (None, Some((base, disp)), Some(Src::Imm(v))) => {
+                    let rex = rex_wb(*base);
+                    1 + rex_len(rex)
+                        + mem_tail(*base, *disp)
+                        + if fits_i8(*v) { 1 } else { len::DISP32 }
+                }
+                _ => 0,
+            }
+        }
         Opcode::IMul => match (&e.dst, &e.src) {
             (Some(d), Some(Src::Reg(s))) => rex_len(rex_rr(d, s)) + len::RR_ESC,
             (Some(d), Some(Src::Mem { base, disp })) => {
-                rex_len(rex_rmem(d, *base)) + len::ESC_OPCODE + mem_tail(*base, *disp)
+                rex_len(rex_rmem(d, *base)) + len::RR_ESC + mem_tail(*base, *disp)
             }
             _ => 0,
         },
-        Opcode::Jmp | Opcode::Jl | Opcode::Jge | Opcode::Ret => match (e.op, long) {
-            (Opcode::Jmp, false) | (Opcode::Ret, false) => len::BRANCH8,
-            (Opcode::Jmp, true) | (Opcode::Ret, true) => len::BRANCH32_JMP,
-            (_, false) => len::BRANCH8,
-            (_, true) => len::BRANCH32_JCC,
-        },
-        Opcode::Call => len::CALL,
-        Opcode::Load | Opcode::Store => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Mem { base, disp })) => {
-                if d.class == RegClass::Xmm64 {
-                    let rex = rex_sse(None, Some(d), Some(*base));
-                    1 + rex_len(rex) + len::ESC_OPCODE + mem_tail(*base, *disp)
+        Opcode::IMul3 => match (&e.dst, &e.src, e.imm) {
+            (Some(d), Some(Src::Reg(s)), Some(v)) => {
+                if fits_i8(v) {
+                    rex_len(rex_rr(d, s)) + len::OPCODE_MODRM + 1
                 } else {
-                    // REX + opcode + ModRM tail.
-                    let rex = rex_rmem(d, *base);
-                    rex_len(rex) + 1 + mem_tail(*base, *disp)
+                    rex_len(rex_rr(d, s)) + len::OPCODE_MODRM + len::DISP32
+                }
+            }
+            (Some(d), Some(Src::Mem { base, disp }), Some(v)) => {
+                let tail = mem_tail(*base, *disp);
+                let body = rex_len(rex_rmem(d, *base)) + 1 + tail;
+                if fits_i8(v) {
+                    body + 1
+                } else {
+                    body + len::DISP32
                 }
             }
             _ => 0,
         },
-        Opcode::AddSd | Opcode::MulSd => match (&e.dst, &e.src) {
+        Opcode::IDiv => match (&e.dst, &e.dst_mem) {
+            (Some(d), None) => rex_len(rex_rr_w(d)) + len::OPCODE_MODRM,
+            (None, Some((base, disp))) => rex_len(rex_wb(*base)) + 1 + mem_tail(*base, *disp),
+            _ => 0,
+        },
+        Opcode::Cqo => len::CQO,
+        Opcode::Not | Opcode::Neg => match (&e.dst, &e.dst_mem) {
+            (Some(d), None) => rex_len(rex_rr_w(d)) + len::OPCODE_MODRM,
+            (None, Some((base, disp))) => rex_len(rex_wb(*base)) + 1 + mem_tail(*base, *disp),
+            _ => 0,
+        },
+        Opcode::Shl | Opcode::Shr | Opcode::Sar => match (&e.dst, &e.dst_mem, &e.src) {
+            // A count of one uses the implicit-1 D0 form; other counts use C1 + imm8.
+            (Some(d), None, Some(Src::Imm(v))) => {
+                rex_len(rex_rr_w(d)) + len::OPCODE_MODRM + if *v == 1 { 0 } else { 1 }
+            }
+            (Some(d), None, Some(Src::Reg(_))) => rex_len(rex_rr_w(d)) + len::OPCODE_MODRM,
+            (None, Some((base, disp)), Some(Src::Imm(v))) => {
+                rex_len(rex_wb(*base)) + 1 + mem_tail(*base, *disp) + if *v == 1 { 0 } else { 1 }
+            }
+            (None, Some((base, disp)), Some(Src::Reg(_))) => {
+                rex_len(rex_wb(*base)) + 1 + mem_tail(*base, *disp)
+            }
+            _ => 0,
+        },
+        Opcode::Test => match (&e.dst, &e.dst_mem, &e.src) {
+            (Some(d), None, Some(Src::Reg(s))) => rex_len(rex_rr(d, s)) + len::OPCODE_MODRM,
+            (Some(d), None, Some(Src::Imm(v))) => {
+                if fits_i32(*v) {
+                    if d.preg == preg::RAX {
+                        len::ACC_IMM32
+                    } else {
+                        // REX + F7 /0 + ModRM + imm32.
+                        1 + 1 + 1 + len::DISP32
+                    }
+                } else {
+                    0
+                }
+            }
+            (None, Some((base, disp)), Some(Src::Reg(s))) => {
+                rex_len(rex_rmem(s, *base)) + 1 + mem_tail(*base, *disp)
+            }
+            _ => 0,
+        },
+        Opcode::Push => match (&e.dst, &e.src) {
+            (Some(d), None) => pushpop_len(d.preg),
+            (None, Some(Src::Imm(v))) => {
+                if fits_i8(*v) {
+                    len::PUSH_IMM8_LEN
+                } else {
+                    len::PUSH_IMM32_LEN
+                }
+            }
+            _ => 0,
+        },
+        Opcode::Pop => match e.dst {
+            Some(d) => pushpop_len(d.preg),
+            None => 0,
+        },
+        Opcode::Je
+        | Opcode::Jne
+        | Opcode::Jl
+        | Opcode::Jle
+        | Opcode::Jg
+        | Opcode::Jge
+        | Opcode::Ja
+        | Opcode::Jae
+        | Opcode::Jb
+        | Opcode::Jbe
+        | Opcode::Js
+        | Opcode::Jns
+        | Opcode::Jo
+        | Opcode::Jno
+        | Opcode::Jp
+        | Opcode::Jnp
+        | Opcode::Ret => branch_size(e.op, long),
+        Opcode::Jmp => branch_size(e.op, long),
+        Opcode::Call => len::CALL,
+        Opcode::Load | Opcode::MovZx8 | Opcode::MovZx32 | Opcode::MovSx32 => {
+            match (&e.dst, &e.src) {
+                (Some(d), Some(Src::Mem { base, disp })) => {
+                    let (w, escaped) = load_shape(e.op);
+                    let rex = if w {
+                        rex_rmem(d, *base)
+                    } else {
+                        rex_rb(d, *base)
+                    };
+                    rex_len(rex) + usize::from(escaped) + 1 + mem_tail(*base, *disp)
+                }
+                (Some(d), Some(Src::Reg(s))) => {
+                    // Load forms put the destination in ModRM.reg and the source
+                    // in rm, so the REX direction mirrors the store forms.
+                    let (w, escaped) = load_shape(e.op);
+                    let mut rex = if w { op::REX_W } else { 0 };
+                    if hw(d.preg) >= hw_num::GPR_EXT {
+                        rex |= op::REX_R;
+                    }
+                    if hw(s.preg) >= hw_num::GPR_EXT {
+                        rex |= op::REX_B;
+                    }
+                    rex_len(rex) + usize::from(escaped) + 1 + extra_opc(e.op)
+                }
+                _ => 0,
+            }
+        }
+        Opcode::Store | Opcode::Store8 | Opcode::Store32 => match (&e.dst, &e.src) {
+            (Some(d), Some(Src::Mem { base, disp })) => {
+                let (rex, escaped) = store_shape(e.op, d.preg, *base);
+                rex_len(rex) + usize::from(escaped) + 1 + mem_tail(*base, *disp)
+            }
+            _ => 0,
+        },
+        Opcode::AddSd
+        | Opcode::SubSd
+        | Opcode::MulSd
+        | Opcode::DivSd
+        | Opcode::SqrtSd
+        | Opcode::UComisd => match (&e.dst, &e.src) {
             (Some(d), Some(Src::Reg(s))) => {
                 let rex = rex_sse(Some(s), Some(d), None);
                 1 + rex_len(rex) + len::SSE_RR - 1
             }
+            (Some(d), Some(Src::Mem { base, disp })) => {
+                let rex = rex_sse(None, Some(d), Some(*base));
+                1 + rex_len(rex) + len::ESC_OPCODE + mem_tail(*base, *disp)
+            }
             _ => 0,
         },
+        Opcode::CvtSi2Sd | Opcode::CvtSd2Si => match (&e.dst, &e.src) {
+            (Some(_), Some(Src::Reg(_))) => 1 + 1 + len::ESC_OPCODE + 1,
+            (Some(_), Some(Src::Mem { base, disp })) => {
+                1 + 1 + len::ESC_OPCODE + mem_tail(*base, *disp)
+            }
+            _ => 0,
+        },
+    }
+}
+
+/// REX bits with W and B set: the shape of single-operand F7-style group forms.
+// CEP:WHAT: Computes W-B register REX bits.
+// CEP:WHY: Unary and group forms address their operand through rm only.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn rex_rr_w(dst: &Resolved) -> u8 {
+    let mut rex = op::REX_W;
+    if hw(dst.preg) >= hw_num::GPR_EXT {
+        rex |= op::REX_B;
+    }
+    rex
+}
+
+/// REX bits with W and a base extension bit.
+// CEP:WHAT: Computes W-B memory REX bits.
+// CEP:WHY: Memory-destination and unary memory forms.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn rex_wb(base: u32) -> u8 {
+    let mut rex = op::REX_W;
+    if hw(base) >= hw_num::GPR_EXT {
+        rex |= op::REX_B;
+    }
+    rex
+}
+
+/// REX bits without W for a register-plus-memory form.
+// CEP:WHAT: Computes no-W reg-mem REX bits.
+// CEP:WHY: 32-bit loads and stores keep 64-bit width off; only extension bits appear.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn rex_rb(dst: &Resolved, base: u32) -> u8 {
+    let mut rex = 0u8;
+    if hw(dst.preg) >= hw_num::GPR_EXT {
+        rex |= op::REX_R;
+    }
+    if hw(base) >= hw_num::GPR_EXT {
+        rex |= op::REX_B;
+    }
+    rex
+}
+
+/// Push/pop byte length for a register id.
+// CEP:WHAT: Sizes push and pop.
+// CEP:WHY: Extended registers need a REX byte.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn pushpop_len(p: u32) -> usize {
+    usize::from(hw(p) >= hw_num::GPR_EXT) + 1
+}
+
+/// (needs REX.W, needs two-byte escape) for the load-shaped width moves.
+// CEP:WHAT: Reports load shapes.
+// CEP:WHY: MovZx8 and MovSx32 use two-byte opcodes; MovZx32 drops the W bit.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn load_shape(op: Opcode) -> (bool, bool) {
+    match op {
+        Opcode::Load => (true, false),
+        Opcode::MovZx8 => (true, true),
+        Opcode::MovZx32 => (false, false),
+        Opcode::MovSx32 => (true, true),
+        _ => (true, false),
+    }
+}
+
+/// Extra opcode byte count for width moves (the second byte after the escape).
+// CEP:WHAT: Reports escape tail bytes.
+// CEP:WHY: Two-byte opcodes contribute one more byte than single-byte forms.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn extra_opc(op: Opcode) -> usize {
+    match op {
+        Opcode::MovZx8 | Opcode::MovSx32 => 1,
+        _ => 0,
+    }
+}
+
+/// (REX byte, needs escape) for width stores; a byte store of registers 4..7
+/// (spl, bpl, sil, dil) requires a bare REX prefix even without other bits.
+// CEP:WHAT: Reports store shapes.
+// CEP:WHY: Byte stores name the low-byte views, which the ISA only addresses with REX active for 4..7.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn store_shape(op: Opcode, val: u32, base: u32) -> (u8, bool) {
+    match op {
+        Opcode::Store => {
+            let mut rex = op::REX_W;
+            if hw(val) >= hw_num::GPR_EXT {
+                rex |= op::REX_R;
+            }
+            if hw(base) >= hw_num::GPR_EXT {
+                rex |= op::REX_B;
+            }
+            (rex, false)
+        }
+        Opcode::Store8 => {
+            let mut rex = 0u8;
+            if hw(val) >= hw_num::BYTE_REX_MIN {
+                // A bare REX activates the 4..7 low-byte names.
+                rex |= op::REX_BASE;
+                if hw(val) >= hw_num::GPR_EXT {
+                    rex |= op::REX_R;
+                }
+            }
+            if hw(base) >= hw_num::GPR_EXT {
+                rex |= op::REX_B;
+            }
+            (rex, false)
+        }
+        Opcode::Store32 => {
+            let mut rex = 0u8;
+            if hw(val) >= hw_num::GPR_EXT {
+                rex |= op::REX_R;
+            }
+            if hw(base) >= hw_num::GPR_EXT {
+                rex |= op::REX_B;
+            }
+            (rex, false)
+        }
+        // Validation rejects every other opcode before the shape is consulted.
+        _ => (0, false),
     }
 }
 
@@ -838,18 +1573,16 @@ fn emit_insn(
     relocs: &mut Vec<Reloc>,
 ) -> Result<(), EncodeError> {
     let before = out.len() as u32;
+    // The six-member integer ALU family shares one emission path.
+    if matches!(
+        e.op,
+        Opcode::Add | Opcode::Sub | Opcode::And | Opcode::Or | Opcode::Xor | Opcode::Cmp
+    ) {
+        emit_alu(out, e)?;
+        return Ok(());
+    }
     match e.op {
         Opcode::Mov => match (&e.dst, &e.src) {
-            // A folded memory source encodes exactly like a Load.
-            (Some(_), Some(Src::Mem { .. })) => {
-                let load = EncInsn {
-                    op: Opcode::Load,
-                    dst: e.dst,
-                    src: e.src.clone(),
-                    target: None,
-                };
-                return emit_insn(out, &load, long, None, relocs);
-            }
             (Some(d), Some(Src::Imm(v))) => {
                 let mut rex = op::REX_W;
                 if hw(d.preg) >= hw_num::GPR_EXT {
@@ -882,79 +1615,209 @@ fn emit_insn(
                     out.push(modrm(enc::MOD_REG, enc_reg(s.preg), enc_reg(d.preg)));
                 }
             }
+            // A folded memory source encodes exactly like a Load.
+            (Some(_), Some(Src::Mem { .. })) => {
+                let load = EncInsn {
+                    op: Opcode::Load,
+                    dst: e.dst,
+                    dst_mem: None,
+                    src: e.src.clone(),
+                    imm: None,
+                    target: None,
+                };
+                return emit_insn(out, &load, long, None, relocs);
+            }
             _ => unreachable!("validated at resolve time"),
         },
-        Opcode::Add | Opcode::Sub | Opcode::Cmp => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Reg(s))) => {
-                let opc = match e.op {
-                    Opcode::Add => op::ADD_MR,
-                    Opcode::Sub => op::SUB_MR,
-                    _ => op::CMP_MR,
-                };
-                let rex = rex_rr(d, s);
-                push_rex(out, rex);
-                out.push(opc);
-                out.push(modrm(enc::MOD_REG, enc_reg(s.preg), enc_reg(d.preg)));
-            }
+        Opcode::Lea => match (&e.dst, &e.src) {
             (Some(d), Some(Src::Mem { base, disp })) => {
-                // Load-form opcodes: dst <- dst op [mem]. The store forms
-                // (01/29/39 with rm=memory) would compute mem op= reg instead.
-                let opc = match e.op {
-                    Opcode::Add => op::ADD_RM,
-                    Opcode::Sub => op::SUB_RM,
-                    _ => op::CMP_RM,
-                };
                 let rex = rex_rmem(d, *base);
                 push_rex(out, rex);
-                out.push(opc);
+                out.push(op::LEA);
                 push_mem(out, *base, *disp, enc_reg(d.preg));
             }
-            (Some(d), Some(Src::Imm(v))) => {
-                let (ext, short) = match e.op {
-                    Opcode::Add => (op::EXT_ADD, op::ADD_EAX_ID),
-                    Opcode::Sub => (op::EXT_SUB, op::SUB_EAX_ID),
-                    _ => (op::EXT_CMP, op::CMP_EAX_ID),
-                };
+            _ => unreachable!("validated at resolve time"),
+        },
+        Opcode::IMul3 => match (&e.dst, &e.src, e.imm) {
+            (Some(d), Some(Src::Reg(s)), Some(v)) => {
+                let rex = rex_rr(d, s);
+                push_rex(out, rex);
+                // Three-operand imul puts the destination in reg and the source in rm.
+                if fits_i8(v) {
+                    out.push(op::IMUL3_IMM8);
+                    out.push(modrm(enc::MOD_REG, enc_reg(d.preg), enc_reg(s.preg)));
+                    out.push(v as i8 as u8);
+                } else {
+                    out.push(op::IMUL3_IMM32);
+                    out.push(modrm(enc::MOD_REG, enc_reg(d.preg), enc_reg(s.preg)));
+                    out.extend_from_slice(&(v as i32).to_le_bytes());
+                }
+            }
+            (Some(d), Some(Src::Mem { base, disp }), Some(v)) => {
+                let rex = rex_rmem(d, *base);
+                push_rex(out, rex);
+                if fits_i8(v) {
+                    out.push(op::IMUL3_IMM8);
+                    push_mem(out, *base, *disp, enc_reg(d.preg));
+                    out.push(v as i8 as u8);
+                } else {
+                    out.push(op::IMUL3_IMM32);
+                    push_mem(out, *base, *disp, enc_reg(d.preg));
+                    out.extend_from_slice(&(v as i32).to_le_bytes());
+                }
+            }
+            _ => unreachable!("validated at resolve time"),
+        },
+        Opcode::IDiv => match (&e.dst, &e.dst_mem) {
+            (Some(d), None) => {
+                push_rex(out, rex_rr_w(d));
+                out.push(op::GRP3);
+                out.push(modrm(enc::MOD_REG, op::EXT_IDIV, enc_reg(d.preg)));
+            }
+            (None, Some((base, disp))) => {
+                push_rex(out, rex_wb(*base));
+                out.push(op::GRP3);
+                push_mem(out, *base, *disp, op::EXT_IDIV);
+            }
+            _ => unreachable!("validated at resolve time"),
+        },
+        Opcode::Cqo => {
+            push_rex(out, op::REX_W);
+            out.push(op::CQO);
+        }
+        Opcode::Not | Opcode::Neg => {
+            let ext = if e.op == Opcode::Not {
+                op::EXT_NOT
+            } else {
+                op::EXT_NEG
+            };
+            match (&e.dst, &e.dst_mem) {
+                (Some(d), None) => {
+                    push_rex(out, rex_rr_w(d));
+                    out.push(op::GRP3);
+                    out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
+                }
+                (None, Some((base, disp))) => {
+                    push_rex(out, rex_wb(*base));
+                    out.push(op::GRP3);
+                    push_mem(out, *base, *disp, ext);
+                }
+                _ => unreachable!("validated at resolve time"),
+            }
+        }
+        Opcode::Shl | Opcode::Shr | Opcode::Sar => {
+            let ext = match e.op {
+                Opcode::Shl => op::EXT_SHL,
+                Opcode::Shr => op::EXT_SHR,
+                _ => op::EXT_IDIV, // SAR shares the /7 extension.
+            };
+            match (&e.dst, &e.dst_mem, &e.src) {
+                (Some(d), None, Some(Src::Imm(v))) => {
+                    push_rex(out, rex_rr_w(d));
+                    if *v == 1 {
+                        // The implicit-1 form matches gas and saves the imm byte.
+                        out.push(op::SHIFT_ONE);
+                        out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
+                    } else {
+                        out.push(op::SHIFT_IMM);
+                        out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
+                        out.push(*v as i8 as u8);
+                    }
+                }
+                (Some(d), None, Some(Src::Reg(_))) => {
+                    push_rex(out, rex_rr_w(d));
+                    out.push(op::SHIFT_CL);
+                    out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
+                }
+                (None, Some((base, disp)), Some(Src::Imm(v))) => {
+                    push_rex(out, rex_wb(*base));
+                    if *v == 1 {
+                        out.push(op::SHIFT_ONE);
+                        push_mem(out, *base, *disp, ext);
+                    } else {
+                        out.push(op::SHIFT_IMM);
+                        push_mem(out, *base, *disp, ext);
+                        out.push(*v as i8 as u8);
+                    }
+                }
+                (None, Some((base, disp)), Some(Src::Reg(_))) => {
+                    push_rex(out, rex_wb(*base));
+                    out.push(op::SHIFT_CL);
+                    push_mem(out, *base, *disp, ext);
+                }
+                _ => unreachable!("validated at resolve time"),
+            }
+        }
+        Opcode::Test => match (&e.dst, &e.dst_mem, &e.src) {
+            (Some(d), None, Some(Src::Reg(s))) => {
+                let rex = rex_rr(d, s);
+                push_rex(out, rex);
+                out.push(op::TEST_MR);
+                out.push(modrm(enc::MOD_REG, enc_reg(s.preg), enc_reg(d.preg)));
+            }
+            (Some(d), None, Some(Src::Imm(v))) => {
                 let mut rex = op::REX_W;
                 if hw(d.preg) >= hw_num::GPR_EXT {
                     rex |= op::REX_B;
                 }
-                if fits_i8(*v) {
+                if d.preg == preg::RAX {
                     push_rex(out, rex);
-                    out.push(op::GRP1_IB);
-                    out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
-                    out.push(*v as i8 as u8);
-                } else if d.preg == preg::RAX {
-                    push_rex(out, rex);
-                    out.push(short);
+                    out.push(op::TEST_EAX_ID);
                     out.extend_from_slice(&(*v as i32).to_le_bytes());
                 } else {
                     push_rex(out, rex);
-                    out.push(op::GRP1_ID);
-                    out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
+                    out.push(op::GRP3);
+                    out.push(modrm(enc::MOD_REG, op::EXT_TEST, enc_reg(d.preg)));
+                    out.extend_from_slice(&(*v as i32).to_le_bytes());
+                }
+            }
+            (None, Some((base, disp)), Some(Src::Reg(s))) => {
+                let rex = rex_rmem(s, *base);
+                push_rex(out, rex);
+                out.push(op::TEST_MR);
+                push_mem(out, *base, *disp, enc_reg(s.preg));
+            }
+            _ => unreachable!("validated at resolve time"),
+        },
+        Opcode::Push => match (&e.dst, &e.src) {
+            (Some(d), None) => push_push(out, d.preg),
+            (None, Some(Src::Imm(v))) => {
+                if fits_i8(*v) {
+                    out.push(op::PUSH_IMM8);
+                    out.push(*v as i8 as u8);
+                } else {
+                    out.push(op::PUSH_IMM32);
                     out.extend_from_slice(&(*v as i32).to_le_bytes());
                 }
             }
             _ => unreachable!("validated at resolve time"),
         },
-        Opcode::IMul => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Reg(s))) => {
-                let rex = rex_rr(d, s);
-                push_rex(out, rex);
-                out.push(op::ESCAPE);
-                out.push(op::IMUL_RM);
-                out.push(modrm(enc::MOD_REG, enc_reg(s.preg), enc_reg(d.preg)));
-            }
-            (Some(d), Some(Src::Mem { base, disp })) => {
-                let rex = rex_rmem(d, *base);
-                push_rex(out, rex);
-                out.push(op::ESCAPE);
-                out.push(op::IMUL_RM);
-                push_mem(out, *base, *disp, enc_reg(d.preg));
-            }
-            _ => unreachable!("validated at resolve time"),
+        Opcode::Pop => match e.dst {
+            Some(d) => push_pop(out, d.preg),
+            None => unreachable!("validated at resolve time"),
         },
-        Opcode::Jmp | Opcode::Jl | Opcode::Jge => {
+        Opcode::Je
+        | Opcode::Jne
+        | Opcode::Jl
+        | Opcode::Jle
+        | Opcode::Jg
+        | Opcode::Jge
+        | Opcode::Ja
+        | Opcode::Jae
+        | Opcode::Jb
+        | Opcode::Jbe
+        | Opcode::Js
+        | Opcode::Jns
+        | Opcode::Jo
+        | Opcode::Jno
+        | Opcode::Jp
+        | Opcode::Jnp => {
+            let t = target_off
+                .ok_or_else(|| EncodeError::UnknownLabel(e.target.clone().unwrap_or_default()))?;
+            let disp = branch_disp(before, e.op, long, t)?;
+            push_branch(out, e.op, long, disp);
+        }
+        Opcode::Jmp => {
             let t = target_off
                 .ok_or_else(|| EncodeError::UnknownLabel(e.target.clone().unwrap_or_default()))?;
             let disp = branch_disp(before, e.op, long, t)?;
@@ -987,61 +1850,224 @@ fn emit_insn(
                 }),
             }
         }
-        Opcode::Load => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Mem { base, disp })) => {
-                if d.class == RegClass::Xmm64 {
-                    let rex = rex_sse(None, Some(d), Some(*base));
-                    out.push(op::PRE_F2);
-                    push_rex(out, rex);
-                    out.push(op::ESCAPE);
-                    out.push(op::MOVSD_LOAD);
-                    push_mem(out, *base, *disp, enc_reg(d.preg));
-                } else {
-                    let rex = rex_rmem(d, *base);
-                    push_rex(out, rex);
-                    out.push(op::MOV_RM);
-                    push_mem(out, *base, *disp, enc_reg(d.preg));
-                }
-            }
-            _ => unreachable!("validated at resolve time"),
-        },
-        Opcode::Store => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Mem { base, disp })) => {
-                if d.class == RegClass::Xmm64 {
-                    let rex = rex_sse(None, Some(d), Some(*base));
-                    out.push(op::PRE_F2);
-                    push_rex(out, rex);
-                    out.push(op::ESCAPE);
-                    out.push(op::MOVSD_STORE);
-                    push_mem(out, *base, *disp, enc_reg(d.preg));
-                } else {
-                    let rex = rex_rmem(d, *base);
-                    push_rex(out, rex);
-                    out.push(op::MOV_MR);
+        Opcode::Load | Opcode::MovZx8 | Opcode::MovZx32 | Opcode::MovSx32 => {
+            let opc = match e.op {
+                Opcode::Load => op::MOV_RM,
+                Opcode::MovZx8 => op::MOVZ8,
+                Opcode::MovZx32 => op::MOV_RM,
+                Opcode::MovSx32 => op::MOVSX32,
+                _ => unreachable!("narrowed above"),
+            };
+            match (&e.dst, &e.src) {
+                (Some(d), Some(Src::Mem { base, disp })) => {
+                    let (w, escaped) = load_shape(e.op);
+                    let rex = if w {
+                        rex_rmem(d, *base)
+                    } else {
+                        rex_rb(d, *base)
+                    };
+                    if escaped {
+                        push_rex(out, rex);
+                        out.push(op::ESCAPE);
+                        out.push(opc);
+                    } else {
+                        push_rex(out, rex);
+                        out.push(opc);
+                    }
                     push_mem(out, *base, *disp, enc_reg(d.preg));
                 }
+                (Some(d), Some(Src::Reg(s))) => {
+                    let (w, escaped) = load_shape(e.op);
+                    let mut rex = if w { op::REX_W } else { 0 };
+                    if hw(d.preg) >= hw_num::GPR_EXT {
+                        rex |= op::REX_R;
+                    }
+                    if hw(s.preg) >= hw_num::GPR_EXT {
+                        rex |= op::REX_B;
+                    }
+                    if escaped {
+                        push_rex(out, rex);
+                        out.push(op::ESCAPE);
+                        out.push(opc);
+                    } else {
+                        push_rex(out, rex);
+                        out.push(opc);
+                    }
+                    out.push(modrm(enc::MOD_REG, enc_reg(d.preg), enc_reg(s.preg)));
+                }
+                _ => unreachable!("validated at resolve time"),
             }
-            _ => unreachable!("validated at resolve time"),
-        },
-        Opcode::AddSd | Opcode::MulSd => match (&e.dst, &e.src) {
-            (Some(d), Some(Src::Reg(s))) => {
-                let opc = if e.op == Opcode::AddSd {
-                    op::ADDSD
-                } else {
-                    op::MULSD
+        }
+        Opcode::Store | Opcode::Store8 | Opcode::Store32 => match (&e.dst, &e.src) {
+            (Some(d), Some(Src::Mem { base, disp })) => {
+                let opc = match e.op {
+                    Opcode::Store => op::MOV_MR,
+                    Opcode::Store8 => op::MOV8_MR,
+                    Opcode::Store32 => op::MOV_MR,
+                    _ => unreachable!("narrowed above"),
                 };
-                let rex = rex_sse(Some(s), Some(d), None);
-                out.push(op::PRE_F2);
+                let (rex, _) = store_shape(e.op, d.preg, *base);
                 push_rex(out, rex);
-                out.push(op::ESCAPE);
                 out.push(opc);
-                // SSE ModRM: reg is the destination, rm the source.
-                out.push(modrm(enc::MOD_REG, enc_reg(d.preg), enc_reg(s.preg)));
+                push_mem(out, *base, *disp, enc_reg(d.preg));
             }
             _ => unreachable!("validated at resolve time"),
         },
+        Opcode::AddSd
+        | Opcode::SubSd
+        | Opcode::MulSd
+        | Opcode::DivSd
+        | Opcode::SqrtSd
+        | Opcode::UComisd => {
+            let (prefix, opc) = sse_binop(e.op);
+            match (&e.dst, &e.src) {
+                (Some(d), Some(Src::Reg(s))) => {
+                    let rex = rex_sse(Some(s), Some(d), None);
+                    out.push(prefix);
+                    push_rex(out, rex);
+                    out.push(op::ESCAPE);
+                    out.push(opc);
+                    // SSE ModRM: reg is the destination, rm the source.
+                    out.push(modrm(enc::MOD_REG, enc_reg(d.preg), enc_reg(s.preg)));
+                }
+                (Some(d), Some(Src::Mem { base, disp })) => {
+                    let rex = rex_sse(None, Some(d), Some(*base));
+                    out.push(prefix);
+                    push_rex(out, rex);
+                    out.push(op::ESCAPE);
+                    out.push(opc);
+                    push_mem(out, *base, *disp, enc_reg(d.preg));
+                }
+                _ => unreachable!("validated at resolve time"),
+            }
+        }
+        Opcode::CvtSi2Sd | Opcode::CvtSd2Si => {
+            let opc = if e.op == Opcode::CvtSi2Sd {
+                op::CVTSI2SD
+            } else {
+                op::CVTTSD2SI
+            };
+            match (&e.dst, &e.src) {
+                (Some(d), Some(Src::Reg(s))) => {
+                    // REX.W is always set: cvtsi2sdq and cvttsd2siq are 64-bit.
+                    out.push(op::PRE_F2);
+                    push_rex(out, op::REX_W);
+                    out.push(op::ESCAPE);
+                    out.push(opc);
+                    // SSE ModRM: reg is the destination, rm the source.
+                    out.push(modrm(enc::MOD_REG, enc_reg(d.preg), enc_reg(s.preg)));
+                }
+                (Some(d), Some(Src::Mem { base, disp })) => {
+                    out.push(op::PRE_F2);
+                    push_rex(out, op::REX_W);
+                    out.push(op::ESCAPE);
+                    out.push(opc);
+                    push_mem(out, *base, *disp, enc_reg(d.preg));
+                }
+                _ => unreachable!("validated at resolve time"),
+            }
+        }
+        _ => return Err(EncodeError::BadOperand("instruction not encodable")),
     }
     Ok(())
+}
+
+/// Emits the shared integer ALU family in all five operand shapes.
+// CEP:WHAT: Emits integer ALU forms.
+// CEP:WHY: Add, Sub, And, Or, Xor, and Cmp share opcode families and shapes; one path keeps them byte-consistent.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns BadOperand for shapes validation already rejected.
+// CEP:ASSUMES: the instruction passed validation.
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn emit_alu(out: &mut Vec<u8>, e: &EncInsn) -> Result<(), EncodeError> {
+    let (mr, rm, ext, short) = match e.op {
+        Opcode::Add => (op::ADD_MR, op::ADD_RM, op::EXT_ADD, op::ADD_EAX_ID),
+        Opcode::Sub => (op::SUB_MR, op::SUB_RM, op::EXT_SUB, op::SUB_EAX_ID),
+        Opcode::And => (op::AND_MR, op::AND_RM, op::EXT_AND, op::AND_EAX_ID),
+        Opcode::Or => (op::OR_MR, op::OR_RM, op::EXT_OR, op::OR_EAX_ID),
+        Opcode::Xor => (op::XOR_MR, op::XOR_RM, op::EXT_XOR, op::XOR_EAX_ID),
+        Opcode::Cmp => (op::CMP_MR, op::CMP_RM, op::EXT_CMP, op::CMP_EAX_ID),
+        _ => return Err(EncodeError::BadOperand("not an integer ALU op")),
+    };
+    match (&e.dst, &e.dst_mem, &e.src) {
+        (Some(d), None, Some(Src::Reg(s))) => {
+            let rex = rex_rr(d, s);
+            push_rex(out, rex);
+            out.push(mr);
+            out.push(modrm(enc::MOD_REG, enc_reg(s.preg), enc_reg(d.preg)));
+        }
+        (Some(d), None, Some(Src::Imm(v))) => {
+            let mut rex = op::REX_W;
+            if hw(d.preg) >= hw_num::GPR_EXT {
+                rex |= op::REX_B;
+            }
+            if fits_i8(*v) {
+                push_rex(out, rex);
+                out.push(op::GRP1_IB);
+                out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
+                out.push(*v as i8 as u8);
+            } else if d.preg == preg::RAX {
+                push_rex(out, rex);
+                out.push(short);
+                out.extend_from_slice(&(*v as i32).to_le_bytes());
+            } else {
+                push_rex(out, rex);
+                out.push(op::GRP1_ID);
+                out.push(modrm(enc::MOD_REG, ext, enc_reg(d.preg)));
+                out.extend_from_slice(&(*v as i32).to_le_bytes());
+            }
+        }
+        (Some(d), None, Some(Src::Mem { base, disp })) => {
+            let rex = rex_rmem(d, *base);
+            push_rex(out, rex);
+            out.push(rm);
+            push_mem(out, *base, *disp, enc_reg(d.preg));
+        }
+        (None, Some((base, disp)), Some(Src::Reg(s))) => {
+            let rex = rex_rmem(s, *base);
+            push_rex(out, rex);
+            out.push(mr);
+            push_mem(out, *base, *disp, enc_reg(s.preg));
+        }
+        (None, Some((base, disp)), Some(Src::Imm(v))) => {
+            let rex = rex_wb(*base);
+            push_rex(out, rex);
+            if fits_i8(*v) {
+                out.push(op::GRP1_IB);
+            } else {
+                out.push(op::GRP1_ID);
+            }
+            push_mem(out, *base, *disp, ext);
+            if fits_i8(*v) {
+                out.push(*v as i8 as u8);
+            } else {
+                out.extend_from_slice(&(*v as i32).to_le_bytes());
+            }
+        }
+        _ => return Err(EncodeError::BadOperand("alu operand shape")),
+    }
+    Ok(())
+}
+
+/// (prefix, opcode) of the scalar-double binary SSE family.
+// CEP:WHAT: Maps the SSE binary family.
+// CEP:WHY: Adds, subs, muls, divs, and sqrts share one shape with different prefixes and opcodes.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns a default prefix for non-SSE opcodes; validation rejects those earlier.
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
+fn sse_binop(op: Opcode) -> (u8, u8) {
+    match op {
+        Opcode::AddSd => (op::PRE_F2, op::ADDSD),
+        Opcode::SubSd => (op::PRE_F2, op::SUBSD),
+        Opcode::MulSd => (op::PRE_F2, op::MULSD),
+        Opcode::DivSd => (op::PRE_F2, op::DIVSD),
+        Opcode::SqrtSd => (op::PRE_F2, op::SQRTSD),
+        Opcode::UComisd => (op::PRE_66, op::UCOMISD),
+        _ => (op::PRE_F2, op::ADDSD),
+    }
 }
 
 /// Computes a branch displacement for the chosen form, failing loudly on overflow.
@@ -1091,37 +2117,25 @@ fn branch_size(opc: Opcode, long: bool) -> usize {
 // CEP:COST: O(1).
 // CEP:EVIDENCE: crates/mlkp-machine/tests/encode_test.rs
 fn push_branch(out: &mut Vec<u8>, opc: Opcode, long: bool, disp: i64) {
-    match opc {
-        Opcode::Jmp => {
-            if long {
-                out.push(op::JMP_REL32);
-                out.extend_from_slice(&(disp as i32).to_le_bytes());
-            } else {
-                out.push(op::JMP_REL8);
-                out.push(disp as i8 as u8);
-            }
+    if opc == Opcode::Jmp {
+        if long {
+            out.push(op::JMP_REL32);
+            out.extend_from_slice(&(disp as i32).to_le_bytes());
+        } else {
+            out.push(op::JMP_REL8);
+            out.push(disp as i8 as u8);
         }
-        Opcode::Jl => {
-            if long {
-                out.push(op::ESCAPE);
-                out.push(op::JL_REL32);
-                out.extend_from_slice(&(disp as i32).to_le_bytes());
-            } else {
-                out.push(op::JL_REL8);
-                out.push(disp as i8 as u8);
-            }
-        }
-        Opcode::Jge => {
-            if long {
-                out.push(op::ESCAPE);
-                out.push(op::JGE_REL32);
-                out.extend_from_slice(&(disp as i32).to_le_bytes());
-            } else {
-                out.push(op::JGE_REL8);
-                out.push(disp as i8 as u8);
-            }
-        }
-        _ => panic!("push_branch on non-branch opcode"),
+        return;
+    }
+    let (short, long_opc) =
+        jcc_encoding(opc).unwrap_or_else(|| panic!("push_branch on non-branch opcode"));
+    if long {
+        out.push(op::ESCAPE);
+        out.push(long_opc);
+        out.extend_from_slice(&(disp as i32).to_le_bytes());
+    } else {
+        out.push(short);
+        out.push(disp as i8 as u8);
     }
 }
 
@@ -1313,7 +2327,7 @@ pub fn compile(
         .map(|i| resolve_insn(i, alloc))
         .collect::<Result<Vec<_>, _>>()?;
     let is_branch =
-        |e: &EncInsn| matches!(e.op, Opcode::Jmp | Opcode::Jl | Opcode::Jge | Opcode::Ret);
+        |e: &EncInsn| e.op.is_conditional_branch() || matches!(e.op, Opcode::Jmp | Opcode::Ret);
     let saved = saved_regs(alloc, target);
     let frame = frame_size(alloc, target);
     let prolog = prologue_len(&saved, frame);
@@ -1392,7 +2406,7 @@ pub fn compile(
             let e = &insns[idx];
             let target_off = if e.op == Opcode::Ret {
                 Some(epilogue_offset)
-            } else if matches!(e.op, Opcode::Jmp | Opcode::Jl | Opcode::Jge) {
+            } else if e.op.is_conditional_branch() || e.op == Opcode::Jmp {
                 let name = e
                     .target
                     .clone()

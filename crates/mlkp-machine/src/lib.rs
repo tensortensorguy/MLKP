@@ -27,7 +27,7 @@ pub mod object;
 /// The x86-64 target description.
 pub mod target;
 
-pub use decode::{decode_insns, disassemble, DecInsn, DecKind, DecSrc, DecodeError};
+pub use decode::{decode_insns, disassemble, DecDst, DecInsn, DecKind, DecSrc, DecodeError};
 pub use emit::{emit, verify_allocation, EmitError};
 pub use encode::{compile, encode, CodeObject, EncodeError, Reloc};
 pub use irc::{
