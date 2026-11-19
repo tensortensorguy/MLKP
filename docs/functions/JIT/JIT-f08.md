@@ -16,7 +16,7 @@ Declared cost: O(remaining ops) for the read scan.
 
 Declared preconditions: none; the guard is exhaustive.
 
-Implementation: `crates/mlkp-runtime/src/exec.rs` at line 246, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/exec.rs` at line 341, classification unclassified.
 
 ## Silent Failure Checklist
 

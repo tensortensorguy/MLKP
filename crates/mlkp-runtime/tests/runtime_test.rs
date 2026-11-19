@@ -142,7 +142,10 @@ fn lower_and_execute_end_to_end() {
     .expect("add");
     g.inputs = vec![0, 1];
     g.outputs = vec![3];
-    let config = PassConfig::default();
+    let config = PassConfig {
+        buffer_reuse: false,
+        ..PassConfig::default()
+    };
     let plan = mlkp_runtime::plan::lower(&g, &config).expect("lower");
     assert_eq!(plan.buffers, 4);
     assert!(matches!(plan.ops[0], PlanOp::MatMul { .. }));
@@ -368,6 +371,7 @@ fn threaded_matmul_matches_single_thread() {
             loop_order: 1,
             fused_elementwise: true,
             transpose_b: true,
+            buffer_reuse: false,
         },
     };
     plan.validate().expect("airlock");
@@ -450,4 +454,169 @@ fn airlock_rejects_bad_schedule_config() {
     };
     let plan = mlkp_runtime::plan::lower(&g, &cfg).expect("lower");
     assert!(plan.validate().is_err(), "threads 0 must be rejected");
+}
+
+// CEP:ID: JIT-f14
+// CEP:WHAT: Verifies the fused_elementwise schedule dimension gates exec fusion: fused and unfused execution produce bit-identical outputs.
+// CEP:WHY: The dimension must change real execution (candidates measure it), and the unfused path must stay exactly correct.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: lowering assigns one buffer per node in id order.
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+#[test]
+fn fusion_dimension_gates_exec_fusion() {
+    let plan_fused = chain_graph_plan(true);
+    let plan_plain = chain_graph_plan(false);
+    let a: Vec<f32> = (0..4096).map(|i| ((i % 9) as f32) * 0.05 - 0.2).collect();
+    let b: Vec<f32> = (0..4096).map(|i| ((i % 13) as f32) * 0.05 - 0.3).collect();
+    let mut arena1 = Arena::with_capacity(plan_fused.total_elements());
+    arena1
+        .fill(plan_fused.offset_of(0), a.len() as u64, &a)
+        .expect("fill a");
+    arena1
+        .fill(plan_fused.offset_of(1), b.len() as u64, &b)
+        .expect("fill b");
+    execute(&plan_fused, &mut arena1).expect("fused exec");
+    let mut arena2 = Arena::with_capacity(plan_plain.total_elements());
+    arena2
+        .fill(plan_plain.offset_of(0), a.len() as u64, &a)
+        .expect("fill a");
+    arena2
+        .fill(plan_plain.offset_of(1), b.len() as u64, &b)
+        .expect("fill b");
+    execute(&plan_plain, &mut arena2).expect("unfused exec");
+    let got_fused = arena1
+        .slice(plan_fused.offset_of(6), 4096)
+        .expect("fused out");
+    let got_plain = arena2
+        .slice(plan_plain.offset_of(6), 4096)
+        .expect("unfused out");
+    assert_eq!(got_fused, got_plain, "fusion must be bit-identical");
+}
+
+// CEP:ID: JIT-f15
+// CEP:WHAT: Verifies the buffer-reuse pass: the reused plan compacts the arena below the lens sum, passes the airlock, and executes bit-identically to the prefix-sum plan.
+// CEP:WHY: The memory objective rewards the reuse pass only if reuse keeps values exact and the footprint metric reflects the real arena.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: lowering assigns one buffer per node in id order.
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+#[test]
+fn buffer_reuse_pass_compacts_arena() {
+    let plan_reuse = chain_graph_plan_full(true, true);
+    let plan_plain = chain_graph_plan_full(true, false);
+    let sum: u64 = plan_plain.buffer_lens.iter().sum();
+    assert_eq!(plan_plain.total_elements(), sum, "prefix-sum footprint");
+    assert!(
+        plan_reuse.total_elements() < sum,
+        "reuse compacts: {} < {sum}",
+        plan_reuse.total_elements()
+    );
+    plan_reuse
+        .validate()
+        .expect("reused plan passes the airlock");
+    let a: Vec<f32> = (0..4096).map(|i| ((i % 9) as f32) * 0.05 - 0.2).collect();
+    let b: Vec<f32> = (0..4096).map(|i| ((i % 13) as f32) * 0.05 - 0.3).collect();
+    let mut arena1 = Arena::with_capacity(plan_reuse.total_elements());
+    arena1
+        .fill(plan_reuse.offset_of(0), a.len() as u64, &a)
+        .expect("fill a");
+    arena1
+        .fill(plan_reuse.offset_of(1), b.len() as u64, &b)
+        .expect("fill b");
+    execute(&plan_reuse, &mut arena1).expect("reused exec");
+    let mut arena2 = Arena::with_capacity(plan_plain.total_elements());
+    arena2
+        .fill(plan_plain.offset_of(0), a.len() as u64, &a)
+        .expect("fill a");
+    arena2
+        .fill(plan_plain.offset_of(1), b.len() as u64, &b)
+        .expect("fill b");
+    execute(&plan_plain, &mut arena2).expect("plain exec");
+    let got_reuse = arena1
+        .slice(plan_reuse.offset_of(6), 4096)
+        .expect("reuse out");
+    let got_plain = arena2
+        .slice(plan_plain.offset_of(6), 4096)
+        .expect("plain out");
+    assert_eq!(got_reuse, got_plain, "reuse must be bit-identical");
+}
+
+// CEP:ID: JIT-f19
+// CEP:WHAT: Lowers the matmul + relu + sigmoid + exp + neg chain graph under one flag set.
+// CEP:WHY: Shared fixture for the fusion-dimension and buffer-reuse tests.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via expect on lowering.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+fn chain_graph_plan_full(fused: bool, reuse: bool) -> KernelPlan {
+    let t2 = TensorType::dense(ElemKind::F32, vec![DimExpr::c(64), DimExpr::c(64)]).expect("type");
+    let mut g = Graph::default();
+    for name in ["A", "B"] {
+        g.add(Node {
+            id: g.len() as u32,
+            op: Op::Input,
+            inputs: vec![],
+            device: Device::Cpu(0),
+            ty: t2.clone(),
+            pgo: Default::default(),
+            name: name.to_string(),
+        })
+        .expect("add");
+    }
+    g.add(Node {
+        id: 2,
+        op: Op::Contract,
+        inputs: vec![0, 1],
+        device: Device::Cpu(0),
+        ty: t2.clone(),
+        pgo: Default::default(),
+        name: "mm".to_string(),
+    })
+    .expect("add");
+    let maps: [(u32, Op); 4] = [
+        (3, Op::Map(MapFn::Relu)),
+        (4, Op::Map(MapFn::Sigmoid)),
+        (5, Op::Map(MapFn::Exp)),
+        (6, Op::Map(MapFn::Neg)),
+    ];
+    let mut prev = 2u32;
+    for (id, op) in maps {
+        g.add(Node {
+            id,
+            op,
+            inputs: vec![prev],
+            device: Device::Cpu(0),
+            ty: t2.clone(),
+            pgo: Default::default(),
+            name: format!("n{id}"),
+        })
+        .expect("add");
+        prev = id;
+    }
+    g.inputs = vec![0, 1];
+    g.outputs = vec![6];
+    let config = PassConfig {
+        tile: Tile::NAIVE,
+        threads: 1,
+        loop_order: 0,
+        fused_elementwise: fused,
+        transpose_b: false,
+        buffer_reuse: reuse,
+    };
+    mlkp_runtime::plan::lower(&g, &config).expect("lower")
+}
+
+// CEP:WHAT: Lowers the chain graph with the fused flag only.
+// CEP:WHY: Fixture shorthand for the fusion-dimension test.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via expect on lowering.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-runtime
+fn chain_graph_plan(fused: bool) -> KernelPlan {
+    chain_graph_plan_full(fused, true)
 }

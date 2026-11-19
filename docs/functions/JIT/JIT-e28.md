@@ -16,7 +16,7 @@ Declared cost: O(n/4) iterations.
 
 Declared preconditions: SSE2 enabled; lengths equal; kinds non-empty.
 
-Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 161, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 160, classification unclassified.
 
 ## Silent Failure Checklist
 

@@ -16,7 +16,7 @@ Declared cost: 2 FMAs and 2 B loads per reduction step in the 16-column body.
 
 Declared preconditions: AVX2 and FMA enabled; i within the row bound.
 
-Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 358, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 357, classification unclassified.
 
 ## Silent Failure Checklist
 

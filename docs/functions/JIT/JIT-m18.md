@@ -16,7 +16,7 @@ Declared cost: O(file size).
 
 Declared preconditions: the file was written by save().
 
-Implementation: `crates/mlkp-autotune/src/pgo.rs` at line 130, classification unclassified.
+Implementation: `crates/mlkp-autotune/src/pgo.rs` at line 134, classification unclassified.
 
 ## Silent Failure Checklist
 

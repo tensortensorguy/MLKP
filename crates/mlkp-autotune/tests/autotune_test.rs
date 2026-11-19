@@ -277,3 +277,31 @@ fn driver_autotunes_end_to_end() {
     assert!(rec.mean_cost_ns > 0);
     assert!(rec.last_best_config != 0, "warm start must be armed");
 }
+
+// CEP:ID: JIT-f16
+// CEP:WHAT: Verifies the search space covers both values of the fusion and buffer-reuse dimensions.
+// CEP:WHY: A stuck dimension would measure noise; both sides of each dimension must reach the evaluator.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-autotune
+#[test]
+fn space_covers_fusion_and_reuse_dimensions() {
+    let space = enumerate(1 << 16);
+    assert!(
+        space.iter().any(|c| !c.config.fused_elementwise),
+        "unfused side"
+    );
+    assert!(
+        space.iter().any(|c| c.config.fused_elementwise),
+        "fused side"
+    );
+    assert!(
+        space.iter().any(|c| !c.config.buffer_reuse),
+        "no-reuse side"
+    );
+    assert!(space.iter().any(|c| c.config.buffer_reuse), "reuse side");
+    assert!(space.iter().any(|c| !c.passes.fusion), "fusion pass off");
+    assert!(space.iter().any(|c| c.passes.fusion), "fusion pass on");
+}

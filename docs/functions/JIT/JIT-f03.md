@@ -16,7 +16,7 @@ Declared cost: O(intermediates * remaining ops), all in a fixed-size array.
 
 Declared preconditions: none; the read scan is exhaustive over the remaining ops.
 
-Implementation: `crates/mlkp-runtime/src/exec.rs` at line 155, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/exec.rs` at line 250, classification unclassified.
 
 ## Silent Failure Checklist
 

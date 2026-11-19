@@ -16,7 +16,7 @@ Declared cost: O(remaining ops); no allocation.
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-runtime/src/exec.rs` at line 180, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/exec.rs` at line 275, classification unclassified.
 
 ## Silent Failure Checklist
 

@@ -16,7 +16,7 @@ Declared cost: O(outer * red) at 8-wide loads.
 
 Declared preconditions: src.len() == outer * red and dst.len() == outer; reduction order differs from the sequential scalar kernel only in association, inside the tolerance contract.
 
-Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 34, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 33, classification unclassified.
 
 ## Silent Failure Checklist
 

@@ -16,7 +16,7 @@ Declared cost: O(1) per vector.
 
 Declared preconditions: AVX2 and FMA enabled when epi is Some.
 
-Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 18, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 17, classification unclassified.
 
 ## Silent Failure Checklist
 

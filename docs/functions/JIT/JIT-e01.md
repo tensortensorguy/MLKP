@@ -16,7 +16,7 @@ Declared cost: O(1), one atomic load after the first call.
 
 Declared preconditions: the engine set is fixed for the life of the process.
 
-Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 70, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 69, classification unclassified.
 
 ## Silent Failure Checklist
 

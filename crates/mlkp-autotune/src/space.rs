@@ -45,6 +45,8 @@ pub struct PassSet {
     pub cse: bool,
     /// Dead code elimination enabled.
     pub dce: bool,
+    /// Elementwise fusion peepholes (double negation collapse) enabled.
+    pub fusion: bool,
 }
 
 impl PassSet {
@@ -60,6 +62,7 @@ impl PassSet {
         algebraic: true,
         cse: true,
         dce: true,
+        fusion: true,
     };
 }
 
@@ -68,22 +71,49 @@ const TILE_CHOICES: [usize; 4] = [16, 32, 64, 128];
 /// Worker count candidates (dimension E, CPU slice).
 const WORKER_CHOICES: [u32; 2] = [1, 2];
 /// Pass-set candidates (dimension A): which level-1 passes each schedule runs.
-const PASS_SET_CHOICES: [PassSet; 4] = [
+const PASS_SET_CHOICES: [PassSet; 8] = [
     PassSet::ALL,
     PassSet {
         algebraic: true,
         cse: true,
         dce: false,
+        fusion: true,
     },
     PassSet {
         algebraic: true,
         cse: false,
         dce: true,
+        fusion: true,
     },
     PassSet {
         algebraic: false,
         cse: true,
         dce: true,
+        fusion: true,
+    },
+    PassSet {
+        algebraic: true,
+        cse: true,
+        dce: true,
+        fusion: false,
+    },
+    PassSet {
+        algebraic: true,
+        cse: true,
+        dce: false,
+        fusion: false,
+    },
+    PassSet {
+        algebraic: true,
+        cse: false,
+        dce: true,
+        fusion: false,
+    },
+    PassSet {
+        algebraic: false,
+        cse: true,
+        dce: true,
+        fusion: false,
     },
 ];
 /// Pass iteration count candidates (dimension C): algebraic fixed-point sweeps.
@@ -111,23 +141,28 @@ pub fn enumerate(problem_elements: u64) -> Vec<Candidate> {
                             }
                             for passes in PASS_SET_CHOICES {
                                 for iters in ALGEBRAIC_ITER_CHOICES {
-                                    out.push(Candidate {
-                                        config: PassConfig {
-                                            tile: Tile { bm, bn, bk },
-                                            threads: workers,
-                                            loop_order: order,
-                                            fused_elementwise: true,
-                                            transpose_b,
-                                        },
-                                        layout: if transpose_b {
-                                            Layout::TransposedB
-                                        } else {
-                                            Layout::RowMajor
-                                        },
-                                        device_workers: workers,
-                                        passes,
-                                        algebraic_iters: iters,
-                                    });
+                                    for fused in [true, false] {
+                                        for reuse in [true, false] {
+                                            out.push(Candidate {
+                                                config: PassConfig {
+                                                    tile: Tile { bm, bn, bk },
+                                                    threads: workers,
+                                                    loop_order: order,
+                                                    fused_elementwise: fused,
+                                                    transpose_b,
+                                                    buffer_reuse: reuse,
+                                                },
+                                                layout: if transpose_b {
+                                                    Layout::TransposedB
+                                                } else {
+                                                    Layout::RowMajor
+                                                },
+                                                device_workers: workers,
+                                                passes,
+                                                algebraic_iters: iters,
+                                            });
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -159,7 +194,10 @@ pub fn candidate_hash(c: &Candidate, subgraph_hash: u64, hw_hash: u64) -> u64 {
         .update_u64(u64::from(c.algebraic_iters))
         .update_u64(u64::from(c.passes.algebraic))
         .update_u64(u64::from(c.passes.cse))
-        .update_u64(u64::from(c.passes.dce));
+        .update_u64(u64::from(c.passes.dce))
+        .update_u64(u64::from(c.passes.fusion))
+        .update_u64(u64::from(c.config.fused_elementwise))
+        .update_u64(u64::from(c.config.buffer_reuse));
     h.finish()
 }
 

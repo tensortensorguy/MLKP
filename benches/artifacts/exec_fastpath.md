@@ -44,3 +44,13 @@ The profile split showed the scalar blocked matmul was 93 percent of execution (
 ## Where the time goes now
 
 The 64-op profile: 13 FMA matmuls ≈ 131 µs, the fused unary passes ≈ 60 µs, validate + dispatch ≈ 10 µs. The next lever, if one is ever needed, is packing the matmul's A operand per tile (currently broadcast loads), which the profile shows is worth roughly another 2x on the matmul alone.
+
+## Pass pipeline addendum (CEP-328)
+
+Three more passes joined the pipeline after the fast path landed:
+
+- **Buffer reuse (memory pass)**: liveness is computed from the fused execution schedule (`exec::fused_touches`, kept next to the dispatcher's own grouping so the two cannot drift), because fused steps write consumer destinations one or more ops earlier than the raw plan ops say. Dead ranges are reassigned first-fit; never-touched intermediates are parked inside touched ranges they never co-occur with (checked by assigned ranges, since touched slots are time-shared). The 64-op plan's arena footprint drops 42 percent (270336 to 155648 elements) with latency unchanged (258.9 µs bench median vs 257.3 µs before; 3.7 µs/op in the profile), and `total_elements` now reports the real arena footprint.
+- **fused_elementwise as a real dimension**: exec fusion is gated by the plan config, and the space enumerates both sides; candidates measure fused vs unfused execution honestly.
+- **HIR fusion pass**: double-negation collapse (IEEE sign-flip is exactly self-inverse), a fourth PassSet dimension applied per candidate.
+
+Correctness: `fusion_dimension_gates_exec_fusion` and `buffer_reuse_pass_compacts_arena` (bit-identical outputs, footprint strictly smaller, airlock green), `fusion_collapses_double_negation` (HIR), `space_covers_fusion_and_reuse_dimensions`; and a deterministic sweep harness (`examples/repro_reuse.rs`) lowers the 64-op program under every candidate schedule class and reports zero airlock failures — the sweep caught two real liveness holes (fused-step write timing, and time-shared slot parking) before they could ship.

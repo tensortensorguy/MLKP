@@ -16,7 +16,7 @@ Declared cost: four vector adds.
 
 Declared preconditions: AVX2 enabled.
 
-Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 16, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 15, classification unclassified.
 
 ## Silent Failure Checklist
 

@@ -62,6 +62,8 @@ pub struct PassConfig {
     pub fused_elementwise: bool,
     /// Whether the layout pass applied column-major B (transposed access pattern).
     pub transpose_b: bool,
+    /// Whether the buffer-reuse pass assigns dead buffer ranges to new buffers (liveness-based arena compaction).
+    pub buffer_reuse: bool,
 }
 
 impl Default for PassConfig {
@@ -79,6 +81,7 @@ impl Default for PassConfig {
             loop_order: 0,
             fused_elementwise: true,
             transpose_b: false,
+            buffer_reuse: true,
         }
     }
 }
@@ -215,7 +218,12 @@ impl KernelPlan {
     // CEP:COST: O(buffers).
     // CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
     pub fn total_elements(&self) -> u64 {
-        self.buffer_lens.iter().sum()
+        self.buffer_offsets
+            .iter()
+            .zip(self.buffer_lens.iter())
+            .map(|(o, l)| o + l)
+            .max()
+            .unwrap_or(0)
     }
 
     /// Memory footprint in bytes at 4 bytes per element.
@@ -398,13 +406,179 @@ pub fn lower(graph: &Graph, config: &PassConfig) -> Result<KernelPlan, PlanError
             }
         }
     }
-    // Prefix-sum offsets: buffer i starts at the sum of lens[0..i].
-    let mut acc = 0u64;
-    for l in &plan.buffer_lens {
-        plan.buffer_offsets.push(acc);
-        acc += *l;
+    if config.buffer_reuse {
+        assign_offsets_with_reuse(&mut plan, graph);
+    } else {
+        // Prefix-sum offsets: buffer i starts at the sum of lens[0..i].
+        let mut acc = 0u64;
+        for l in &plan.buffer_lens {
+            plan.buffer_offsets.push(acc);
+            acc += *l;
+        }
     }
     Ok(plan)
+}
+
+// CEP:ID: JIT-f13
+// CEP:WHAT: The buffer-reuse pass: computes each buffer's first-write and last-read time from the fused execution schedule (what the dispatcher really touches, including epilogue writes at the matmul's index and chain steps that skip intermediates), then assigns arena ranges so a buffer whose readers are all done shares its range with a later buffer, appending only when no freed range fits.
+// CEP:WHY: The memory objective is the arena footprint; dead intermediates dominate it on deep chains, and sharing their ranges compacts the arena without any timed-window copies. Planning against the raw plan ops would collide with fused steps, which write consumer destinations one or more ops early.
+// CEP:STATUS: complete
+// CEP:FAILURE: none; liveness comes from the dispatcher's own grouping (exec::fused_touches), and ranges are shared only when the previous buffer's last read is strictly before the new buffer's first write, so the executor's per-step disjoint views stay disjoint.
+// CEP:ASSUMES: fused_touches mirrors the dispatcher exactly; inputs and declared outputs stay live for the whole execution (their ranges are never reused as targets); every non-input buffer is written by at most one step.
+// CEP:COST: O(steps + buffers^2) worst case for the first-fit scan; buffers in the hundreds.
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+fn assign_offsets_with_reuse(plan: &mut KernelPlan, graph: &mlkp_hir::Graph) {
+    let nb = plan.buffers as usize;
+    // First write per buffer (step index; inputs count as written at index 0 by
+    // the caller) and last read per buffer (None = never touched by any step).
+    let mut first_write = vec![usize::MAX; nb];
+    let mut last_read: Vec<Option<usize>> = vec![None; nb];
+    for id in &graph.inputs {
+        if (*id as usize) < nb {
+            first_write[*id as usize] = 0;
+            last_read[*id as usize] = Some(usize::MAX);
+        }
+    }
+    for id in &graph.outputs {
+        if (*id as usize) < nb {
+            last_read[*id as usize] = Some(usize::MAX);
+        }
+    }
+    let mut touched = vec![false; nb];
+    for step in crate::exec::fused_touches(plan) {
+        for w in &step.writes {
+            if (*w as usize) < nb {
+                first_write[*w as usize] = first_write[*w as usize].min(step.start);
+                touched[*w as usize] = true;
+            }
+        }
+        for r in &step.reads {
+            if (*r as usize) < nb {
+                let cur = last_read[*r as usize];
+                last_read[*r as usize] = Some(cur.map_or(step.start, |v| v.max(step.start)));
+                touched[*r as usize] = true;
+            }
+        }
+    }
+    // Inputs keep their ranges reserved (defensive: callers may re-read them
+    // between executions); a buffer never read frees right after its own write.
+    let free_at = |b: usize| -> usize {
+        match last_read[b] {
+            Some(v) => v,
+            None => first_write[b],
+        }
+    };
+    // Assign in first-write order (ties by id): free what is dead, then
+    // first-fit from the free list, appending only when nothing fits.
+    let mut offsets = vec![0u64; nb];
+    let mut offsets_set = vec![false; nb];
+    let mut order: Vec<usize> = (0..nb).filter(|&b| touched[b]).collect();
+    order.sort_by_key(|&b| (first_write[b], b));
+    let mut free: Vec<(u64, u64)> = Vec::new();
+    let mut assigned = vec![false; nb];
+    let mut freed = vec![false; nb];
+    let mut top = 0u64;
+    for &b in &order {
+        let w = if first_write[b] == usize::MAX {
+            0
+        } else {
+            first_write[b]
+        };
+        for x in 0..nb {
+            if assigned[x] && !freed[x] && free_at(x) < w {
+                freed[x] = true;
+                free.push((offsets[x], plan.buffer_lens[x]));
+            }
+        }
+        let len = plan.buffer_lens[b];
+        let mut placed = false;
+        for slot in free.iter_mut() {
+            if slot.1 >= len {
+                offsets[b] = slot.0;
+                if slot.1 == len {
+                    let start = slot.0;
+                    let pos = free
+                        .iter()
+                        .position(|s| s.0 == start)
+                        .expect("slot present");
+                    free.remove(pos);
+                } else {
+                    slot.0 += len;
+                    slot.1 -= len;
+                }
+                placed = true;
+                break;
+            }
+        }
+        if !placed {
+            offsets[b] = top;
+            top += len;
+        }
+        assigned[b] = true;
+    }
+    // Buffers no fused step touches (chain intermediates and skipped matmul
+    // outputs) are inaccessible memory at runtime, but the airlock still checks
+    // their plan-op operand ranges. Park each one inside a touched range that
+    // no co-occurring buffer's ASSIGNED range overlaps — touched ranges are
+    // time-shared, so the check is by range, not by buffer identity — keeping
+    // parked ranges pairwise disjoint. A buffer with no room appends at the top.
+    let mut parked: Vec<(u64, u64)> = Vec::new();
+    for b in 0..nb {
+        if touched[b] {
+            continue;
+        }
+        let len = plan.buffer_lens[b];
+        // The assigned ranges of every buffer this one co-occurs with in a plan
+        // op; only buffers already placed (touched, or parked earlier in id
+        // order) have final ranges — later parkers check this one symmetrically.
+        let mut forbidden: Vec<(u64, u64)> = Vec::new();
+        for op in &plan.ops {
+            let ids = op.buffer_ids();
+            if ids.contains(&(b as u32)) {
+                for id in ids {
+                    let x = id as usize;
+                    if id != b as u32
+                        && x < nb
+                        && (touched[x] || (x < b && !touched[x] && offsets_set[x]))
+                    {
+                        forbidden.push((offsets[x], offsets[x] + plan.buffer_lens[x]));
+                    }
+                }
+            }
+        }
+        let len_b = plan.buffer_lens[b];
+        let mut placed = false;
+        'hosts: for x in 0..nb {
+            if !touched[x] {
+                continue;
+            }
+            let (hx, lx) = (offsets[x], plan.buffer_lens[x]);
+            if lx < len {
+                continue;
+            }
+            let steps = (lx - len) / len_b.max(1) + 1;
+            for k in 0..steps {
+                let cand = hx + k * len_b.max(1);
+                let range = (cand, cand + len);
+                if parked.iter().any(|p| p.0 < range.1 && range.0 < p.1)
+                    || forbidden.iter().any(|f| f.0 < range.1 && range.0 < f.1)
+                {
+                    continue;
+                }
+                offsets[b] = cand;
+                parked.push(range);
+                offsets_set[b] = true;
+                placed = true;
+                break 'hosts;
+            }
+        }
+        if !placed {
+            offsets[b] = top;
+            top += len;
+            offsets_set[b] = true;
+        }
+    }
+    plan.buffer_offsets = offsets;
 }
 
 // CEP:WHAT: Maps a HIR map op to its unary kernel.

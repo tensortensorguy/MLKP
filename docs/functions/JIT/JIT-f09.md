@@ -16,7 +16,7 @@ Declared cost: O(kernel work); no allocation on any path.
 
 Declared preconditions: the airlock proved disjointness; the epilogue destination is disjoint from both operands by the arena allocator.
 
-Implementation: `crates/mlkp-runtime/src/exec.rs` at line 269, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/exec.rs` at line 364, classification unclassified.
 
 ## Silent Failure Checklist
 

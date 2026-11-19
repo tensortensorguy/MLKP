@@ -16,7 +16,7 @@ Declared cost: O(m*n*k).
 
 Declared preconditions: AVX2 and FMA enabled; extents already clamped by the caller; c_base is the row-index origin of the c view (0 for full outputs, i0 for row slices).
 
-Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 121, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 120, classification unclassified.
 
 ## Silent Failure Checklist
 

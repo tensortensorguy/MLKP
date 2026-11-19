@@ -82,6 +82,13 @@ fn main() {
     let prog = mlkp_front::parse_program(&program()).expect("parses");
     let plan = mlkp_runtime::plan::lower(&prog.graph, &PassConfig::default()).expect("lowers");
     println!("plan: {} ops, {} buffers", plan.ops.len(), plan.buffers);
+    let lens_sum: u64 = plan.buffer_lens.iter().sum();
+    println!(
+        "arena footprint: {} elements (lens sum {}, reuse saves {:.0}%)",
+        plan.total_elements(),
+        lens_sum,
+        100.0 * (1.0 - plan.total_elements() as f64 / lens_sum as f64)
+    );
     let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for op in &plan.ops {
         let k = match op {
@@ -98,15 +105,9 @@ fn main() {
     }
     println!("op mix: {:?}", counts);
 
-    let mut arena = Arena::with_capacity(
-        plan.buffer_offsets.last().unwrap_or(&0) + plan.buffer_lens.last().unwrap_or(&0),
-    );
-    for (i, len) in plan.buffer_lens.iter().enumerate() {
-        let off = plan.buffer_offsets[i];
-        if arena.alloc(*len).is_err() {
-            panic!("arena alloc failed");
-        }
-        let _ = off;
+    let mut arena = Arena::with_capacity(plan.total_elements());
+    if arena.alloc(plan.total_elements()).is_err() {
+        panic!("arena alloc failed");
     }
     // Fill buffers 0 and 1 (the inputs); everything else is scratch.
     let a: Vec<f32> = (0..4096).map(|i| (i % 17) as f32 * 0.03).collect();

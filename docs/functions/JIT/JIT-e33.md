@@ -16,7 +16,7 @@ Declared cost: 8 FMAs and 2 B loads per reduction step, plus per-row broadcasts.
 
 Declared preconditions: AVX2 and FMA enabled; i + 4 <= the row bound; column and depth extents within the tile.
 
-Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 222, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 221, classification unclassified.
 
 ## Silent Failure Checklist
 

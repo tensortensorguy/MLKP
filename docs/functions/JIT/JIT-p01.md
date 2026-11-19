@@ -16,7 +16,7 @@ Declared cost: O(1).
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-runtime/examples/exec_profile.rs` at line 201, classification unclassified.
+Implementation: `crates/mlkp-runtime/examples/exec_profile.rs` at line 202, classification unclassified.
 
 ## Silent Failure Checklist
 

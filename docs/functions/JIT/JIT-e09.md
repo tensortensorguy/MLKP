@@ -16,7 +16,7 @@ Declared cost: three passes at 8-wide vectors plus one polynomial exp per elemen
 
 Declared preconditions: src.len() == out.len() == outer * red; red >= 1; outputs finite under the declared numerical contract.
 
-Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 142, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 141, classification unclassified.
 
 ## Silent Failure Checklist
 

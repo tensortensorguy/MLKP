@@ -16,7 +16,7 @@ Declared cost: 8 FMAs per reduction step per four-row block plus one B pair load
 
 Declared preconditions: AVX2 and FMA enabled; extents within the problem; c row base offset shifts the store index for row-slice views.
 
-Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 182, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 181, classification unclassified.
 
 ## Silent Failure Checklist
 

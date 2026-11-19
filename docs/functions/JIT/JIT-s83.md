@@ -16,7 +16,7 @@ Declared cost: cold
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-runtime/tests/runtime_test.rs` at line 405, classification unclassified.
+Implementation: `crates/mlkp-runtime/tests/runtime_test.rs` at line 409, classification unclassified.
 
 ## Silent Failure Checklist
 

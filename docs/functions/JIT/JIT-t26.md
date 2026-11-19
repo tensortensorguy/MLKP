@@ -16,7 +16,7 @@ Declared cost: O(nodes).
 
 Declared preconditions: the graph passes the verifier first.
 
-Implementation: `crates/mlkp-runtime/src/plan.rs` at line 235, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/plan.rs` at line 243, classification unclassified.
 
 ## Silent Failure Checklist
 

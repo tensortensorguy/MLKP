@@ -16,7 +16,7 @@ Declared cost: about 16 vector operations per 8 lanes.
 
 Declared preconditions: called only with AVX2 and FMA enabled; round-to-nearest-even conversion is the default MXCSR mode.
 
-Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 209, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 208, classification unclassified.
 
 ## Silent Failure Checklist
 

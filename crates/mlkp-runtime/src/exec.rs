@@ -57,11 +57,15 @@ impl std::error::Error for ExecError {}
 pub fn execute(plan: &KernelPlan, arena: &mut Arena) -> Result<(), ExecError> {
     plan.validate()
         .map_err(|e| ExecError::Airlock(e.to_string()))?;
+    // The fused_elementwise schedule dimension gates the lookahead: candidates
+    // with it off measure the unfused execution, so the search compares real
+    // structures, not a constant.
+    let fuse = plan.config.fused_elementwise;
     let mut i = 0;
     while i < plan.ops.len() {
         match &plan.ops[i] {
             PlanOp::Unary { .. } => {
-                let chain = chain_extent(plan, i);
+                let chain = chain_extent(plan, i, fuse);
                 if chain_fusable(plan, i, &chain) {
                     run_unary_chain(plan, &chain, arena)?;
                     i = chain.end;
@@ -71,7 +75,7 @@ pub fn execute(plan: &KernelPlan, arena: &mut Arena) -> Result<(), ExecError> {
                 }
             }
             PlanOp::MatMul { .. } => {
-                let epi = matmul_epilogue(plan, i);
+                let epi = if fuse { matmul_epilogue(plan, i) } else { None };
                 run_matmul(plan, i, epi, arena)?;
                 i += if epi.is_some() { 2 } else { 1 };
             }
@@ -107,15 +111,106 @@ struct ChainFuse {
     n: usize,
 }
 
+/// One fused execution step: the ops it collapses and the buffers it actually touches.
+// CEP:WHAT: Describes one step of the fused execution schedule.
+// CEP:WHY: The buffer-reuse pass must plan against what the dispatcher really reads and writes (a fused step touches only the group's first source and last destination), not against the raw plan ops, or a reused range collides with a fused step's views.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: the step list mirrors the dispatcher's grouping exactly.
+// CEP:COST: O(plan size).
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+pub(crate) struct ExecStep {
+    /// Index of the first plan op the step replaces (the step's touch time).
+    pub start: usize,
+    /// Buffers the step reads.
+    pub reads: Vec<u32>,
+    /// Buffers the step writes.
+    pub writes: Vec<u32>,
+}
+
+/// Computes the fused execution schedule: one entry per dispatcher step with its touch time and read/write sets.
+// CEP:ID: JIT-f18
+// CEP:WHAT: Groups the plan's ops exactly as the dispatcher executes them and returns per-step touches.
+// CEP:WHY: Liveness for the buffer-reuse pass must reflect the fused execution (skipped intermediate writes, epilogue writes at the matmul's op index); keeping the grouping next to the dispatcher's own helpers makes the two cannot drift.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: the dispatcher's grouping logic (chain_extent, matmul_epilogue) is the semantics this function mirrors.
+// CEP:COST: O(plan size).
+// CEP:EVIDENCE: crates/mlkp-runtime/tests/runtime_test.rs
+pub(crate) fn fused_touches(plan: &KernelPlan) -> Vec<ExecStep> {
+    let fuse = plan.config.fused_elementwise;
+    let mut steps = Vec::new();
+    let mut i = 0;
+    while i < plan.ops.len() {
+        match &plan.ops[i] {
+            PlanOp::Unary { .. } => {
+                let chain = chain_extent(plan, i, fuse);
+                if chain.len > 1 && chain_fusable(plan, i, &chain) {
+                    steps.push(ExecStep {
+                        start: i,
+                        reads: vec![chain.src],
+                        writes: vec![chain.dst],
+                    });
+                    i = chain.end;
+                } else {
+                    if let PlanOp::Unary { src, dst, .. } = &plan.ops[i] {
+                        steps.push(ExecStep {
+                            start: i,
+                            reads: vec![*src],
+                            writes: vec![*dst],
+                        });
+                    }
+                    i += 1;
+                }
+            }
+            PlanOp::MatMul { .. } => {
+                let epi = if fuse { matmul_epilogue(plan, i) } else { None };
+                if let Some((_, d)) = epi {
+                    if let PlanOp::MatMul { a, b, .. } = &plan.ops[i] {
+                        steps.push(ExecStep {
+                            start: i,
+                            reads: vec![*a, *b],
+                            writes: vec![d],
+                        });
+                    }
+                    i += 2;
+                } else if let PlanOp::MatMul { a, b, c, .. } = &plan.ops[i] {
+                    steps.push(ExecStep {
+                        start: i,
+                        reads: vec![*a, *b],
+                        writes: vec![*c],
+                    });
+                    i += 1;
+                }
+            }
+            other => {
+                let (reads, writes) = match other {
+                    PlanOp::Binary { a, b, dst, .. } => (vec![*a, *b], vec![*dst]),
+                    PlanOp::Reduce { src, dst, .. } => (vec![*src], vec![*dst]),
+                    PlanOp::Softmax { src, dst, .. } => (vec![*src], vec![*dst]),
+                    _ => (Vec::new(), Vec::new()),
+                };
+                steps.push(ExecStep {
+                    start: i,
+                    reads,
+                    writes,
+                });
+                i += 1;
+            }
+        }
+    }
+    steps
+}
+
 // CEP:ID: JIT-f02
-// CEP:WHAT: Extends one fused unary run forward from op index start while consecutive unaries read the previous run's destination and share its element count.
+// CEP:WHAT: Extends one fused unary run forward from op index start while consecutive unaries read the previous run's destination and share its element count; the fuse flag (the plan's fused_elementwise dimension) caps the run at one op when off.
 // CEP:WHY: Chain fusion saves a load and a store per merged op; four is the register-resident composition depth that keeps the loop allocation-free.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
 // CEP:ASSUMES: plan.ops[start] is a Unary op (the dispatcher matches before calling).
 // CEP:COST: O(chain length).
 // CEP:EVIDENCE: crates/mlkp-runtime/tests/simd_test.rs
-fn chain_extent(plan: &KernelPlan, start: usize) -> ChainFuse {
+fn chain_extent(plan: &KernelPlan, start: usize, fuse: bool) -> ChainFuse {
     let (op0, src0, dst0, n0) = match &plan.ops[start] {
         PlanOp::Unary { op, src, dst, n } => (*op, *src, *dst, *n),
         _ => {
@@ -138,7 +233,7 @@ fn chain_extent(plan: &KernelPlan, start: usize) -> ChainFuse {
         dst: dst0,
         n: n0,
     };
-    while cf.len < 4 {
+    while cf.len < 4 && fuse {
         match plan.ops.get(cf.end) {
             Some(PlanOp::Unary { op, src, dst, n }) if *src == cf.dst && *n == cf.n => {
                 cf.kinds[cf.len] = *op;

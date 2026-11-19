@@ -16,7 +16,7 @@ Declared cost: O(1).
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-autotune/src/pgo.rs` at line 418, classification unclassified.
+Implementation: `crates/mlkp-autotune/src/pgo.rs` at line 428, classification unclassified.
 
 ## Silent Failure Checklist
 

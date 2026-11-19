@@ -16,7 +16,7 @@ Declared cost: about 16 vector operations per 4 lanes.
 
 Declared preconditions: SSE2 is present on every x86_64 host.
 
-Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 256, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 255, classification unclassified.
 
 ## Silent Failure Checklist
 

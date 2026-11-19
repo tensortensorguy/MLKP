@@ -16,7 +16,7 @@ Declared cost: O(n) at 8 (AVX2) or 4 (SSE2) lanes plus a scalar tail.
 
 Declared preconditions: a.len() == out.len().
 
-Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 16, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 15, classification unclassified.
 
 ## Silent Failure Checklist
 

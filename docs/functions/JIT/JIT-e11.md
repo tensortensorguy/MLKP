@@ -16,7 +16,7 @@ Declared cost: O(m*n*k) with 8-wide FMAs; B rows are reloaded once per four-row 
 
 Declared preconditions: a.len() == m*k, b.len() == k*n, c.len() == m*n; c was reset to zero first (the kernel owns the full result); the contiguous-B schedule.
 
-Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 54, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 53, classification unclassified.
 
 ## Silent Failure Checklist
 

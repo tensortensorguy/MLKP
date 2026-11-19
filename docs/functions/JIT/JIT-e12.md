@@ -16,7 +16,7 @@ Declared cost: O((i1-i0)*n*k) with 8-wide FMAs.
 
 Declared preconditions: c_rows.len() == (i1 - i0) * n; ranges of concurrent calls are disjoint; the caller owns the zeroing discipline of c_rows exactly as in the scalar rows kernel.
 
-Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 88, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/matmul.rs` at line 87, classification unclassified.
 
 ## Silent Failure Checklist
 

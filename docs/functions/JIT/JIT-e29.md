@@ -16,7 +16,7 @@ Declared cost: four accumulator vectors per row.
 
 Declared preconditions: AVX2 enabled; red >= 16.
 
-Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 69, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 68, classification unclassified.
 
 ## Silent Failure Checklist
 

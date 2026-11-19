@@ -321,8 +321,9 @@ fn config_from_stored(stored: &StoredConfig) -> PassConfig {
         },
         threads: stored.threads,
         loop_order: stored.loop_order,
-        fused_elementwise: true,
+        fused_elementwise: stored.fused_elementwise,
         transpose_b: stored.transpose_b,
+        buffer_reuse: stored.buffer_reuse,
     }
 }
 
@@ -341,7 +342,14 @@ fn stored_from_candidate(c: &crate::space::Candidate) -> StoredConfig {
         threads: c.config.threads,
         loop_order: c.config.loop_order,
         transpose_b: c.config.transpose_b,
-        passes: (c.passes.algebraic, c.passes.cse, c.passes.dce),
+        fused_elementwise: c.config.fused_elementwise,
+        buffer_reuse: c.config.buffer_reuse,
+        passes: (
+            c.passes.algebraic,
+            c.passes.cse,
+            c.passes.dce,
+            c.passes.fusion,
+        ),
         algebraic_iters: c.algebraic_iters,
     }
 }
@@ -457,6 +465,9 @@ fn run_pass_pipeline(base: &Graph, passes: &PassSet, algebraic_iters: u32) -> Gr
     }
     if passes.dce {
         let _ = mlkp_hir::passes::dce::run(&mut g);
+    }
+    if passes.fusion {
+        let _ = mlkp_hir::passes::fusion::run(&mut g);
     }
     g
 }

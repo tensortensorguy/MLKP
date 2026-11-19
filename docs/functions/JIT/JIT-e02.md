@@ -16,7 +16,7 @@ Declared cost: about 12 f32 operations per element, no calls.
 
 Declared preconditions: outputs below 2^-126 flush to zero (absolute error below 1e-37); the magic-number rounding matches the vector path's round-to-nearest-even.
 
-Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 119, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/mod.rs` at line 118, classification unclassified.
 
 ## Silent Failure Checklist
 

@@ -14,3 +14,5 @@ pub mod algebraic;
 pub mod cse;
 /// Dead code elimination.
 pub mod dce;
+/// Elementwise fusion peepholes (double negation collapse).
+pub mod fusion;

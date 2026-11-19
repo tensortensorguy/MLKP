@@ -16,7 +16,7 @@ Declared cost: three vector passes per row.
 
 Declared preconditions: AVX2 and FMA enabled; red >= 16.
 
-Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 172, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/reduce.rs` at line 171, classification unclassified.
 
 ## Silent Failure Checklist
 

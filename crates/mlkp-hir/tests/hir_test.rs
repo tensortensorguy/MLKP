@@ -255,3 +255,64 @@ fn default_pipeline_preserves_verification() {
     assert_eq!(counts, [0, 0, 0]);
     assert!(verify(&g).is_ok());
 }
+
+// CEP:ID: JIT-w02
+// CEP:WHAT: Verifies the fusion pass collapses a double negation: the outer neg is removed and its consumer reads the original input.
+// CEP:WHY: Two IEEE sign flips are exactly the identity; the pair costs a whole kernel pass per execution and the pass deletes it.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: none
+// CEP:COST: cold
+// CEP:EVIDENCE: cargo test -p mlkp-hir
+#[test]
+fn fusion_collapses_double_negation() {
+    let mut g = Graph::default();
+    let ty1 = TensorType::dense(ElemKind::F32, vec![DimExpr::c(8)]).expect("type");
+    g.add(Node {
+        id: 0,
+        op: Op::Input,
+        inputs: vec![],
+        device: Device::Cpu(0),
+        ty: ty1.clone(),
+        pgo: Default::default(),
+        name: "A".to_string(),
+    })
+    .expect("add");
+    g.add(Node {
+        id: 1,
+        op: Op::Map(MapFn::Neg),
+        inputs: vec![0],
+        device: Device::Cpu(0),
+        ty: ty1.clone(),
+        pgo: Default::default(),
+        name: "neg1".to_string(),
+    })
+    .expect("add");
+    g.add(Node {
+        id: 2,
+        op: Op::Map(MapFn::Neg),
+        inputs: vec![1],
+        device: Device::Cpu(0),
+        ty: ty1.clone(),
+        pgo: Default::default(),
+        name: "neg2".to_string(),
+    })
+    .expect("add");
+    g.add(Node {
+        id: 3,
+        op: Op::Map(MapFn::Relu),
+        inputs: vec![2],
+        device: Device::Cpu(0),
+        ty: ty1.clone(),
+        pgo: Default::default(),
+        name: "relu".to_string(),
+    })
+    .expect("add");
+    g.inputs = vec![0];
+    g.outputs = vec![3];
+    let rewrites = mlkp_hir::passes::fusion::run(&mut g);
+    assert_eq!(rewrites, 1, "one double-negation collapse");
+    assert!(g.node(2).is_none(), "outer neg removed");
+    let relu = g.node(3).expect("relu survives");
+    assert_eq!(relu.inputs, vec![0], "relu reads the original input");
+}

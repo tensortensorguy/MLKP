@@ -67,8 +67,12 @@ pub struct StoredConfig {
     pub loop_order: u32,
     /// Transposed B layout.
     pub transpose_b: bool,
-    /// Pass selection bits: (algebraic, cse, dce).
-    pub passes: (bool, bool, bool),
+    /// Exec-level elementwise fusion dimension.
+    pub fused_elementwise: bool,
+    /// Buffer-reuse pass dimension.
+    pub buffer_reuse: bool,
+    /// Pass selection bits: (algebraic, cse, dce, fusion).
+    pub passes: (bool, bool, bool, bool),
     /// Algebraic fixed-point sweeps.
     pub algebraic_iters: u32,
 }
@@ -401,11 +405,17 @@ fn stored_config_json(cfg: StoredConfig) -> Json {
         ),
         ("transpose_b".to_string(), Json::Bool(cfg.transpose_b)),
         (
+            "fused_elementwise".to_string(),
+            Json::Bool(cfg.fused_elementwise),
+        ),
+        ("buffer_reuse".to_string(), Json::Bool(cfg.buffer_reuse)),
+        (
             "passes".to_string(),
             Json::Arr(vec![
                 Json::Bool(cfg.passes.0),
                 Json::Bool(cfg.passes.1),
                 Json::Bool(cfg.passes.2),
+                Json::Bool(cfg.passes.3),
             ]),
         ),
         (
@@ -435,9 +445,17 @@ fn parse_stored_config(rec: &Json) -> Option<StoredConfig> {
         .get("transpose_b")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+    let fused_elementwise = obj
+        .get("fused_elementwise")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let buffer_reuse = obj
+        .get("buffer_reuse")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     let passes = obj.get("passes").and_then(|v| v.as_arr()).map(|arr| {
-        let bit = |i: usize| arr.get(i).and_then(|v| v.as_bool()).unwrap_or(true);
-        (bit(0), bit(1), bit(2))
+        let bit = |i: usize, d: bool| arr.get(i).and_then(|v| v.as_bool()).unwrap_or(d);
+        (bit(0, true), bit(1, true), bit(2, true), bit(3, true))
     });
     let algebraic_iters = num("algebraic_iters").unwrap_or(1);
     Some(StoredConfig {
@@ -447,7 +465,9 @@ fn parse_stored_config(rec: &Json) -> Option<StoredConfig> {
         threads: threads.min(u32::MAX as u64) as u32,
         loop_order: loop_order.min(u32::MAX as u64) as u32,
         transpose_b,
-        passes: passes.unwrap_or((true, true, true)),
+        fused_elementwise,
+        buffer_reuse,
+        passes: passes.unwrap_or((true, true, true, true)),
         algebraic_iters: algebraic_iters.min(u32::MAX as u64) as u32,
     })
 }

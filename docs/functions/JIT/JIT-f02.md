@@ -4,7 +4,7 @@
 
 ## Tier 1: Beginner
 
-`chain_extent` extends one fused unary run forward from op index start while consecutive unaries read the previous run's destination and share its element count.
+`chain_extent` extends one fused unary run forward from op index start while consecutive unaries read the previous run's destination and share its element count; the fuse flag (the plan's fused_elementwise dimension) caps the run at one op when off.
 
 Inputs and outputs are documented in the signature; the function does not fail.
 
@@ -16,7 +16,7 @@ Declared cost: O(chain length).
 
 Declared preconditions: plan.ops[start] is a Unary op (the dispatcher matches before calling).
 
-Implementation: `crates/mlkp-runtime/src/exec.rs` at line 110, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/exec.rs` at line 205, classification unclassified.
 
 ## Silent Failure Checklist
 

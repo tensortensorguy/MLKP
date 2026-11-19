@@ -16,7 +16,7 @@ Declared cost: O(kernel work).
 
 Declared preconditions: the airlock proved disjointness.
 
-Implementation: `crates/mlkp-runtime/src/exec.rs` at line 344, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/exec.rs` at line 439, classification unclassified.
 
 ## Silent Failure Checklist
 
