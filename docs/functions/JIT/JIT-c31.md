@@ -16,7 +16,7 @@ Declared cost: O(m*n*k) multiply-adds in every schedule; access order differs by
 
 Declared preconditions: same length and tile assumptions as matmul_tiled; loop_order is 0 or 1 and transpose_b selects the strided-B traversal.
 
-Implementation: `crates/mlkp-runtime/src/kernels.rs` at line 236, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/kernels.rs` at line 321, classification unclassified.
 
 ## Silent Failure Checklist
 

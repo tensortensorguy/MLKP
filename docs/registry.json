@@ -353,7 +353,7 @@
     {
       "id": "JIT-420",
       "file": "crates/mlkp-runtime/src/exec.rs",
-      "line": 265
+      "line": 483
     },
     {
       "id": "JIT-456",
@@ -398,7 +398,7 @@
     {
       "id": "JIT-634",
       "file": "crates/mlkp-runtime/src/kernels.rs",
-      "line": 330
+      "line": 446
     },
     {
       "id": "JIT-674",
@@ -533,7 +533,7 @@
     {
       "id": "JIT-c31",
       "file": "crates/mlkp-runtime/src/kernels.rs",
-      "line": 236
+      "line": 321
     },
     {
       "id": "JIT-c46",
@@ -561,6 +561,176 @@
       "line": 443
     },
     {
+      "id": "JIT-e01",
+      "file": "crates/mlkp-runtime/src/simd/mod.rs",
+      "line": 70
+    },
+    {
+      "id": "JIT-e02",
+      "file": "crates/mlkp-runtime/src/simd/mod.rs",
+      "line": 119
+    },
+    {
+      "id": "JIT-e03",
+      "file": "crates/mlkp-runtime/src/simd/mod.rs",
+      "line": 209
+    },
+    {
+      "id": "JIT-e04",
+      "file": "crates/mlkp-runtime/src/simd/element.rs",
+      "line": 16
+    },
+    {
+      "id": "JIT-e05",
+      "file": "crates/mlkp-runtime/src/simd/element.rs",
+      "line": 103
+    },
+    {
+      "id": "JIT-e06",
+      "file": "crates/mlkp-runtime/src/simd/element.rs",
+      "line": 205
+    },
+    {
+      "id": "JIT-e07",
+      "file": "crates/mlkp-runtime/src/simd/reduce.rs",
+      "line": 16
+    },
+    {
+      "id": "JIT-e08",
+      "file": "crates/mlkp-runtime/src/simd/reduce.rs",
+      "line": 34
+    },
+    {
+      "id": "JIT-e09",
+      "file": "crates/mlkp-runtime/src/simd/reduce.rs",
+      "line": 142
+    },
+    {
+      "id": "JIT-e10",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 18
+    },
+    {
+      "id": "JIT-e11",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 54
+    },
+    {
+      "id": "JIT-e12",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 88
+    },
+    {
+      "id": "JIT-e13",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 122
+    },
+    {
+      "id": "JIT-e14",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 223
+    },
+    {
+      "id": "JIT-e15",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 358
+    },
+    {
+      "id": "JIT-e16",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 15
+    },
+    {
+      "id": "JIT-e17",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 81
+    },
+    {
+      "id": "JIT-e18",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 104
+    },
+    {
+      "id": "JIT-e19",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 153
+    },
+    {
+      "id": "JIT-e20",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 186
+    },
+    {
+      "id": "JIT-e21",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 216
+    },
+    {
+      "id": "JIT-e22",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 308
+    },
+    {
+      "id": "JIT-e23",
+      "file": "crates/mlkp-runtime/tests/simd_test.rs",
+      "line": 388
+    },
+    {
+      "id": "JIT-e24",
+      "file": "crates/mlkp-runtime/examples/exec_profile.rs",
+      "line": 21
+    },
+    {
+      "id": "JIT-e27",
+      "file": "crates/mlkp-runtime/src/simd/mod.rs",
+      "line": 256
+    },
+    {
+      "id": "JIT-e28",
+      "file": "crates/mlkp-runtime/src/simd/element.rs",
+      "line": 161
+    },
+    {
+      "id": "JIT-e29",
+      "file": "crates/mlkp-runtime/src/simd/reduce.rs",
+      "line": 69
+    },
+    {
+      "id": "JIT-e30",
+      "file": "crates/mlkp-runtime/src/simd/reduce.rs",
+      "line": 172
+    },
+    {
+      "id": "JIT-e31",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 121
+    },
+    {
+      "id": "JIT-e32",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 182
+    },
+    {
+      "id": "JIT-e33",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 222
+    },
+    {
+      "id": "JIT-e34",
+      "file": "crates/mlkp-runtime/src/simd/matmul.rs",
+      "line": 357
+    },
+    {
+      "id": "JIT-e35",
+      "file": "crates/mlkp-runtime/examples/exec_profile.rs",
+      "line": 73
+    },
+    {
+      "id": "JIT-e36",
+      "file": "crates/mlkp-runtime/examples/exec_profile.rs",
+      "line": 51
+    },
+    {
       "id": "JIT-e39",
       "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
       "line": 624
@@ -579,6 +749,66 @@
       "id": "JIT-e93",
       "file": "crates/mlkp-machine/tests/common/mod.rs",
       "line": 340
+    },
+    {
+      "id": "JIT-f01",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 49
+    },
+    {
+      "id": "JIT-f02",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 110
+    },
+    {
+      "id": "JIT-f03",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 155
+    },
+    {
+      "id": "JIT-f04",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 180
+    },
+    {
+      "id": "JIT-f05",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 110
+    },
+    {
+      "id": "JIT-f06",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 346
+    },
+    {
+      "id": "JIT-f07",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 486
+    },
+    {
+      "id": "JIT-f08",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 246
+    },
+    {
+      "id": "JIT-f09",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 269
+    },
+    {
+      "id": "JIT-f10",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 344
+    },
+    {
+      "id": "JIT-f11",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 194
+    },
+    {
+      "id": "JIT-f12",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 252
     },
     {
       "id": "JIT-f17",
@@ -763,7 +993,7 @@
     {
       "id": "JIT-m68",
       "file": "crates/mlkp-runtime/src/kernels.rs",
-      "line": 182
+      "line": 239
     },
     {
       "id": "JIT-n83",
@@ -799,6 +1029,11 @@
       "id": "JIT-o90",
       "file": "crates/mlkp-autotune/src/search.rs",
       "line": 104
+    },
+    {
+      "id": "JIT-p01",
+      "file": "crates/mlkp-runtime/examples/exec_profile.rs",
+      "line": 201
     },
     {
       "id": "JIT-p18",
@@ -903,7 +1138,7 @@
     {
       "id": "JIT-u48",
       "file": "crates/mlkp-runtime/src/kernels.rs",
-      "line": 143
+      "line": 181
     },
     {
       "id": "JIT-u58",
@@ -1004,11 +1239,6 @@
       "id": "JIT-z77",
       "file": "crates/mlkp-spirv/src/emit/verify.rs",
       "line": 100
-    },
-    {
-      "id": "JIT-z95",
-      "file": "crates/mlkp-runtime/src/exec.rs",
-      "line": 144
     }
   ]
 }

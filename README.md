@@ -47,6 +47,7 @@ cargo build -p cep_lint
 ./target/debug/cep_lint --self-test        # 54 scenarios, exact counts
 
 cargo bench -p mlkp --bench pipeline  # pipeline + ISA-tier benchmarks (see doc/benchmarks.md)
+cargo run --release -p mlkp-runtime --example exec_profile  # execution fast-path profile (CEP-327)
 ./target/debug/cep_lint crates tools       # self-lint
 ./target/debug/cep_lint --verify-hunt      # signed receipt gate
 ```

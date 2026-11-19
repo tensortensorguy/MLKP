@@ -22,6 +22,8 @@ pub mod kernels;
 pub mod plan;
 /// The device probe.
 pub mod probe;
+/// The SIMD engine: vector kernels, the shared exp polynomial, the FMA matmul.
+pub(crate) mod simd;
 /// The measurement discipline.
 pub mod timing;
 

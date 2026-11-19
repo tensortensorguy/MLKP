@@ -12,3 +12,6 @@ mlkp-tensor = { workspace = true }
 
 [lib]
 path = "src/lib.rs"
+
+[dev-dependencies]
+mlkp-front = { path = "../mlkp-front" }

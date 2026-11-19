@@ -16,3 +16,4 @@ Open work items referenced by `CEP:TODO` markers and `CEP:TICKET` fields. Owner 
 | CEP-350 | autotune | Graph-neural-network cost model surrogate replacing the linear ridge model. |
 | CEP-351 | autotune | Gaussian-process acquisition function for Phase 2. |
 | CEP-360 | tensor | Data-dependent dimensions and conditional shape solving. |
+| CEP-327 | runtime | Closed: the execution fast path — a register-blocked AVX2+FMA matmul honoring the schedule's tile and loop-order dimensions, one minimax exp polynomial shared by AVX2, SSE2, and scalar-tail paths (no libm anywhere, IEEE saturation boundaries matched), vectorized unary/binary/chain/reduce/softmax kernels, and exec-level fusion of unary chains and matmul epilogues behind exhaustive read-scan proofs; 64-op plan execution 3247.6 µs to 257.4 µs (50.7 to 4.0 µs/op effective, 12.5x), bit-exact fusion equivalence and 400k-point polynomial accuracy asserted in tests; recorded in benches/artifacts/exec_fastpath.md. |
