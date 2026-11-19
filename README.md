@@ -45,6 +45,8 @@ Prints the stage log (parse, verify, autotune winner and latency, execute checks
 ```sh
 cargo build -p cep_lint
 ./target/debug/cep_lint --self-test        # 54 scenarios, exact counts
+
+cargo bench -p mlkp --bench pipeline  # pipeline + ISA-tier benchmarks (see doc/benchmarks.md)
 ./target/debug/cep_lint crates tools       # self-lint
 ./target/debug/cep_lint --verify-hunt      # signed receipt gate
 ```

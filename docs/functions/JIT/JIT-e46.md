@@ -16,7 +16,7 @@ Declared cost: cold; O(text) parse plus O(insns) per fixpoint round.
 
 Declared preconditions: the System V AMD64 ABI; branch targets are labels, symbols, or absolute byte offsets.
 
-Implementation: `crates/mlkp-machine/src/isa/assemble/mod.rs` at line 61, classification unclassified.
+Implementation: `crates/mlkp-machine/src/isa/assemble/mod.rs` at line 60, classification unclassified.
 
 ## Silent Failure Checklist
 

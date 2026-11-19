@@ -20,3 +20,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "mlkpc"
 path = "src/bin/mlkpc.rs"
+
+[dev-dependencies]
+mlkp-machine = { path = "../mlkp-machine" }
+
+[[bench]]
+name = "pipeline"
+harness = false

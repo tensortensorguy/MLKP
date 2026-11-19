@@ -373,7 +373,7 @@
     {
       "id": "JIT-556",
       "file": "crates/mlkp-machine/src/isa/assemble/mod.rs",
-      "line": 264
+      "line": 263
     },
     {
       "id": "JIT-567",
@@ -408,7 +408,7 @@
     {
       "id": "JIT-681",
       "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
-      "line": 428
+      "line": 243
     },
     {
       "id": "JIT-699",
@@ -433,7 +433,7 @@
     {
       "id": "JIT-781",
       "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
-      "line": 378
+      "line": 375
     },
     {
       "id": "JIT-785",
@@ -479,6 +479,26 @@
       "id": "JIT-a35",
       "file": "crates/mlkp-runtime/tests/runtime_test.rs",
       "line": 257
+    },
+    {
+      "id": "JIT-b01",
+      "file": "crates/mlkp/benches/pipeline.rs",
+      "line": 21
+    },
+    {
+      "id": "JIT-b02",
+      "file": "crates/mlkp/benches/pipeline.rs",
+      "line": 50
+    },
+    {
+      "id": "JIT-b03",
+      "file": "crates/mlkp/benches/pipeline.rs",
+      "line": 80
+    },
+    {
+      "id": "JIT-b04",
+      "file": "crates/mlkp/benches/pipeline.rs",
+      "line": 93
     },
     {
       "id": "JIT-b35",
@@ -543,12 +563,12 @@
     {
       "id": "JIT-e39",
       "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
-      "line": 627
+      "line": 624
     },
     {
       "id": "JIT-e46",
       "file": "crates/mlkp-machine/src/isa/assemble/mod.rs",
-      "line": 61
+      "line": 60
     },
     {
       "id": "JIT-e60",
@@ -638,7 +658,7 @@
     {
       "id": "JIT-i28",
       "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
-      "line": 104
+      "line": 101
     },
     {
       "id": "JIT-i46",
@@ -668,12 +688,12 @@
     {
       "id": "JIT-j18",
       "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
-      "line": 482
+      "line": 479
     },
     {
       "id": "JIT-j68",
       "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
-      "line": 565
+      "line": 562
     },
     {
       "id": "JIT-k18",
@@ -783,7 +803,7 @@
     {
       "id": "JIT-p18",
       "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
-      "line": 267
+      "line": 264
     },
     {
       "id": "JIT-p69",
@@ -858,7 +878,7 @@
     {
       "id": "JIT-t29",
       "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
-      "line": 509
+      "line": 324
     },
     {
       "id": "JIT-t83",
@@ -953,7 +973,7 @@
     {
       "id": "JIT-x84",
       "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
-      "line": 467
+      "line": 282
     },
     {
       "id": "JIT-y37",

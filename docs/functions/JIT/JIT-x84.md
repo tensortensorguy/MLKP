@@ -16,7 +16,7 @@ Declared cost: cold; one assembler invocation.
 
 Declared preconditions: GNU as is installed and the platform is x86-64.
 
-Implementation: `crates/mlkp-machine/tests/isa_tier_test.rs` at line 467, classification unclassified.
+Implementation: `crates/mlkp-machine/tests/isa_tier_test.rs` at line 282, classification unclassified.
 
 ## Silent Failure Checklist
 

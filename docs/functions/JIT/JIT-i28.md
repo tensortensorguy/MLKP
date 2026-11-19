@@ -16,7 +16,7 @@ Declared cost: O(1).
 
 Declared preconditions: the caller emitted prefix, REX, and opcode bytes already.
 
-Implementation: `crates/mlkp-machine/src/isa/assemble/forms.rs` at line 104, classification unclassified.
+Implementation: `crates/mlkp-machine/src/isa/assemble/forms.rs` at line 101, classification unclassified.
 
 ## Silent Failure Checklist
 

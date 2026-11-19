@@ -26,6 +26,7 @@ dependencies = [
  "mlkp-config",
  "mlkp-front",
  "mlkp-hir",
+ "mlkp-machine",
  "mlkp-runtime",
  "mlkp-tensor",
 ]

@@ -16,7 +16,7 @@ Declared cost: O(1).
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-machine/src/isa/assemble/forms.rs` at line 267, classification unclassified.
+Implementation: `crates/mlkp-machine/src/isa/assemble/forms.rs` at line 264, classification unclassified.
 
 ## Silent Failure Checklist
 

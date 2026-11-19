@@ -16,7 +16,7 @@ Declared cost: O(object size).
 
 Declared preconditions: a little-endian ELF64 relocatable object.
 
-Implementation: `crates/mlkp-machine/tests/isa_tier_test.rs` at line 509, classification unclassified.
+Implementation: `crates/mlkp-machine/tests/isa_tier_test.rs` at line 324, classification unclassified.
 
 ## Silent Failure Checklist
 
