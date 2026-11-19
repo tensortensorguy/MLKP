@@ -14,6 +14,7 @@ use mlkp_machine::{
 };
 
 /// Builds the link-test program: f(a, b) = a * 2 - b.
+// CEP:ID: JIT-i79
 // CEP:WHAT: Builds the object fixture.
 // CEP:WHY: Shared by the structural and link tests.
 // CEP:STATUS: complete
@@ -85,6 +86,7 @@ fn build_obj_program() -> (MFunction, Allocation) {
 }
 
 /// Emission is deterministic: two runs produce byte-identical objects.
+// CEP:ID: JIT-i82
 // CEP:WHAT: Tests object determinism.
 // CEP:WHY: The emission policy requires deterministic layout, section order, symbol order, and relocation order.
 // CEP:STATUS: complete
@@ -111,6 +113,7 @@ fn object_is_deterministic() {
 }
 
 /// The object structurally parses: header fields, section table, symbol table, and relocation table match the contract.
+// CEP:ID: JIT-m43
 // CEP:WHAT: Tests the ELF structure.
 // CEP:WHY: The linker consumes exactly these tables; a wrong field silently breaks linking.
 // CEP:STATUS: complete
@@ -191,6 +194,7 @@ fn object_structure() {
 }
 
 /// The emitted object links with a C driver and the linked binary produces the expected result.
+// CEP:ID: JIT-p69
 // CEP:WHAT: Runs the link-and-run test.
 // CEP:WHY: Relocations, symbol resolution, and the System V ABI execute together only in a real binary.
 // CEP:STATUS: complete
@@ -247,6 +251,7 @@ fn object_links_and_runs() {
 }
 
 /// A function with an external call emits one PLT32 relocation and still links against a definition.
+// CEP:ID: JIT-592
 // CEP:WHAT: Tests external-call objects.
 // CEP:WHY: The relocation is the only coupling to the platform toolchain.
 // CEP:STATUS: complete

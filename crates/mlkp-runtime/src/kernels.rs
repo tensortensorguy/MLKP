@@ -140,6 +140,7 @@ pub fn ew_binary(op: EwBinary, a: &[f32], b: &[f32], out: &mut [f32]) {
 }
 
 /// Reduces the last axis: `src` has shape `[outer, red]`, `dst` has shape `[outer]`.
+// CEP:ID: JIT-u48
 // CEP:WHAT: Reduces the last axis of a row-major tensor.
 // CEP:WHY: Softmax and loss paths reduce the contiguous axis, which is the cache-friendly case.
 // CEP:STATUS: complete
@@ -178,6 +179,7 @@ pub fn reduce_last_axis(op: ReduceKind, src: &[f32], outer: usize, red: usize, d
 }
 
 /// Numerically stable softmax over the last axis: out has shape [outer, red].
+// CEP:ID: JIT-m68
 // CEP:WHAT: Applies row-wise stable softmax.
 // CEP:WHY: The composite softmax op guarantees finite outputs under the declared numerical contract (design section 6).
 // CEP:STATUS: complete
@@ -231,6 +233,7 @@ pub fn matmul_tiled(a: &[f32], b: &[f32], c: &mut [f32], m: usize, n: usize, k: 
 
 /// Cache-blocked matrix multiply with an explicit schedule: loop order over the
 /// matmul triple and the B access pattern, as selected by the search space.
+// CEP:ID: JIT-c31
 // CEP:WHAT: Computes a tiled general matrix multiply under one schedule.
 // CEP:WHY: The search space varies loop order (dimension B) and the B access pattern (dimension F); schedules must change the executed loop structure or the autotuner measures noise.
 // CEP:STATUS: complete
@@ -324,6 +327,7 @@ pub fn matmul_tiled_sched(
 }
 
 /// Cache-blocked matrix multiply over one row range: writes `c_rows` (rows i0..i1).
+// CEP:ID: JIT-634
 // CEP:WHAT: Computes the tiled multiply restricted to a row range.
 // CEP:WHY: Thread chunking (the schedule's worker count) splits the i dimension across workers; each worker owns disjoint output rows so no synchronization is needed.
 // CEP:STATUS: complete

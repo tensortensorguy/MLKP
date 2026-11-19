@@ -53,6 +53,7 @@ fn matmul_graph() -> Graph {
     g
 }
 
+// CEP:ID: JIT-s76
 // CEP:WHAT: Verifies PGO recording, persistence, reload, and drift detection.
 // CEP:WHY: The PGO cache is the nervous system; losing records breaks warm starts.
 // CEP:STATUS: complete
@@ -184,6 +185,7 @@ fn dominance_compares_all_objectives() {
     assert!(!a.dominates(&tie), "ties are not dominance");
 }
 
+// CEP:ID: JIT-h14
 // CEP:WHAT: Verifies the search returns a winner within budget and evaluates the baseline first.
 // CEP:WHY: The budget fallback is a design failure mode.
 // CEP:STATUS: complete
@@ -229,6 +231,7 @@ fn search_respects_budget() {
     assert!(result.objectives.latency_ns != u64::MAX);
 }
 
+// CEP:ID: JIT-y52
 // CEP:WHAT: Runs the full driver end to end and verifies the winner beats or matches the baseline.
 // CEP:WHY: The 19-step lifecycle must produce a valid, verified, cached plan.
 // CEP:STATUS: complete

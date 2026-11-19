@@ -22,6 +22,7 @@ const ARITY: fn(&Op) -> Option<usize> = |op| match op {
 };
 
 /// Verifies one graph and returns all violations.
+// CEP:ID: JIT-i50
 // CEP:WHAT: Verifies one graph.
 // CEP:WHY: Verifiable optimization (design section 16) is a named property of the whole design; this is its enforcement point, including the shape functions of contractions and softmax.
 // CEP:STATUS: complete
@@ -163,6 +164,7 @@ pub fn verify(g: &Graph) -> Result<(), Vec<GraphError>> {
     }
 }
 
+// CEP:ID: JIT-u40
 // CEP:WHAT: Detects cycles with an iterative depth-first search and three-color marking.
 // CEP:WHY: Unbounded recursion is banned by Law 6; the iterative stack bounds memory by the node count.
 // CEP:STATUS: complete

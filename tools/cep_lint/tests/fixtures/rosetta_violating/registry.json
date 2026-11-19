@@ -1,0 +1,14 @@
+{
+  "functions": [
+    {
+      "id": "CS-a01",
+      "file": "a.rs",
+      "line": 1
+    },
+    {
+      "id": "CS-a02",
+      "file": "b.rs",
+      "line": 2
+    }
+  ]
+}

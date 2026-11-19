@@ -164,6 +164,7 @@ fn extern_symbols(co: &CodeObject) -> Vec<String> {
 }
 
 /// Builds the .symtab contents.
+// CEP:ID: JIT-t83
 // CEP:WHAT: Builds the symbol table.
 // CEP:WHY: The linker resolves the function symbol and the external references through it.
 // CEP:STATUS: complete
@@ -228,6 +229,7 @@ fn rela(co: &CodeObject, exts: &[String]) -> Vec<u8> {
 }
 
 /// Emits one deterministic ELF64 relocatable object.
+// CEP:ID: JIT-w66
 // CEP:WHAT: Emits one ELF64 object.
 // CEP:WHY: The design's machine code emission stage ends at object files the standard toolchain links.
 // CEP:STATUS: complete
@@ -371,6 +373,7 @@ pub fn emit_object(co: &CodeObject, function: &str) -> Vec<u8> {
 }
 
 /// Emits one object together with the evidence hashes the emission policy requires.
+// CEP:ID: JIT-f86
 // CEP:WHAT: Emits one object with evidence.
 // CEP:WHY: The emission policy demands object hash, section list, symbol table hash, relocation table hash, and disassembly hash as evidence.
 // CEP:STATUS: complete

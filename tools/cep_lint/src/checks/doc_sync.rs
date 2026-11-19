@@ -16,6 +16,7 @@ use crate::re;
 use crate::report::Finding;
 
 /// Runs the DOC-SYNC check once per invocation.
+// CEP:ID: CS-d24
 // CEP:WHAT: Runs the DOC-SYNC contract over the standard document and the configuration.
 // CEP:WHY: Law 8 bans stale documentation; both coverage directions between configured rules and documented rule headings are checked mechanically.
 // CEP:STATUS: complete

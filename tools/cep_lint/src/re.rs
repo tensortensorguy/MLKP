@@ -195,6 +195,7 @@ impl Regex {
 
 type Cont<'k> = &'k dyn Fn(usize, &mut Vec<Option<(usize, usize)>>) -> Option<usize>;
 
+// CEP:ID: CS-a49
 // CEP:WHAT: Matches one AST node at a position with continuation-passing backtracking.
 // CEP:WHY: The node dispatcher is the core of the matcher; anchors, classes, groups, and repeats route through it.
 // CEP:STATUS: complete
@@ -457,6 +458,7 @@ impl Parser {
         Ok(Node::Concat(items))
     }
 
+    // CEP:ID: CS-r29
     // CEP:WHAT: Wraps an atom in a repeat construct if a quantifier follows.
     // CEP:WHY: Quantifiers bind to the immediately preceding atom.
     // CEP:STATUS: complete
@@ -556,6 +558,7 @@ impl Parser {
         s.parse().map_err(|_| "bad quantifier number".to_string())
     }
 
+    // CEP:ID: CS-p79
     // CEP:WHAT: Parses one atom: escape, class, group, anchor, or literal char.
     // CEP:WHY: Atoms are the leaves of the pattern AST.
     // CEP:STATUS: complete
@@ -651,6 +654,7 @@ impl Parser {
         }
     }
 
+    // CEP:ID: CS-q51
     // CEP:WHAT: Parses a character class with ranges, negation, and shorthand escapes.
     // CEP:WHY: Classes cover sets like [A-Z0-9-] used by rule patterns.
     // CEP:STATUS: complete

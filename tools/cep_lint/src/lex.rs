@@ -46,6 +46,7 @@ struct CommentSpan {
 }
 
 /// Scans Rust source text into masked lines plus comment and string records.
+// CEP:ID: CS-177
 // CEP:WHAT: Scans one source file into masked lines, comment regions, and string literals.
 // CEP:WHY: All region-scoped rules depend on exact code/comment/string separation with preserved positions.
 // CEP:STATUS: complete
@@ -242,6 +243,7 @@ fn char_literal_len(chars: &[char], i: usize) -> Option<usize> {
     }
 }
 
+// CEP:ID: CS-878
 // CEP:WHAT: Splits original and masked text into parallel per-line records with comment text.
 // CEP:WHY: Checks consume per-line code and comment text.
 // CEP:STATUS: complete

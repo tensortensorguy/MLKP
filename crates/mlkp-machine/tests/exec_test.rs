@@ -5,6 +5,8 @@
 // CEP:STATUS: complete
 // CEP:FAILURE: Test asserts panic on failure by design; that is the test's purpose.
 // CEP:ASSUMES: Linux x86-64 with anonymous mmap and mprotect available; the code cache is sized exactly and freed by munmap.
+// CEP:UNSAFE: mmap/mprotect/munmap on anonymous pages and transmutes of page addresses to function pointers, confined to the test process; the encoded bytes come from the encoder under test, never from untrusted input.
+// CEP:SECURITY: the page is written RW, re-protected RX before the call per the W^X rule, and released with munmap; nothing executes after the failure path exits the test.
 // CEP:COST: cold; not performance-relevant.
 // CEP:EVIDENCE: cargo test -p mlkp-machine.
 
@@ -142,6 +144,7 @@ fn run2(f: &MFunction, a: i64, b: i64) -> i64 {
 }
 
 /// A straight-line arithmetic program: (a + b) * 2 - b.
+// CEP:ID: JIT-o47
 // CEP:WHAT: Builds the arithmetic fixture.
 // CEP:WHY: Covers mov, add, sub, imul with caller-saved registers.
 // CEP:STATUS: complete
@@ -248,6 +251,7 @@ fn executes_arithmetic() {
 }
 
 /// Executes the counted loop program: sum 1..=n.
+// CEP:ID: JIT-u58
 // CEP:WHAT: Tests loop execution.
 // CEP:WHY: Branches across a backedge prove the fixpoint and cross-block liveness.
 // CEP:STATUS: complete
@@ -342,6 +346,7 @@ fn executes_loop() {
 }
 
 /// Executes a spill-heavy program: fourteen computed values stay live to one consumer, forcing stack slots.
+// CEP:ID: JIT-q40
 // CEP:WHAT: Tests spill execution.
 // CEP:WHY: Slot displacements, the frame size, and read-modify-write preloads all execute together here.
 // CEP:STATUS: complete
@@ -438,6 +443,7 @@ fn executes_spilled_program() {
 }
 
 /// Executes an SSE program: x * y + x through xmm registers.
+// CEP:ID: JIT-f50
 // CEP:WHAT: Tests SSE execution.
 // CEP:WHY: Scalar-double encodings and the xmm class path execute end to end.
 // CEP:STATUS: complete

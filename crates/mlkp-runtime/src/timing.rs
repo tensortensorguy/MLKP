@@ -104,6 +104,7 @@ impl Measurement {
 }
 
 /// Measures a closure with warmup discard and a median-of-N summary.
+// CEP:ID: JIT-x48
 // CEP:WHAT: Measures one closure.
 // CEP:WHY: Every candidate evaluation and every bench artifact flows through this single discipline.
 // CEP:STATUS: complete

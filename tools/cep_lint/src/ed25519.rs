@@ -101,6 +101,7 @@ fn fe_sub(a: Fe, b: Fe) -> Fe {
     fe(r)
 }
 
+// CEP:ID: CS-e32
 // CEP:WHAT: Multiplies two field elements and reduces modulo p.
 // CEP:WHY: All curve arithmetic reduces to field multiplication.
 // CEP:STATUS: complete
@@ -143,6 +144,7 @@ fn fe_mul(a: Fe, b: Fe) -> Fe {
     carry_reduce([c0, c1, c2, c3, c4])
 }
 
+// CEP:ID: CS-v73
 // CEP:WHAT: Folds five 128-bit accumulators into five 51-bit limbs modulo p.
 // CEP:WHY: Shared by mul and square; the top carry wraps with factor 19 because 2^255 is congruent to 19.
 // CEP:STATUS: complete
@@ -210,6 +212,7 @@ fn fe_invert(a: Fe) -> Fe {
     fe_pow(a, &exp)
 }
 
+// CEP:ID: CS-n50
 // CEP:WHAT: Fully carries the limb chain so each limb is below 2^51.
 // CEP:WHY: Canonical encoding and comparisons need reduced limbs.
 // CEP:STATUS: complete
@@ -233,6 +236,7 @@ fn fe_carry(a: Fe) -> Fe {
     fe(h)
 }
 
+// CEP:ID: CS-k29
 // CEP:WHAT: Encodes a field element canonically as 32 little-endian bytes.
 // CEP:WHY: Point and scalar encodings are byte strings.
 // CEP:STATUS: complete
@@ -267,6 +271,7 @@ fn fe_tobytes(a: Fe) -> [u8; 32] {
     out
 }
 
+// CEP:ID: CS-f64
 // CEP:WHAT: Decodes 32 little-endian bytes into a field element, masking the high bit.
 // CEP:WHY: Point decoding splits the sign bit before interpreting the y coordinate.
 // CEP:STATUS: complete
@@ -475,6 +480,7 @@ fn point_encode(p: Point) -> [u8; 32] {
     out
 }
 
+// CEP:ID: CS-v37
 // CEP:WHAT: Decodes a point from 32 bytes, recovering x by square root.
 // CEP:WHY: Verification consumes encoded keys and signature halves.
 // CEP:STATUS: complete
@@ -566,6 +572,7 @@ fn base_point() -> Point {
     point_decode(&b).expect("base point is on the curve by construction")
 }
 
+// CEP:ID: CS-m54
 // CEP:WHAT: Reduces a 512-bit little-endian value modulo L by bit-wise division.
 // CEP:WHY: Nonces and challenge scalars are SHA-512 outputs that must land in [0, L); the doubling carry propagates from low limbs to high limbs because bits shift upward.
 // CEP:STATUS: complete
@@ -629,6 +636,7 @@ fn sub_l(r: &mut [u64; 4]) {
     }
 }
 
+// CEP:ID: CS-t29
 // CEP:WHAT: Adds two scalars modulo L by adding and conditional subtracting.
 // CEP:WHY: The signature scalar S = r + k*s must be canonical.
 // CEP:STATUS: complete
@@ -651,6 +659,7 @@ fn scalar_add_mod_l(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     r
 }
 
+// CEP:ID: CS-x19
 // CEP:WHAT: Multiplies two scalars modulo L.
 // CEP:WHY: The signing equation needs k*s mod L.
 // CEP:STATUS: complete
@@ -697,6 +706,7 @@ fn scalar_mul_mod_l(a: &[u64; 4], b: &[u64; 4]) -> [u64; 4] {
     r
 }
 
+// CEP:ID: CS-716
 // CEP:WHAT: Clamps the SHA-512 digest half into the signing scalar.
 // CEP:WHY: RFC 8032 clamps bits 0..2 and 255 to define the scalar range.
 // CEP:STATUS: complete
@@ -722,6 +732,7 @@ fn clamp(digest_half: &[u8]) -> [u64; 4] {
 }
 
 /// Signs a message with a 32-byte seed; returns the 64-byte signature R || S.
+// CEP:ID: CS-n25
 // CEP:WHAT: Signs one message with a 32-byte seed.
 // CEP:WHY: The CI runner signs hunt receipts so the linter can verify them without trusting the JSON text.
 // CEP:STATUS: complete
@@ -785,6 +796,7 @@ pub fn public_from_seed(seed: &[u8]) -> [u8; 32] {
 }
 
 /// Verifies a 64-byte signature over a message with a 32-byte public key.
+// CEP:ID: CS-b20
 // CEP:WHAT: Verifies an Ed25519 signature.
 // CEP:WHY: The linter must reject tampered or missing hunt receipts.
 // CEP:STATUS: complete
@@ -868,6 +880,7 @@ mod internal_tests {
         }
     }
 
+    // CEP:ID: CS-w55
     // CEP:WHAT: Verifies field distributivity and inversion.
     // CEP:WHY: Multiplication and inversion bugs break all group formulas.
     // CEP:STATUS: complete
@@ -929,6 +942,7 @@ mod internal_tests {
         assert!(fe_eq(b.t, t_check), "T != X*Y");
     }
 
+    // CEP:ID: CS-s11
     // CEP:WHAT: Verifies group homomorphism identities on the base point.
     // CEP:WHY: add/double/scalar-multiply disagreements localize the broken formula.
     // CEP:STATUS: complete
@@ -955,6 +969,7 @@ mod internal_tests {
         assert!(point_eq(&zero, &id), "[0]B != identity");
     }
 
+    // CEP:ID: CS-938
     // CEP:WHAT: Verifies scalar reduction and multiplication modulo L.
     // CEP:WHY: Challenge and nonce reduction bugs corrupt the signing equation only.
     // CEP:STATUS: complete
@@ -987,6 +1002,7 @@ mod internal_tests {
 mod internal_sign_tests {
     use super::*;
 
+    // CEP:ID: CS-r90
     // CEP:WHAT: Replicates the signing equation with internals and asserts every component.
     // CEP:WHY: Public wrapper failures must be attributable to a specific component.
     // CEP:STATUS: complete
@@ -1102,6 +1118,7 @@ mod internal_sign_tests {
         assert!(!geq_l(&prod), "product must be canonical");
     }
 
+    // CEP:ID: CS-h21
     // CEP:WHAT: Verifies scalar multiplication modulo L against repeated addition.
     // CEP:WHY: The signing equation depends on exact k*s mod L.
     // CEP:STATUS: complete

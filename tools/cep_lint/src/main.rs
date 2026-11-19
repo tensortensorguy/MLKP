@@ -27,6 +27,7 @@ Options:
   --help, -h           show usage
   --version, -v        print tool and standard versions";
 
+// CEP:ID: CS-119
 // CEP:WHAT: CLI entry point.
 // CEP:WHY: Enforces the exit-code table of chapter 50.1.
 // CEP:STATUS: complete

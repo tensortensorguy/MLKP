@@ -86,6 +86,8 @@ pub struct Config {
     pub exit_codes: [u8; 4],
     /// DOC-SYNC parameters when the rule is configured.
     pub doc_sync: Option<DocSyncParams>,
+    /// Rosetta rule parameters paired with their rules, in declaration order.
+    pub rosetta: Vec<(RuleConfig, RosettaParams)>,
     /// Path of the self-test manifest.
     pub self_test_manifest: PathBuf,
     /// Configured rules in declaration order.
@@ -105,8 +107,23 @@ pub struct DocSyncParams {
     pub version_pattern: String,
 }
 
+/// Rosetta rule parameters, resolved against the configuration directory at load time.
+#[derive(Debug, Clone)]
+pub struct RosettaParams {
+    /// Path of the registry manifest (registry mode).
+    pub registry_path: PathBuf,
+    /// Root of the function documentation tree (all modes).
+    pub docs_prefix: PathBuf,
+    /// Required Tier 1 heading.
+    pub tier1_heading: String,
+    /// Required Tier 2 heading.
+    pub tier2_heading: String,
+    /// Required silent-failure checklist heading.
+    pub checklist_heading: String,
+}
+
 /// Known check primitive names; anything else is bootstrap error 6.
-const KNOWN_CHECKS: [&str; 9] = [
+const KNOWN_CHECKS: [&str; 13] = [
     "comment_block_schema",
     "function_policy",
     "comment_regex",
@@ -116,6 +133,10 @@ const KNOWN_CHECKS: [&str; 9] = [
     "banned_token_policy",
     "commit_hunt_manifest",
     "hunter_manifest",
+    "file_topology_policy",
+    "secret_probe_policy",
+    "unsafe_doc_policy",
+    "rosetta_policy",
 ];
 
 /// Additional mechanism names beyond the parameterized checks.
@@ -146,6 +167,7 @@ pub fn load(path: &Path) -> Result<Config, BootError> {
 }
 
 /// Builds a typed Config from a parsed JSON tree.
+// CEP:ID: CS-r94
 // CEP:WHAT: Builds a typed Config from a parsed JSON tree.
 // CEP:WHY: Schema validation is centralized so every rule sees an identical parameter contract.
 // CEP:STATUS: complete
@@ -222,6 +244,7 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
         .ok_or_else(|| BootError::new(4, "missing key: rules"))?;
     let mut rules = Vec::new();
     let mut doc_sync = None;
+    let mut rosetta = Vec::new();
     for (name, body) in rules_value {
         let severity_v = require_u64(body, "severity", &format!("rules.{name}.severity"))?;
         // CEP:WHAT: Range-checks rule severities before the narrowing cast.
@@ -283,14 +306,14 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
                         })?;
                     }
                 }
-                // CEP:WHAT: Validates the exempt_contexts pattern list element-wise.
-                // CEP:WHY: It is the only array param whose entries are regexes; a single invalid entry would silently disable matching for that context.
+                // CEP:WHAT: Validates pattern-list params element-wise.
+                // CEP:WHY: exempt_contexts and patterns are arrays of regexes; a single invalid entry would silently disable matching for that context.
                 // CEP:STATUS: complete
-                // CEP:FAILURE: Returns BootError code 8.
+                // CEP:FAILURE: Returns BootError code 8 for an invalid pattern.
                 // CEP:ASSUMES: other array params (tokens, statuses, fields) are literal strings, not patterns.
                 // CEP:COST: O(elements).
                 // CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
-                if k == "exempt_contexts" {
+                if k == "exempt_contexts" || k == "patterns" {
                     if let Some(arr) = v.as_arr() {
                         for (i, el) in arr.iter().enumerate() {
                             if let Some(p) = el.as_str() {
@@ -319,6 +342,52 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
                 version_pattern,
             });
         }
+        // CEP:WHAT: Resolves Rosetta rule parameters against the configuration directory.
+        // CEP:WHY: Registry and documentation paths are relative to the configuration so CI and self-test fixtures resolve identically; heading defaults carry the standard's normative section names.
+        // CEP:STATUS: complete
+        // CEP:FAILURE: Registry mode without registry_path is bootstrap error 4.
+        // CEP:ASSUMES: none
+        // CEP:COST: O(1) per rosetta rule.
+        // CEP:EVIDENCE: tools/cep_lint/tests/config_test.rs
+        if check == "rosetta_policy" {
+            let docs_prefix_v = params
+                .get("docs_prefix")
+                .and_then(|v| v.as_str())
+                .unwrap_or("docs/functions");
+            let registry_path = if mode == "registry" {
+                base_dir.join(require_str(
+                    &params,
+                    "registry_path",
+                    "rules.rosetta.registry_path",
+                )?)
+            } else {
+                base_dir.join("docs/registry.json")
+            };
+            let heading = |key: &str, default: &str| -> String {
+                params
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(default)
+                    .to_string()
+            };
+            rosetta.push((
+                RuleConfig {
+                    name: name.clone(),
+                    severity,
+                    check: check.clone(),
+                    mode: mode.clone(),
+                    message: message.clone(),
+                    params: params.clone(),
+                },
+                RosettaParams {
+                    registry_path,
+                    docs_prefix: base_dir.join(docs_prefix_v),
+                    tier1_heading: heading("tier1_heading", "## Tier 1: Beginner"),
+                    tier2_heading: heading("tier2_heading", "## Tier 2: Silicon Reality"),
+                    checklist_heading: heading("checklist_heading", "## Silent Failure Checklist"),
+                },
+            ));
+        }
         rules.push(RuleConfig {
             name: name.clone(),
             severity,
@@ -338,6 +407,7 @@ pub fn from_value(value: &Json, base_dir: &Path) -> Result<Config, BootError> {
         fail_on,
         exit_codes,
         doc_sync,
+        rosetta,
         self_test_manifest,
         rules,
         base_dir: base_dir.to_path_buf(),

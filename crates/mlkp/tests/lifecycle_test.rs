@@ -15,6 +15,7 @@ use std::time::Duration;
 
 const PROGRAM: &str = "fn @net(%a: f32[64,64], %b: f32[64,64]) -> f32[64,64] {\n  %t = matmul(%a, %b)\n  %r = relu(%t)\n  return %r\n}\n";
 
+// CEP:ID: JIT-m25
 // CEP:WHAT: Runs the full lifecycle once with a real budget.
 // CEP:WHY: Steps 1 through 17 of the design's lifecycle in one path.
 // CEP:STATUS: complete
@@ -74,6 +75,7 @@ fn full_lifecycle_compiles_and_executes() {
     assert!(rec.last_best_config != 0, "warm start armed for step 19");
 }
 
+// CEP:ID: JIT-x62
 // CEP:WHAT: Verifies recompilation reuses the PGO warm start and stays within the smaller warm budget.
 // CEP:WHY: Design section VIII: incremental recompilation must be cheap.
 // CEP:STATUS: complete
@@ -113,6 +115,7 @@ fn warm_recompile_is_cheap() {
     let _ = first;
 }
 
+// CEP:ID: JIT-b35
 // CEP:WHAT: Verifies drift detection arms re-autotuning after the distribution shifts.
 // CEP:WHY: Step 19 of the lifecycle: monitor for distribution shift.
 // CEP:STATUS: complete

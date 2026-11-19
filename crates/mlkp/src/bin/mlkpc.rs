@@ -23,6 +23,7 @@ Options:
   --budget-ms <n>       autotune time budget (default from config/limits.rs)
   --dim <n>             problem dimension of the synthetic program (default 128)";
 
+// CEP:ID: JIT-q42
 // CEP:WHAT: CLI entry point.
 // CEP:WHY: The lifecycle is externally observable.
 // CEP:STATUS: complete

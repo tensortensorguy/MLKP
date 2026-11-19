@@ -96,6 +96,7 @@ fn mov_rr_fixture() {
 }
 
 /// Immediate forms: C7 imm32, 83 imm8, the accumulator short form 05, 81 for other registers, and movabs for 64-bit immediates.
+// CEP:ID: JIT-348
 // CEP:WHAT: Tests immediate encodings.
 // CEP:WHY: Each immediate width and form must match gas exactly.
 // CEP:STATUS: complete
@@ -251,6 +252,7 @@ fn rbp_zero_disp_fixture() {
 }
 
 /// A branch beyond rel8 range grows to rel32 (0F 8C).
+// CEP:ID: JIT-d28
 // CEP:WHAT: Tests the branch-size fixpoint.
 // CEP:WHY: The two-pass layout must grow forms exactly when the displacement overflows a byte.
 // CEP:STATUS: complete
@@ -319,6 +321,7 @@ fn long_branch_fixture() {
 }
 
 /// Encoding is deterministic: two compilations produce identical bytes.
+// CEP:ID: JIT-f89
 // CEP:WHAT: Tests encoding determinism.
 // CEP:WHY: The emission policy requires byte-identical output across runs.
 // CEP:STATUS: complete
@@ -362,6 +365,7 @@ fn encoding_is_deterministic() {
 }
 
 /// Decoded text matches the assembly emitter exactly (minus its comment header), for straight-line, branch, spill, and xmm programs.
+// CEP:ID: JIT-l75
 // CEP:WHAT: Tests bytes-versus-text equivalence.
 // CEP:WHY: The encoder and the text emitter must render the same program; the decoder is the mechanical bridge.
 // CEP:STATUS: complete
@@ -421,6 +425,7 @@ fn spilled_program_decodes() {
 }
 
 /// Differential test: assembling the text emitter's output with GNU as produces exactly the encoder's bytes.
+// CEP:ID: JIT-527
 // CEP:WHAT: Runs the gas differential test.
 // CEP:WHY: An independent assembler is the strongest oracle for the encoder.
 // CEP:STATUS: complete
@@ -471,6 +476,7 @@ fn gas_differential() {
 }
 
 /// Extracts the .text section bytes from an ELF object produced by gas.
+// CEP:ID: JIT-z62
 // CEP:WHAT: Reads a .text section.
 // CEP:WHY: The differential test compares raw section bytes.
 // CEP:STATUS: complete
@@ -505,6 +511,7 @@ fn elf_text_section(obj: &[u8]) -> Vec<u8> {
 }
 
 /// Builds a chain program: values feed a wide consumer, forcing pressure and spills at higher widths.
+// CEP:ID: JIT-e60
 // CEP:WHAT: Builds a chain program.
 // CEP:WHY: Shared fixture for pressure, decode, and differential tests.
 // CEP:STATUS: complete
@@ -598,6 +605,7 @@ fn chain_program(name: &str, values: usize) -> MFunction {
 }
 
 /// Builds a counted loop program.
+// CEP:ID: JIT-z70
 // CEP:WHAT: Builds a loop program.
 // CEP:WHY: Branch fixpoint and loop execution coverage.
 // CEP:STATUS: complete
@@ -685,6 +693,7 @@ fn loop_program() -> MFunction {
 }
 
 /// Builds an xmm program: arg0 * arg1 + arg0.
+// CEP:ID: JIT-170
 // CEP:WHAT: Builds an xmm program.
 // CEP:WHY: SSE encoding coverage.
 // CEP:STATUS: complete
@@ -753,6 +762,7 @@ fn xmm_program() -> MFunction {
 }
 
 /// Compile() returns labels and relocation-free internal calls resolve; external calls produce relocations.
+// CEP:ID: JIT-674
 // CEP:WHAT: Tests call relocations.
 // CEP:WHY: The object emitter consumes exactly these relocations.
 // CEP:STATUS: complete

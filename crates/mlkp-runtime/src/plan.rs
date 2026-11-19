@@ -232,6 +232,7 @@ impl KernelPlan {
 }
 
 /// Lowers a verified, shape-concrete graph into a kernel plan under one schedule.
+// CEP:ID: JIT-t26
 // CEP:WHAT: Lowers one graph into a kernel plan.
 // CEP:WHY: This is the backend compilation step the design's Stage 5 names; the config parameterization is what the search space varies.
 // CEP:STATUS: complete
@@ -479,6 +480,7 @@ fn reduction_extent(input: &u32, graph: &Graph) -> Result<u64, PlanError> {
 
 impl KernelPlan {
     /// The validation airlock: proves every kernel invariant before execution.
+    // CEP:ID: JIT-084
     // CEP:WHAT: Proves plan invariants before the hot path runs.
     // CEP:WHY: Standard chapter 64.2: validate once at the airlock so kernels carry debug asserts only; this is the single enforcement point, covering extents, tile legality, and per-operation buffer disjointness.
     // CEP:STATUS: complete

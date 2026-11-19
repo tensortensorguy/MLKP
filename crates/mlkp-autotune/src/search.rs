@@ -101,6 +101,7 @@ struct SessionState<'e> {
 }
 
 /// Runs the four-phase search over a prepared context.
+// CEP:ID: JIT-o90
 // CEP:WHAT: Runs the four-phase search under a budget.
 // CEP:WHY: The phases implement design section VI; the context object keeps the evaluator and keys together so the signature stays readable.
 // CEP:STATUS: complete
@@ -362,6 +363,7 @@ fn diverse_probe(candidates: &[Candidate], probe: usize) -> Vec<Candidate> {
     crate::pruner::diverse_subset(candidates, probe)
 }
 
+// CEP:ID: JIT-a17
 // CEP:WHAT: Deduplication key of one candidate's schedule.
 // CEP:WHY: The probe removal and mutant dedup need a stable, total key per schedule.
 // CEP:STATUS: complete
@@ -400,6 +402,7 @@ pub struct SearchContext<'e> {
     pub evaluate: Evaluator<'e>,
 }
 
+// CEP:ID: JIT-s37
 // CEP:WHAT: Generates distinct mutation neighbors of one candidate.
 // CEP:WHY: Phase 3 explores local neighborhoods of the incumbent (design Phase 3); distinctness keeps every mutant a fresh measurement.
 // CEP:STATUS: complete

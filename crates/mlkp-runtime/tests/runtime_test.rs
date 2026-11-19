@@ -14,6 +14,7 @@ use mlkp_runtime::{
 };
 use mlkp_tensor::{DimExpr, ElemKind, MapFn, TensorType};
 
+// CEP:ID: JIT-z19
 // CEP:WHAT: Verifies unary and binary kernel numerics.
 // CEP:WHY: The kernels are the ground truth the shadow correctness check compares against.
 // CEP:STATUS: complete
@@ -95,6 +96,7 @@ fn matmul_tiled_matches_reference() {
     }
 }
 
+// CEP:ID: JIT-l90
 // CEP:WHAT: Lowers the canonical graph and executes it end to end.
 // CEP:WHY: The plan pipeline is the compilation result every candidate produces.
 // CEP:STATUS: complete
@@ -252,6 +254,7 @@ fn measurement_statistics_behave() {
     assert!(loud.mean > m.mean, "sleeping closure must measure slower");
 }
 
+// CEP:ID: JIT-a35
 // CEP:WHAT: Verifies the scheduled matmul variants compute the same values.
 // CEP:WHY: The search space varies loop order and the B access pattern; every schedule must be a correct matmul or the autotuner optimizes against wrong ground truth.
 // CEP:STATUS: complete
@@ -302,6 +305,7 @@ fn matmul_schedules_match_reference() {
     }
 }
 
+// CEP:ID: JIT-h25
 // CEP:WHAT: Verifies the thread-chunked matmul matches the single-threaded one.
 // CEP:WHY: The worker dimension must change execution without changing results.
 // CEP:STATUS: complete
@@ -398,6 +402,7 @@ fn airlock_rejects_overlapping_op_buffers() {
     assert!(plan.validate().is_err(), "src == dst must be rejected");
 }
 
+// CEP:ID: JIT-s83
 // CEP:WHAT: Verifies the airlock rejects unexecutable schedule configurations.
 // CEP:WHY: A loop order or thread count outside the executable set would make the cost claims false.
 // CEP:STATUS: complete

@@ -14,6 +14,7 @@ use crate::lex::Lexed;
 use crate::report::Finding;
 
 /// Runs the banned-token rule over one scanned file.
+// CEP:ID: CS-m79
 // CEP:WHAT: Runs the banned-token rule over one scanned file.
 // CEP:WHY: Cycle-exact classes must be free of allocation and dispatch constructs; the class is read from the file header and only matching classes are token-scanned.
 // CEP:STATUS: complete

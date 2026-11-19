@@ -13,6 +13,7 @@
 use crate::graph::{Graph, Node};
 
 /// Merges structurally identical nodes in place, redirecting consumers to the survivor.
+// CEP:ID: JIT-k65
 // CEP:WHAT: Merges identical computations.
 // CEP:WHY: Two identical subtrees evaluate identically; merging halves kernel work.
 // CEP:STATUS: complete

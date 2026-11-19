@@ -270,6 +270,7 @@ impl TensorOp {
     }
 
     /// Folds the operation into a hasher.
+    // CEP:ID: JIT-567
     // CEP:WHAT: Folds the operation into a hasher.
     // CEP:WHY: Subgraph fingerprints include operation payloads, not just names.
     // CEP:STATUS: complete

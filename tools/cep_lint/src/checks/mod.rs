@@ -20,8 +20,16 @@ pub mod macros;
 pub mod numeric;
 /// Region-scoped pattern checks.
 pub mod regex_checks;
+/// Rosetta documentation tree policy (registry, tiers, inquisition).
+pub mod rosetta;
 /// Comment block schema checks.
 pub mod schema;
+/// Secret-shaped content probe.
+pub mod secrets;
+/// File topology policy (atomic-file limits and junk-drawer names).
+pub mod topology;
+/// Unsafe-code documentation policy.
+pub mod unsafe_doc;
 
 use crate::config::RuleConfig;
 use crate::lex::Lexed;
@@ -209,6 +217,11 @@ pub fn run(rule: &RuleConfig, file: &str, lexed: &Lexed) -> Vec<Finding> {
         "hunter_manifest" => Vec::new(),
         // Document-level rule; the scan driver invokes doc_sync::run_doc_sync separately.
         "doc_rule_coverage" => Vec::new(),
+        // Tree-level rule; the scan driver invokes rosetta::run_rosetta separately.
+        "rosetta_policy" => Vec::new(),
+        "file_topology_policy" => topology::file_topology_policy(rule, file, lexed),
+        "secret_probe_policy" => secrets::secret_probe_policy(rule, file, lexed),
+        "unsafe_doc_policy" => unsafe_doc::unsafe_doc_policy(rule, file, lexed),
         _ => Vec::new(),
     }
 }

@@ -229,6 +229,7 @@ impl Pruner {
     }
 
     /// Layer 4: similarity pruning with enforced diversity.
+    // CEP:ID: JIT-v76
     // CEP:WHAT: Applies Layer 4.
     // CEP:WHY: Candidates within epsilon of an evaluated one inherit that neighbor's interpolated result instead of consuming a fresh evaluation; the surviving list is what later layers and the search see (design Layer 4 and fix 3).
     // CEP:STATUS: complete
@@ -464,6 +465,7 @@ impl CostModel {
         self.hw_hint = hw_hash;
     }
 
+    // CEP:ID: JIT-842
     // CEP:WHAT: Refits the ridge weights from the sample buffer.
     // CEP:WHY: A small closed-form ridge per feature keeps the model stable without matrix machinery.
     // CEP:STATUS: complete
@@ -490,6 +492,7 @@ impl CostModel {
     }
 
     /// Cost-model residual standard deviation over the training buffer.
+    // CEP:ID: JIT-395
     // CEP:WHAT: Computes the residual spread.
     // CEP:WHY: The acquisition bonus of Phase 2 scales with what the model cannot yet explain.
     // CEP:STATUS: complete
@@ -530,6 +533,7 @@ impl CostModel {
         var_fit.max(var_raw * 0.1).sqrt()
     }
 
+    // CEP:ID: JIT-874
     // CEP:WHAT: Detects degraded correlation and retrains.
     // CEP:WHY: The pruner's own learning: predictions that stop correlating with outcomes must trigger retraining.
     // CEP:STATUS: complete

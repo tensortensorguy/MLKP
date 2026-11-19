@@ -83,6 +83,7 @@ pub fn hardware_profile_hash() -> u64 {
 }
 
 /// Autotunes one graph and returns the winning compiled plan.
+// CEP:ID: JIT-b89
 // CEP:WHAT: Runs the JIT compilation lifecycle.
 // CEP:WHY: This is the design's core loop: observe, predict, search, measure, learn, repeat. The cache-hit path reuses the previous winner's schedule through hash reconstruction, and hot paths re-run the full search once the execution count crosses the trigger.
 // CEP:STATUS: complete

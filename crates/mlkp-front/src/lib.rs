@@ -163,6 +163,7 @@ impl<'a> Parser<'a> {
         out
     }
 
+    // CEP:ID: JIT-b82
     // CEP:WHAT: Interns a dimension symbol or parses a constant.
     // CEP:WHY: Shape symbols like M map to stable DimExpr ids reused across parameters.
     // CEP:STATUS: complete
@@ -240,6 +241,7 @@ impl<'a> Parser<'a> {
         Ok(DimExpr::Sym(self.symbol_table.len() as u32))
     }
 
+    // CEP:ID: JIT-l61
     // CEP:WHAT: Parses a type like f32[M,K].
     // CEP:WHY: Parameter and output declarations share one type grammar.
     // CEP:STATUS: complete
@@ -338,6 +340,7 @@ impl<'a> Parser<'a> {
             .map(|(_, id)| *id)
     }
 
+    // CEP:ID: JIT-974
     // CEP:WHAT: Parses the whole function.
     // CEP:WHY: The top-level grammar production.
     // CEP:STATUS: complete
@@ -562,6 +565,7 @@ impl<'a> Parser<'a> {
         })
     }
 
+    // CEP:ID: JIT-k57
     // CEP:WHAT: Parses one assignment statement.
     // CEP:WHY: Statements are the only statement-level grammar production.
     // CEP:STATUS: complete
@@ -679,6 +683,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    // CEP:ID: JIT-o18
     // CEP:WHAT: Infers the result type of one statement.
     // CEP:WHY: The heterogeneous IR carries types; matmul and elementwise chains have simple shape functions here.
     // CEP:STATUS: complete

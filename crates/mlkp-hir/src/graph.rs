@@ -300,6 +300,7 @@ impl Graph {
     }
 }
 
+// CEP:ID: JIT-785
 // CEP:WHAT: Folds one node's operation, device, and type into a hasher.
 // CEP:WHY: Shared by the graph hash and the CSE structural hash so their semantics cannot drift.
 // CEP:STATUS: complete

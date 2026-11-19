@@ -15,6 +15,7 @@ use crate::re;
 use crate::report::Finding;
 
 /// Applies a configured pattern to comment text with an optional suppression pattern.
+// CEP:ID: CS-r54
 // CEP:WHAT: Applies a configured pattern to comment text with an optional suppression pattern.
 // CEP:WHY: The comment-scoped rules (work markers, declared statuses, commented-out code) share one region and one semantics.
 // CEP:STATUS: complete
@@ -103,6 +104,7 @@ pub fn string_literal_regex(rule: &RuleConfig, file: &str, lexed: &Lexed) -> Vec
 }
 
 /// Applies a configured pattern to the flattened masked code with optional name validation.
+// CEP:ID: CS-v51
 // CEP:WHAT: Applies a configured pattern to the flattened masked code with optional capture-based name validation.
 // CEP:WHY: Whole-file structural rules (EMPTY-CATCH, EMPTY-BRANCH, NAMING-TYPE) need cross-line scanning with positions mapped back to source lines.
 // CEP:STATUS: complete

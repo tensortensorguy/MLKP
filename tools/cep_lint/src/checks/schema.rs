@@ -25,6 +25,7 @@ pub fn comment_block_schema(rule: &RuleConfig, file: &str, lexed: &Lexed) -> Vec
     }
 }
 
+// CEP:ID: CS-281
 // CEP:WHAT: Validates the first contiguous full-line comment block as a file header.
 // CEP:WHY: Section 35 requires CEP:FILE, WHAT, WHY, CLASS, STATUS, FAILURE, ASSUMES, COST, EVIDENCE at the top of every first-party file, with a declared conformance class.
 // CEP:STATUS: complete

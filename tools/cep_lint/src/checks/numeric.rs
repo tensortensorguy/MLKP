@@ -18,6 +18,7 @@ use crate::report::Finding;
 const STATEMENT_WINDOW: usize = 12;
 
 /// Runs the magic-number rule over one scanned file.
+// CEP:ID: CS-227
 // CEP:WHAT: Runs the magic-number rule over one scanned file.
 // CEP:WHY: Law 7 bans silent magic numbers; literals outside the allow-list must sit in sanctioned statement contexts evaluated over the joined statement text.
 // CEP:STATUS: complete
@@ -103,6 +104,7 @@ fn tuple_field_index(code: &[char], dot: usize) -> bool {
     false
 }
 
+// CEP:ID: CS-n76
 // CEP:WHAT: Extracts the literal token starting at col with prefix, digits, underscores, and suffix.
 // CEP:WHY: The token text is needed for numeric comparison and reporting.
 // CEP:STATUS: complete
@@ -201,6 +203,7 @@ fn parse_value(text: &str) -> Option<f64> {
     cleaned.parse::<f64>().ok()
 }
 
+// CEP:ID: CS-l47
 // CEP:WHAT: Builds the joined statement text around an occurrence, bounded to twelve lines.
 // CEP:WHY: Section 50.3 defines the exemption context as the joined statement text.
 // CEP:STATUS: complete

@@ -12,6 +12,7 @@ use mlkp_front::parse_program;
 
 const MATMUL_RELU: &str = "fn @net(%a: f32[M,K], %b: f32[K,N]) -> f32[M,N] {\n  %t = matmul(%a, %b)\n  %r = relu(%t)\n  return %r\n}\n";
 
+// CEP:ID: JIT-v55
 // CEP:WHAT: Parses the canonical matmul-relu program end to end.
 // CEP:WHY: The happy path guards signature, statement, and return parsing at once.
 // CEP:STATUS: complete

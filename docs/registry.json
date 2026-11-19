@@ -1,0 +1,924 @@
+{
+  "functions": [
+    {
+      "id": "CS-081",
+      "file": "crates/cep-json/src/parse.rs",
+      "line": 362
+    },
+    {
+      "id": "CS-119",
+      "file": "tools/cep_lint/src/main.rs",
+      "line": 30
+    },
+    {
+      "id": "CS-141",
+      "file": "tools/cep_lint/src/checks/topology.rs",
+      "line": 19
+    },
+    {
+      "id": "CS-177",
+      "file": "tools/cep_lint/src/lex.rs",
+      "line": 49
+    },
+    {
+      "id": "CS-227",
+      "file": "tools/cep_lint/src/checks/numeric.rs",
+      "line": 21
+    },
+    {
+      "id": "CS-281",
+      "file": "tools/cep_lint/src/checks/schema.rs",
+      "line": 28
+    },
+    {
+      "id": "CS-538",
+      "file": "tools/cep_lint/src/receipts.rs",
+      "line": 20
+    },
+    {
+      "id": "CS-599",
+      "file": "crates/cep-json/src/parse.rs",
+      "line": 173
+    },
+    {
+      "id": "CS-645",
+      "file": "tools/cep_lint/src/checks/func_policy.rs",
+      "line": 428
+    },
+    {
+      "id": "CS-716",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 709
+    },
+    {
+      "id": "CS-745",
+      "file": "tools/cep_lint/src/checks/func_policy.rs",
+      "line": 304
+    },
+    {
+      "id": "CS-831",
+      "file": "tools/cep_lint/tests/ed25519_test.rs",
+      "line": 78
+    },
+    {
+      "id": "CS-878",
+      "file": "tools/cep_lint/src/lex.rs",
+      "line": 246
+    },
+    {
+      "id": "CS-931",
+      "file": "tools/cep_lint/src/checks/unsafe_doc.rs",
+      "line": 19
+    },
+    {
+      "id": "CS-938",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 972
+    },
+    {
+      "id": "CS-999",
+      "file": "tools/cep_lint/src/receipts.rs",
+      "line": 199
+    },
+    {
+      "id": "CS-a49",
+      "file": "tools/cep_lint/src/re.rs",
+      "line": 198
+    },
+    {
+      "id": "CS-b20",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 799
+    },
+    {
+      "id": "CS-b38",
+      "file": "tools/cep_lint/src/checks/func_policy.rs",
+      "line": 55
+    },
+    {
+      "id": "CS-c85",
+      "file": "crates/cep-json/src/parse.rs",
+      "line": 249
+    },
+    {
+      "id": "CS-d24",
+      "file": "tools/cep_lint/src/checks/doc_sync.rs",
+      "line": 19
+    },
+    {
+      "id": "CS-e32",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 104
+    },
+    {
+      "id": "CS-f53",
+      "file": "tools/cep_lint/src/checks/func_policy.rs",
+      "line": 196
+    },
+    {
+      "id": "CS-f64",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 274
+    },
+    {
+      "id": "CS-h21",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 1121
+    },
+    {
+      "id": "CS-k29",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 239
+    },
+    {
+      "id": "CS-l47",
+      "file": "tools/cep_lint/src/checks/numeric.rs",
+      "line": 206
+    },
+    {
+      "id": "CS-l54",
+      "file": "tools/cep_lint/src/sha512.rs",
+      "line": 143
+    },
+    {
+      "id": "CS-l68",
+      "file": "crates/cep-json/src/write.rs",
+      "line": 42
+    },
+    {
+      "id": "CS-m54",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 575
+    },
+    {
+      "id": "CS-m79",
+      "file": "tools/cep_lint/src/checks/banned.rs",
+      "line": 17
+    },
+    {
+      "id": "CS-n25",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 735
+    },
+    {
+      "id": "CS-n50",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 215
+    },
+    {
+      "id": "CS-n76",
+      "file": "tools/cep_lint/src/checks/numeric.rs",
+      "line": 107
+    },
+    {
+      "id": "CS-n90",
+      "file": "tools/cep_lint/src/checks/func_policy.rs",
+      "line": 139
+    },
+    {
+      "id": "CS-p79",
+      "file": "tools/cep_lint/src/re.rs",
+      "line": 561
+    },
+    {
+      "id": "CS-q51",
+      "file": "tools/cep_lint/src/re.rs",
+      "line": 657
+    },
+    {
+      "id": "CS-r29",
+      "file": "tools/cep_lint/src/re.rs",
+      "line": 461
+    },
+    {
+      "id": "CS-r54",
+      "file": "tools/cep_lint/src/checks/regex_checks.rs",
+      "line": 18
+    },
+    {
+      "id": "CS-r90",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 1005
+    },
+    {
+      "id": "CS-r94",
+      "file": "tools/cep_lint/src/config.rs",
+      "line": 170
+    },
+    {
+      "id": "CS-s11",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 945
+    },
+    {
+      "id": "CS-s19",
+      "file": "tools/cep_lint/src/checks/rosetta.rs",
+      "line": 37
+    },
+    {
+      "id": "CS-t29",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 639
+    },
+    {
+      "id": "CS-t98",
+      "file": "tools/cep_lint/src/checks/func_policy.rs",
+      "line": 264
+    },
+    {
+      "id": "CS-v19",
+      "file": "tools/cep_lint/src/sha512.rs",
+      "line": 114
+    },
+    {
+      "id": "CS-v37",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 483
+    },
+    {
+      "id": "CS-v51",
+      "file": "tools/cep_lint/src/checks/regex_checks.rs",
+      "line": 107
+    },
+    {
+      "id": "CS-v73",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 147
+    },
+    {
+      "id": "CS-w55",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 883
+    },
+    {
+      "id": "CS-x19",
+      "file": "tools/cep_lint/src/ed25519.rs",
+      "line": 662
+    },
+    {
+      "id": "CS-x66",
+      "file": "tools/cep_lint/tests/ed25519_test.rs",
+      "line": 113
+    },
+    {
+      "id": "CS-x95",
+      "file": "crates/cep-json/src/parse.rs",
+      "line": 218
+    },
+    {
+      "id": "JIT-023",
+      "file": "crates/mlkp-machine/src/irc/interference.rs",
+      "line": 144
+    },
+    {
+      "id": "JIT-037",
+      "file": "crates/mlkp-machine/src/emit.rs",
+      "line": 142
+    },
+    {
+      "id": "JIT-070",
+      "file": "crates/mlkp-machine/src/encode/frame.rs",
+      "line": 56
+    },
+    {
+      "id": "JIT-084",
+      "file": "crates/mlkp-runtime/src/plan.rs",
+      "line": 483
+    },
+    {
+      "id": "JIT-088",
+      "file": "crates/mlkp-autotune/src/pgo.rs",
+      "line": 213
+    },
+    {
+      "id": "JIT-170",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 696
+    },
+    {
+      "id": "JIT-199",
+      "file": "crates/mlkp-machine/tests/common/mod.rs",
+      "line": 263
+    },
+    {
+      "id": "JIT-223",
+      "file": "crates/mlkp-machine/src/isa/decode.rs",
+      "line": 167
+    },
+    {
+      "id": "JIT-248",
+      "file": "crates/mlkp-machine/src/decode/sse.rs",
+      "line": 17
+    },
+    {
+      "id": "JIT-263",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 583
+    },
+    {
+      "id": "JIT-266",
+      "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
+      "line": 69
+    },
+    {
+      "id": "JIT-295",
+      "file": "crates/mlkp-tensor/tests/tensor_test.rs",
+      "line": 128
+    },
+    {
+      "id": "JIT-348",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 99
+    },
+    {
+      "id": "JIT-377",
+      "file": "crates/mlkp-machine/src/emit.rs",
+      "line": 318
+    },
+    {
+      "id": "JIT-384",
+      "file": "crates/mlkp-tensor/tests/tensor_test.rs",
+      "line": 188
+    },
+    {
+      "id": "JIT-388",
+      "file": "crates/mlkp-machine/src/isa/decode.rs",
+      "line": 372
+    },
+    {
+      "id": "JIT-395",
+      "file": "crates/mlkp-autotune/src/pruner.rs",
+      "line": 495
+    },
+    {
+      "id": "JIT-420",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 265
+    },
+    {
+      "id": "JIT-456",
+      "file": "crates/mlkp-machine/src/emit.rs",
+      "line": 45
+    },
+    {
+      "id": "JIT-467",
+      "file": "crates/mlkp-tensor/src/shapes.rs",
+      "line": 224
+    },
+    {
+      "id": "JIT-527",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 428
+    },
+    {
+      "id": "JIT-567",
+      "file": "crates/mlkp-tensor/src/ops.rs",
+      "line": 273
+    },
+    {
+      "id": "JIT-574",
+      "file": "crates/mlkp-hir/tests/hir_test.rs",
+      "line": 191
+    },
+    {
+      "id": "JIT-581",
+      "file": "crates/mlkp-machine/src/encode/operand.rs",
+      "line": 82
+    },
+    {
+      "id": "JIT-592",
+      "file": "crates/mlkp-machine/tests/object_test.rs",
+      "line": 254
+    },
+    {
+      "id": "JIT-634",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 330
+    },
+    {
+      "id": "JIT-674",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 765
+    },
+    {
+      "id": "JIT-699",
+      "file": "crates/mlkp-machine/src/decode/reader.rs",
+      "line": 81
+    },
+    {
+      "id": "JIT-738",
+      "file": "crates/mlkp-tensor/tests/tensor_test.rs",
+      "line": 239
+    },
+    {
+      "id": "JIT-742",
+      "file": "crates/mlkp-machine/tests/irc_test.rs",
+      "line": 215
+    },
+    {
+      "id": "JIT-778",
+      "file": "crates/mlkp-spirv/tests/spirv_test.rs",
+      "line": 250
+    },
+    {
+      "id": "JIT-785",
+      "file": "crates/mlkp-hir/src/graph.rs",
+      "line": 303
+    },
+    {
+      "id": "JIT-796",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 187
+    },
+    {
+      "id": "JIT-842",
+      "file": "crates/mlkp-autotune/src/pruner.rs",
+      "line": 468
+    },
+    {
+      "id": "JIT-853",
+      "file": "crates/mlkp-machine/src/irc/coalesce.rs",
+      "line": 18
+    },
+    {
+      "id": "JIT-874",
+      "file": "crates/mlkp-autotune/src/pruner.rs",
+      "line": 536
+    },
+    {
+      "id": "JIT-974",
+      "file": "crates/mlkp-front/src/lib.rs",
+      "line": 343
+    },
+    {
+      "id": "JIT-a17",
+      "file": "crates/mlkp-autotune/src/search.rs",
+      "line": 366
+    },
+    {
+      "id": "JIT-a24",
+      "file": "crates/mlkp-machine/src/isa/decode.rs",
+      "line": 589
+    },
+    {
+      "id": "JIT-a35",
+      "file": "crates/mlkp-runtime/tests/runtime_test.rs",
+      "line": 257
+    },
+    {
+      "id": "JIT-b35",
+      "file": "crates/mlkp/tests/lifecycle_test.rs",
+      "line": 118
+    },
+    {
+      "id": "JIT-b56",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 274
+    },
+    {
+      "id": "JIT-b67",
+      "file": "crates/mlkp-machine/tests/irc_test.rs",
+      "line": 120
+    },
+    {
+      "id": "JIT-b82",
+      "file": "crates/mlkp-front/src/lib.rs",
+      "line": 166
+    },
+    {
+      "id": "JIT-b89",
+      "file": "crates/mlkp-autotune/src/driver.rs",
+      "line": 86
+    },
+    {
+      "id": "JIT-b96",
+      "file": "crates/mlkp-spirv/src/emit/insn.rs",
+      "line": 15
+    },
+    {
+      "id": "JIT-c31",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 236
+    },
+    {
+      "id": "JIT-c46",
+      "file": "crates/mlkp-machine/tests/isa_exec_test.rs",
+      "line": 163
+    },
+    {
+      "id": "JIT-d28",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 255
+    },
+    {
+      "id": "JIT-d42",
+      "file": "crates/mlkp-tensor/tests/tensor_test.rs",
+      "line": 100
+    },
+    {
+      "id": "JIT-d78",
+      "file": "crates/mlkp-machine/src/irc/rewrite.rs",
+      "line": 23
+    },
+    {
+      "id": "JIT-d82",
+      "file": "crates/mlkp-machine/src/encode/insn.rs",
+      "line": 443
+    },
+    {
+      "id": "JIT-e46",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 144
+    },
+    {
+      "id": "JIT-e60",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 514
+    },
+    {
+      "id": "JIT-e93",
+      "file": "crates/mlkp-machine/tests/common/mod.rs",
+      "line": 340
+    },
+    {
+      "id": "JIT-f17",
+      "file": "crates/mlkp-spirv/src/emit/ids.rs",
+      "line": 39
+    },
+    {
+      "id": "JIT-f24",
+      "file": "crates/mlkp-machine/src/decode/render.rs",
+      "line": 16
+    },
+    {
+      "id": "JIT-f50",
+      "file": "crates/mlkp-machine/tests/exec_test.rs",
+      "line": 446
+    },
+    {
+      "id": "JIT-f60",
+      "file": "crates/mlkp-hir/tests/hir_test.rs",
+      "line": 14
+    },
+    {
+      "id": "JIT-f78",
+      "file": "crates/mlkp-machine/src/isa/render.rs",
+      "line": 75
+    },
+    {
+      "id": "JIT-f86",
+      "file": "crates/mlkp-machine/src/object.rs",
+      "line": 376
+    },
+    {
+      "id": "JIT-f89",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 324
+    },
+    {
+      "id": "JIT-g53",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 486
+    },
+    {
+      "id": "JIT-g79",
+      "file": "crates/mlkp/src/lib.rs",
+      "line": 122
+    },
+    {
+      "id": "JIT-h14",
+      "file": "crates/mlkp-autotune/tests/autotune_test.rs",
+      "line": 188
+    },
+    {
+      "id": "JIT-h25",
+      "file": "crates/mlkp-runtime/tests/runtime_test.rs",
+      "line": 308
+    },
+    {
+      "id": "JIT-h57",
+      "file": "crates/mlkp-machine/src/isa/decode.rs",
+      "line": 238
+    },
+    {
+      "id": "JIT-h82",
+      "file": "crates/mlkp-machine/src/encode/bytes.rs",
+      "line": 537
+    },
+    {
+      "id": "JIT-h93",
+      "file": "crates/mlkp-machine/src/irc/liveness.rs",
+      "line": 15
+    },
+    {
+      "id": "JIT-i46",
+      "file": "crates/mlkp-machine/tests/common/mod.rs",
+      "line": 156
+    },
+    {
+      "id": "JIT-i50",
+      "file": "crates/mlkp-hir/src/verify.rs",
+      "line": 25
+    },
+    {
+      "id": "JIT-i79",
+      "file": "crates/mlkp-machine/tests/object_test.rs",
+      "line": 17
+    },
+    {
+      "id": "JIT-i82",
+      "file": "crates/mlkp-machine/tests/object_test.rs",
+      "line": 89
+    },
+    {
+      "id": "JIT-i90",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 637
+    },
+    {
+      "id": "JIT-k18",
+      "file": "crates/mlkp-machine/src/encode/operand.rs",
+      "line": 169
+    },
+    {
+      "id": "JIT-k50",
+      "file": "crates/mlkp-machine/src/encode/bytes.rs",
+      "line": 198
+    },
+    {
+      "id": "JIT-k54",
+      "file": "crates/mlkp-machine/tests/irc_test.rs",
+      "line": 249
+    },
+    {
+      "id": "JIT-k57",
+      "file": "crates/mlkp-front/src/lib.rs",
+      "line": 568
+    },
+    {
+      "id": "JIT-k65",
+      "file": "crates/mlkp-hir/src/passes/cse.rs",
+      "line": 16
+    },
+    {
+      "id": "JIT-k68",
+      "file": "crates/mlkp-machine/src/decode/insn.rs",
+      "line": 20
+    },
+    {
+      "id": "JIT-l36",
+      "file": "crates/mlkp-spirv/src/emit/mod.rs",
+      "line": 87
+    },
+    {
+      "id": "JIT-l61",
+      "file": "crates/mlkp-front/src/lib.rs",
+      "line": 244
+    },
+    {
+      "id": "JIT-l75",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 368
+    },
+    {
+      "id": "JIT-l90",
+      "file": "crates/mlkp-runtime/tests/runtime_test.rs",
+      "line": 99
+    },
+    {
+      "id": "JIT-m18",
+      "file": "crates/mlkp-autotune/src/pgo.rs",
+      "line": 130
+    },
+    {
+      "id": "JIT-m25",
+      "file": "crates/mlkp/tests/lifecycle_test.rs",
+      "line": 18
+    },
+    {
+      "id": "JIT-m43",
+      "file": "crates/mlkp-machine/tests/object_test.rs",
+      "line": 116
+    },
+    {
+      "id": "JIT-m68",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 182
+    },
+    {
+      "id": "JIT-n83",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 115
+    },
+    {
+      "id": "JIT-n97",
+      "file": "crates/mlkp-machine/tests/isa_exec_test.rs",
+      "line": 194
+    },
+    {
+      "id": "JIT-o11",
+      "file": "crates/mlkp-machine/tests/common/mod.rs",
+      "line": 73
+    },
+    {
+      "id": "JIT-o18",
+      "file": "crates/mlkp-front/src/lib.rs",
+      "line": 686
+    },
+    {
+      "id": "JIT-o47",
+      "file": "crates/mlkp-machine/tests/exec_test.rs",
+      "line": 147
+    },
+    {
+      "id": "JIT-o76",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 71
+    },
+    {
+      "id": "JIT-o90",
+      "file": "crates/mlkp-autotune/src/search.rs",
+      "line": 104
+    },
+    {
+      "id": "JIT-p69",
+      "file": "crates/mlkp-machine/tests/object_test.rs",
+      "line": 197
+    },
+    {
+      "id": "JIT-q40",
+      "file": "crates/mlkp-machine/tests/exec_test.rs",
+      "line": 349
+    },
+    {
+      "id": "JIT-q42",
+      "file": "crates/mlkp/src/bin/mlkpc.rs",
+      "line": 26
+    },
+    {
+      "id": "JIT-q72",
+      "file": "crates/mlkp-autotune/src/pgo.rs",
+      "line": 418
+    },
+    {
+      "id": "JIT-r40",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 325
+    },
+    {
+      "id": "JIT-r98",
+      "file": "crates/mlkp-hir/tests/hir_test.rs",
+      "line": 149
+    },
+    {
+      "id": "JIT-s37",
+      "file": "crates/mlkp-autotune/src/search.rs",
+      "line": 405
+    },
+    {
+      "id": "JIT-s47",
+      "file": "crates/mlkp-machine/src/isa/decode.rs",
+      "line": 115
+    },
+    {
+      "id": "JIT-s73",
+      "file": "crates/mlkp-machine/src/encode/insn.rs",
+      "line": 585
+    },
+    {
+      "id": "JIT-s76",
+      "file": "crates/mlkp-autotune/tests/autotune_test.rs",
+      "line": 56
+    },
+    {
+      "id": "JIT-s83",
+      "file": "crates/mlkp-runtime/tests/runtime_test.rs",
+      "line": 405
+    },
+    {
+      "id": "JIT-s87",
+      "file": "crates/mlkp-spirv/tests/spirv_test.rs",
+      "line": 200
+    },
+    {
+      "id": "JIT-t26",
+      "file": "crates/mlkp-runtime/src/plan.rs",
+      "line": 235
+    },
+    {
+      "id": "JIT-t83",
+      "file": "crates/mlkp-machine/src/object.rs",
+      "line": 167
+    },
+    {
+      "id": "JIT-t91",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 21
+    },
+    {
+      "id": "JIT-u19",
+      "file": "crates/mlkp-machine/src/encode/bytes.rs",
+      "line": 45
+    },
+    {
+      "id": "JIT-u40",
+      "file": "crates/mlkp-hir/src/verify.rs",
+      "line": 167
+    },
+    {
+      "id": "JIT-u48",
+      "file": "crates/mlkp-runtime/src/kernels.rs",
+      "line": 143
+    },
+    {
+      "id": "JIT-u58",
+      "file": "crates/mlkp-machine/tests/exec_test.rs",
+      "line": 254
+    },
+    {
+      "id": "JIT-u87",
+      "file": "crates/mlkp-machine/tests/isa_test.rs",
+      "line": 392
+    },
+    {
+      "id": "JIT-v55",
+      "file": "crates/mlkp-front/tests/front_test.rs",
+      "line": 15
+    },
+    {
+      "id": "JIT-v58",
+      "file": "crates/mlkp-hir/src/passes/algebraic.rs",
+      "line": 41
+    },
+    {
+      "id": "JIT-v76",
+      "file": "crates/mlkp-autotune/src/pruner.rs",
+      "line": 232
+    },
+    {
+      "id": "JIT-v80",
+      "file": "crates/mlkp-machine/src/encode/insn.rs",
+      "line": 27
+    },
+    {
+      "id": "JIT-w62",
+      "file": "crates/mlkp-spirv/src/emit/verify.rs",
+      "line": 16
+    },
+    {
+      "id": "JIT-w66",
+      "file": "crates/mlkp-machine/src/object.rs",
+      "line": 232
+    },
+    {
+      "id": "JIT-w91",
+      "file": "crates/mlkp-machine/src/encode/mod.rs",
+      "line": 109
+    },
+    {
+      "id": "JIT-x48",
+      "file": "crates/mlkp-runtime/src/timing.rs",
+      "line": 107
+    },
+    {
+      "id": "JIT-x59",
+      "file": "crates/mlkp-machine/src/decode/mod.rs",
+      "line": 175
+    },
+    {
+      "id": "JIT-x62",
+      "file": "crates/mlkp/tests/lifecycle_test.rs",
+      "line": 78
+    },
+    {
+      "id": "JIT-y37",
+      "file": "crates/mlkp/src/lib.rs",
+      "line": 63
+    },
+    {
+      "id": "JIT-y52",
+      "file": "crates/mlkp-autotune/tests/autotune_test.rs",
+      "line": 234
+    },
+    {
+      "id": "JIT-z19",
+      "file": "crates/mlkp-runtime/tests/runtime_test.rs",
+      "line": 17
+    },
+    {
+      "id": "JIT-z62",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 479
+    },
+    {
+      "id": "JIT-z70",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 608
+    },
+    {
+      "id": "JIT-z77",
+      "file": "crates/mlkp-spirv/src/emit/verify.rs",
+      "line": 100
+    }
+  ]
+}

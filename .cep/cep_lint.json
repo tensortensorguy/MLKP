@@ -300,6 +300,96 @@
         "public_key_path": "keys/ci_runner.pub",
         "repo_root": ".."
       }
+    },
+    "CEP-LINT-ATOMIC-FILE": {
+      "severity": 1,
+      "check": "file_topology_policy",
+      "message": "atomic-file violation: {detail}",
+      "params": {
+        "class_field": "CEP:CLASS",
+        "line_limits": {
+          "CEP-0": 400,
+          "HPC-0": 400,
+          "RCS-0": 400,
+          "CEP-1": 800,
+          "HPC-1": 800,
+          "RCS-1": 800,
+          "CC": 800,
+          "FFI": 800,
+          "CEP-2": 1200,
+          "HPC-2": 1200,
+          "RCS-2": 1200
+        },
+        "default_limit": 1200,
+        "junk_names": [
+          "util",
+          "helper",
+          "misc",
+          "common"
+        ]
+      }
+    },
+    "CEP-LINT-DOC-ID": {
+      "severity": 1,
+      "check": "function_policy",
+      "mode": "id",
+      "message": "DOC-ID drift: {detail}",
+      "params": {
+        "max_id_statements": 10,
+        "id_pattern": "^(JIT|IR|LEX|FE|MEM|NET|GPU|HOT|CS)-[a-z0-9]+$",
+        "gap_pattern": "^\\s*(#.*)?$"
+      }
+    },
+    "CEP-LINT-DOC-FILE": {
+      "severity": 1,
+      "check": "rosetta_policy",
+      "mode": "registry",
+      "message": "DOC-FILE drift: {detail}",
+      "params": {
+        "registry_path": "../docs/registry.json",
+        "docs_prefix": "../docs/functions"
+      }
+    },
+    "CEP-LINT-DOC-TIERS": {
+      "severity": 1,
+      "check": "rosetta_policy",
+      "mode": "tiers",
+      "message": "DOC-TIERS drift: {detail}",
+      "params": {
+        "docs_prefix": "../docs/functions"
+      }
+    },
+    "CEP-LINT-DOC-INQUISITION": {
+      "severity": 1,
+      "check": "rosetta_policy",
+      "mode": "inquisition",
+      "message": "DOC-INQUISITION drift: {detail}",
+      "params": {
+        "docs_prefix": "../docs/functions"
+      }
+    },
+    "CEP-LINT-SECRET-SCAN": {
+      "severity": 0,
+      "check": "secret_probe_policy",
+      "message": "secret-scan violation: {detail}",
+      "params": {
+        "patterns": [
+          "\\b(password|passwd|secret_key|api_key|apikey|aws_secret_access_key)\\s*[=:]{1,2}\\s*[\"'][^\"']{4,}[\"']",
+          "\\b(password|passwd|secret_key|api_key|apikey|aws_secret_access_key)\\s*=[A-Za-z0-9+/_-]{20,}",
+          "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+          "\\bAKIA[0-9A-Z]{16}\\b"
+        ],
+        "exempt_paths": [],
+        "suppression_pattern": ""
+      }
+    },
+    "CEP-LINT-UNSAFE-DOC": {
+      "severity": 1,
+      "check": "unsafe_doc_policy",
+      "message": "UNSAFE-DOC drift: {detail}",
+      "params": {
+        "exempt_paths": []
+      }
     }
   }
 }

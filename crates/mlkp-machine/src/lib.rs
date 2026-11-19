@@ -20,6 +20,8 @@ pub mod emit;
 pub mod encode;
 /// Liveness, interference, and the IRC allocator.
 pub mod irc;
+/// The general ISA-tier pair: decoder, renderer, assembler (ticket CEP-325).
+pub mod isa;
 /// The Machine IR model.
 pub mod mir;
 /// ELF64 relocatable object emission with evidence hashes.
@@ -33,6 +35,9 @@ pub use encode::{compile, encode, CodeObject, EncodeError, Reloc};
 pub use irc::{
     allocate, block_live_out, build_interference, rewrite_spills, AllocError, Allocation,
     Interference, SpillRewrite,
+};
+pub use isa::{
+    decode_bytes as isa_decode_bytes, render_insn as isa_render_insn, IsaError, IsaInsn, IsaObject,
 };
 pub use mir::{MBlock, MFunction, MInsn, Opcode, Operand, RegClass};
 pub use object::{emit_object, emit_with_evidence, ObjectEvidence};

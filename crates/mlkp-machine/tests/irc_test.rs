@@ -117,6 +117,7 @@ fn irc_spills_when_over_pressured() {
     assert!(!asm.contains("(%rbp)"), "remat folds to immediates only");
 }
 
+// CEP:ID: JIT-b67
 // CEP:WHAT: Verifies computed spilled values get slot homes with folded memory operands, stores, and RMW preloads.
 // CEP:WHY: Values defined by non-copy instructions cannot rematerialize; the rewrite must give them stack slots, fold their uses into rbp-relative memory operands, and route their definitions through stored temporaries (ticket CEP-323).
 // CEP:STATUS: complete
@@ -211,6 +212,7 @@ fn spill_rewrite_uses_slots_for_computed_values() {
     assert_eq!(asm, asm2, "allocation and emission must be deterministic");
 }
 
+// CEP:ID: JIT-742
 // CEP:WHAT: Verifies copy coalescing removes move pairs.
 // CEP:WHY: Coalescing is the optimization engine of IRC, not just assignment.
 // CEP:STATUS: complete
@@ -244,6 +246,7 @@ fn irc_coalesces_copies() {
     assert!(verify_allocation(&f, &alloc, &target).is_ok());
 }
 
+// CEP:ID: JIT-k54
 // CEP:WHAT: Verifies fixed constraints are respected by the allocator and the verifier.
 // CEP:WHY: ABI and instruction constraints are non-negotiable.
 // CEP:STATUS: complete

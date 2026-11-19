@@ -42,6 +42,7 @@ impl std::fmt::Display for EmitError {
 }
 
 /// Renders one function to assembly text.
+// CEP:ID: JIT-456
 // CEP:WHAT: Emits one function.
 // CEP:WHY: Deterministic text is the v1 emission artifact.
 // CEP:STATUS: complete
@@ -138,6 +139,7 @@ fn dst_is_xmm(insn: &crate::mir::MInsn) -> bool {
     })
 }
 
+// CEP:ID: JIT-037
 // CEP:WHAT: Renders one instruction line.
 // CEP:WHY: Shared by the function emitter.
 // CEP:STATUS: complete
@@ -313,6 +315,7 @@ fn render_insn(
 }
 
 /// The allocation verifier: proves every allocation invariant of the design.
+// CEP:ID: JIT-377
 // CEP:WHAT: Verifies one allocation.
 // CEP:WHY: The design requires each allocation to prove non-overlap of interfering live values, class restrictions, fixed constraints, and complete resolution.
 // CEP:STATUS: complete

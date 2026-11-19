@@ -1,76 +1,24 @@
 // CEP:FILE: crates/mlkp-machine/tests/isa_test.rs
-// CEP:WHAT: Conformance tests for the complete scalar ISA expansion: byte-exact fixtures for the logic, shift, division, width-move, three-operand-multiply, memory-destination, conditional-branch, and extended SSE forms, plus execution tests that run encoded kernels through a W^X mapped code cache against Rust references, including a softmax-style floating-point kernel.
-// CEP:WHY: The no-subset expansion touches every backend stage; only execution proves allocation, encoding, and the ABI agree for the new instructions.
+// CEP:WHAT: Conformance tests for the complete scalar ISA expansion: byte-exact fixtures for the logic, shift, division, width-move, three-operand-multiply, memory-destination, conditional-branch, and extended SSE forms, plus the decode equivalence and gas differential tests.
+// CEP:WHY: The no-subset expansion touches every backend stage; byte fixtures prove encodings against gas and execution proves allocation, encoding, and the ABI agree at once.
 // CEP:CLASS: CC
 // CEP:STATUS: complete
-// CEP:FAILURE: Test asserts panic on failure by that is the test's purpose.
+// CEP:FAILURE: Test asserts panic on failure by design; that is the test's purpose.
 // CEP:ASSUMES: Linux x86-64 with anonymous mmap; the SysV ABI; GNU as for the differential test.
 // CEP:COST: cold; not performance-relevant.
 // CEP:EVIDENCE: cargo test -p mlkp-machine.
+
+mod common;
+
+use common::*;
 
 use mlkp_machine::{
     allocate, compile, decode_insns, disassemble, emit, preg, verify_allocation, MFunction, MInsn,
     Opcode, Operand, RegClass, X86_64Target,
 };
 
-/// Builds a one-block function.
-// CEP:WHAT: Builds a one-block fixture.
-// CEP:WHY: Byte fixtures need minimal wrappers.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via expect.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn fn1(name: &str, insns: Vec<MInsn>, classes: Vec<(u32, RegClass)>) -> MFunction {
-    let mut f = MFunction {
-        name: name.to_string(),
-        blocks: Vec::new(),
-        vreg_classes: classes,
-    };
-    f.push_block("entry");
-    for i in insns {
-        f.push_insn(i);
-    }
-    f
-}
-
-/// Registers a virtual register with the function's class table.
-// CEP:WHAT: Registers a vreg class.
-// CEP:WHY: Fixtures accumulate classes as they build operands.
-// CEP:STATUS: complete
-// CEP:FAILURE: none
-// CEP:ASSUMES: none
-// CEP:COST: O(1).
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn gpr(v: u32) -> (u32, RegClass) {
-    (v, RegClass::Gpr64)
-}
-
-/// The prologue bytes for a frame of 48 with no saved registers, and the epilogue.
-// CEP:WHAT: Supplies prologue and epilogue bytes.
-// CEP:WHY: Every fixture shares the same frame shape.
-// CEP:STATUS: complete
-// CEP:FAILURE: none
-// CEP:ASSUMES: the worst-case saved area is 40 bytes, aligned to 48.
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn prologue() -> Vec<u8> {
-    vec![0x55, 0x48, 0x89, 0xE5, 0x48, 0x83, 0xEC, 0x30]
-}
-
-/// The epilogue bytes for no saved registers.
-// CEP:WHAT: Supplies epilogue bytes.
-// CEP:WHY: Shared by fixtures.
-// CEP:STATUS: complete
-// CEP:FAILURE: none
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn epilogue() -> Vec<u8> {
-    vec![0x48, 0x89, 0xEC, 0x5D, 0xC3]
-}
-
 /// Logic forms: register-register 21/09/31, imm8 group forms, the accumulator short form, and 81 for other registers.
+// CEP:ID: JIT-t91
 // CEP:WHAT: Tests logic encodings.
 // CEP:WHY: The shared ALU path must match gas byte for byte in every width.
 // CEP:STATUS: complete
@@ -120,6 +68,7 @@ fn logic_forms_fixture() {
 }
 
 /// Unary and division forms: not, neg, cqo, idiv on a register and on memory.
+// CEP:ID: JIT-o76
 // CEP:WHAT: Tests unary and division encodings.
 // CEP:WHY: The F7 group and cqo are new shapes with fixed implicit registers.
 // CEP:STATUS: complete
@@ -163,6 +112,7 @@ fn unary_div_fixture() {
 }
 
 /// Shift forms: immediate counts and the CL form.
+// CEP:ID: JIT-n83
 // CEP:WHAT: Tests shift encodings.
 // CEP:WHY: The C1/D3 group opcodes and the fixed CL register are new.
 // CEP:STATUS: complete
@@ -234,6 +184,7 @@ fn shift_fixture() {
 }
 
 /// Width moves: zero-extension from bytes and dwords, sign extension, and narrow stores.
+// CEP:ID: JIT-796
 // CEP:WHAT: Tests width-move encodings.
 // CEP:WHY: The 0F B6 and 0F 63 escapes, the no-W 32-bit forms, and the byte-store REX rules are all new.
 // CEP:STATUS: complete
@@ -320,6 +271,7 @@ fn width_move_fixture() {
 }
 
 /// Memory-destination read-modify-write forms for the ALU family.
+// CEP:ID: JIT-b56
 // CEP:WHAT: Tests memory-destination encodings.
 // CEP:WHY: The MR forms with rm=memory complete the two-operand matrix.
 // CEP:STATUS: complete
@@ -370,6 +322,7 @@ fn mem_dst_rmw_fixture() {
 }
 
 /// Three-operand multiply: imm8, imm32, and memory-source forms.
+// CEP:ID: JIT-r40
 // CEP:WHAT: Tests imul3 encodings.
 // CEP:WHY: The destination sits in the reg field for this form, opposite the two-operand family.
 // CEP:STATUS: complete
@@ -436,6 +389,7 @@ fn imul3_fixture() {
 }
 
 /// The complete conditional-branch family in rel8 form, plus one grown to rel32.
+// CEP:ID: JIT-u87
 // CEP:WHAT: Tests the Jcc family.
 // CEP:WHY: All sixteen conditions must map to the right opcode bytes.
 // CEP:STATUS: complete
@@ -529,6 +483,7 @@ fn jcc_family_fixture() {
 }
 
 /// Extended SSE forms: subsd, divsd, sqrtsd, ucomisd, and the conversions.
+// CEP:ID: JIT-g53
 // CEP:WHAT: Tests extended SSE encodings.
 // CEP:WHY: The scalar-double set completes with division, roots, comparisons, and conversions.
 // CEP:STATUS: complete
@@ -592,564 +547,6 @@ fn sse_extended_fixture() {
     assert_eq!(bytes, expected, "extended SSE mismatch");
 }
 
-/// Compiles a function through the full backend and executes it as a C-ABI function.
-// CEP:WHAT: Runs the compile-execute loop.
-// CEP:WHY: Shared by the execution tests.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via expect.
-// CEP:ASSUMES: the function verifies after allocation.
-// CEP:COST: cold.
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-pub mod jit {
-    use std::ffi::c_void;
-
-    /// Minimal mmap surface for the code cache.
-    // CEP:WHAT: Declares mmap FFI.
-    // CEP:WHY: Executes machine bytes without external crates.
-    // CEP:STATUS: complete
-    // CEP:FAILURE: Panics when the kernel refuses the mapping.
-    // CEP:ASSUMES: Linux syscall ABI values.
-    // CEP:COST: one mmap per call.
-    // CEP:EVIDENCE: cargo test -p mlkp-machine
-    mod sys {
-        use std::ffi::c_void;
-        extern "C" {
-            pub fn mmap(
-                addr: *mut c_void,
-                len: usize,
-                prot: i32,
-                flags: i32,
-                fd: i32,
-                offset: i64,
-            ) -> *mut c_void;
-            pub fn mprotect(addr: *mut c_void, len: usize, prot: i32) -> i32;
-            pub fn munmap(addr: *mut c_void, len: usize) -> i32;
-        }
-        /// PROT_READ | PROT_WRITE.
-        pub const PROT_RW: i32 = 3;
-        /// PROT_READ | PROT_EXEC.
-        pub const PROT_RX: i32 = 5;
-        /// MAP_PRIVATE | MAP_ANONYMOUS.
-        pub const MAP_ANON_PRIVATE: i32 = 0x02 | 0x20;
-    }
-
-    /// A page-backed W^X code cache.
-    // CEP:WHAT: Implements the code cache.
-    // CEP:WHY: Write and execute phases stay separated per the JIT policy.
-    // CEP:STATUS: complete
-    // CEP:FAILURE: Panics on mmap or mprotect failure.
-    // CEP:ASSUMES: page granularity of at least 4096.
-    // CEP:COST: one page per instance.
-    // CEP:EVIDENCE: cargo test -p mlkp-machine
-    pub struct CodePage {
-        ptr: *mut u8,
-        len: usize,
-    }
-
-    impl CodePage {
-        /// Maps and installs machine bytes, then re-protects to RX.
-        // CEP:WHAT: Installs code.
-        // CEP:WHY: The write phase ends before execution starts.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: Panics when the mapping fails.
-        // CEP:ASSUMES: bytes fit the page.
-        // CEP:COST: O(len).
-        // CEP:EVIDENCE: cargo test -p mlkp-machine
-        pub fn install(bytes: &[u8]) -> CodePage {
-            let rounded = bytes.len().div_ceil(4096) * 4096;
-            let p = unsafe {
-                sys::mmap(
-                    std::ptr::null_mut(),
-                    rounded,
-                    sys::PROT_RW,
-                    sys::MAP_ANON_PRIVATE,
-                    -1,
-                    0,
-                )
-            };
-            assert_ne!(p as isize, -1, "mmap failed");
-            unsafe {
-                std::ptr::copy_nonoverlapping(bytes.as_ptr(), p.cast::<u8>(), bytes.len());
-                assert_eq!(
-                    sys::mprotect(p, rounded, sys::PROT_RX),
-                    0,
-                    "mprotect failed"
-                );
-            }
-            CodePage {
-                ptr: p.cast::<u8>(),
-                len: rounded,
-            }
-        }
-
-        /// The entry pointer as a two-argument C function.
-        // CEP:WHAT: Returns the entry pointer.
-        // CEP:WHY: Callers transmute to their ABI signature.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: none
-        // CEP:ASSUMES: none
-        // CEP:COST: O(1).
-        // CEP:EVIDENCE: cargo test -p mlkp-machine
-        pub fn entry(&self) -> *mut u8 {
-            self.ptr
-        }
-    }
-
-    impl Drop for CodePage {
-        // CEP:WHAT: Unmaps the page.
-        // CEP:WHY: No leaks across tests.
-        // CEP:STATUS: complete
-        // CEP:FAILURE: none; munmap failures cannot be reported from Drop.
-        // CEP:ASSUMES: none
-        // CEP:COST: O(1).
-        // CEP:EVIDENCE: cargo test -p mlkp-machine
-        fn drop(&mut self) {
-            unsafe {
-                sys::munmap(self.ptr.cast::<c_void>(), self.len);
-            }
-        }
-    }
-}
-
-/// Builds the signed-division kernel: a / b through cqo and idiv.
-// CEP:WHAT: Builds the division fixture.
-// CEP:WHY: The implicit RDX:RAX contract must survive allocation.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via expect.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn div_program() -> MFunction {
-    let mut f = MFunction {
-        name: "divfn".to_string(),
-        blocks: Vec::new(),
-        vreg_classes: Vec::new(),
-    };
-    f.push_block("entry");
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::vreg_def(0, RegClass::Gpr64),
-            Operand::PReg {
-                id: preg::RDI,
-                class: RegClass::Gpr64,
-                def: false,
-            },
-        ],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::vreg_def(1, RegClass::Gpr64),
-            Operand::PReg {
-                id: preg::RSI,
-                class: RegClass::Gpr64,
-                def: false,
-            },
-        ],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::PReg {
-                id: preg::RAX,
-                class: RegClass::Gpr64,
-                def: true,
-            },
-            Operand::vreg_use(0, RegClass::Gpr64),
-        ],
-    ));
-    f.push_insn(MInsn::new(Opcode::Cqo, vec![]));
-    let mut idiv = MInsn::new(Opcode::IDiv, vec![Operand::vreg_use(1, RegClass::Gpr64)]);
-    idiv.implicit_uses = vec![preg::RAX, preg::RDX];
-    idiv.implicit_defs = vec![preg::RAX, preg::RDX];
-    f.push_insn(idiv);
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::vreg_def(2, RegClass::Gpr64),
-            Operand::PReg {
-                id: preg::RAX,
-                class: RegClass::Gpr64,
-                def: false,
-            },
-        ],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::PReg {
-                id: preg::RAX,
-                class: RegClass::Gpr64,
-                def: true,
-            },
-            Operand::vreg_use(2, RegClass::Gpr64),
-        ],
-    ));
-    f.push_insn(MInsn::new(Opcode::Ret, vec![]));
-    for v in 0..3 {
-        f.vreg_classes.push((v, RegClass::Gpr64));
-    }
-    f
-}
-
-/// Executes the division kernel against truncating signed division.
-// CEP:WHAT: Tests division execution.
-// CEP:WHY: Implicit register contracts execute end to end only here.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via assert.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-#[test]
-fn executes_division() {
-    let target = X86_64Target::new();
-    let mut f = div_program();
-    let alloc = allocate(&mut f, &target).expect("allocates");
-    verify_allocation(&f, &alloc, &target).expect("verifies");
-    let bytes = compile(&f, &alloc, &target).expect("encodes").text;
-    let page = jit::CodePage::install(&bytes);
-    let func: fn(i64, i64) -> i64 = unsafe { std::mem::transmute(page.entry()) };
-    for (a, b) in [(17, 5), (-17, 5), (100, 7), (0, 9)] {
-        let got = func(a, b);
-        let want = a / b;
-        assert_eq!(got, want, "div({a}, {b}) = {got}, want {want}");
-    }
-}
-
-/// Builds a logic-and-shift kernel: ((a << 3) & mask) ^ (b >> 1) then negated when sign is set.
-// CEP:WHAT: Builds the logic fixture.
-// CEP:WHY: Shifts, logic, and flag-consuming branches execute together.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via expect.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn logic_program() -> MFunction {
-    let mut f = MFunction {
-        name: "logicfn".to_string(),
-        blocks: Vec::new(),
-        vreg_classes: Vec::new(),
-    };
-    f.push_block("entry");
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::vreg_def(0, RegClass::Gpr64),
-            Operand::PReg {
-                id: preg::RDI,
-                class: RegClass::Gpr64,
-                def: false,
-            },
-        ],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::vreg_def(1, RegClass::Gpr64),
-            Operand::PReg {
-                id: preg::RSI,
-                class: RegClass::Gpr64,
-                def: false,
-            },
-        ],
-    ));
-    // a << 3
-    f.push_insn(MInsn::new(
-        Opcode::Shl,
-        vec![Operand::vreg_def(0, RegClass::Gpr64), Operand::Imm(3)],
-    ));
-    // a = (a << 3) ^ b
-    f.push_insn(MInsn::new(
-        Opcode::Xor,
-        vec![
-            Operand::vreg_def(0, RegClass::Gpr64),
-            Operand::vreg_use(1, RegClass::Gpr64),
-        ],
-    ));
-    // b = b >> 1 (arithmetic)
-    f.push_insn(MInsn::new(
-        Opcode::Sar,
-        vec![Operand::vreg_def(1, RegClass::Gpr64), Operand::Imm(1)],
-    ));
-    // a = a & b
-    f.push_insn(MInsn::new(
-        Opcode::And,
-        vec![
-            Operand::vreg_def(0, RegClass::Gpr64),
-            Operand::vreg_use(1, RegClass::Gpr64),
-        ],
-    ));
-    // if a == 0 { a = -7 } else { a = -a }
-    f.push_insn(MInsn::new(
-        Opcode::Cmp,
-        vec![Operand::vreg_use(0, RegClass::Gpr64), Operand::Imm(0)],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Jne,
-        vec![Operand::Block("neg".to_string())],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![Operand::vreg_def(0, RegClass::Gpr64), Operand::Imm(-7)],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Jmp,
-        vec![Operand::Block("out".to_string())],
-    ));
-    f.blocks[0].succs = vec!["neg".to_string(), "out".to_string()];
-    f.push_block("neg");
-    f.push_insn(MInsn::new(
-        Opcode::Neg,
-        vec![Operand::vreg_def(0, RegClass::Gpr64)],
-    ));
-    f.blocks[1].succs = vec!["out".to_string()];
-    f.push_block("out");
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::PReg {
-                id: preg::RAX,
-                class: RegClass::Gpr64,
-                def: true,
-            },
-            Operand::vreg_use(0, RegClass::Gpr64),
-        ],
-    ));
-    f.push_insn(MInsn::new(Opcode::Ret, vec![]));
-    for v in 0..2 {
-        f.vreg_classes.push((v, RegClass::Gpr64));
-    }
-    f
-}
-
-/// Executes the logic-and-shift kernel.
-// CEP:WHAT: Tests logic execution.
-// CEP:WHY: The ALU expansion, shifts, and conditional branches run together.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via assert.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-#[test]
-fn executes_logic_and_shifts() {
-    let target = X86_64Target::new();
-    let mut f = logic_program();
-    let alloc = allocate(&mut f, &target).expect("allocates");
-    verify_allocation(&f, &alloc, &target).expect("verifies");
-    let bytes = compile(&f, &alloc, &target).expect("encodes").text;
-    let page = jit::CodePage::install(&bytes);
-    let func: fn(i64, i64) -> i64 = unsafe { std::mem::transmute(page.entry()) };
-    for (a, b) in [(3, 10), (-3, 10), (255, 7), (0, 1)] {
-        let mut want = (a << 3) ^ b;
-        want &= b >> 1;
-        if want == 0 {
-            want = -7;
-        } else {
-            want = -want;
-        }
-        let got = func(a, b);
-        assert_eq!(got, want, "logic({a}, {b}) = {got}, want {want}");
-    }
-}
-
-/// Builds a floating-point kernel: (x * y + x) / sqrt(x + y) with an integer round trip.
-// CEP:WHAT: Builds the extended SSE fixture.
-// CEP:WHY: Subtraction, division, roots, comparisons, and conversions execute together in one kernel.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via expect.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn sse_ext_program() -> MFunction {
-    let mut f = MFunction {
-        name: "fext".to_string(),
-        blocks: Vec::new(),
-        vreg_classes: Vec::new(),
-    };
-    let xmm_def = |v: u32| Operand::vreg_def(v, RegClass::Xmm64);
-    let xmm_use = |v: u32| Operand::vreg_use(v, RegClass::Xmm64);
-    f.push_block("entry");
-    // v0 = x, v1 = y; at most two xmm values are live at once, matching the
-    // target's two xmm registers.
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            xmm_def(0),
-            Operand::PReg {
-                id: preg::XMM0,
-                class: RegClass::Xmm64,
-                def: false,
-            },
-        ],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            xmm_def(1),
-            Operand::PReg {
-                id: preg::XMM1,
-                class: RegClass::Xmm64,
-                def: false,
-            },
-        ],
-    ));
-    // v0 = x * x
-    f.push_insn(MInsn::new(Opcode::MulSd, vec![xmm_def(0), xmm_use(0)]));
-    // v1 = sqrt(y); the tests keep y positive so the root is defined.
-    f.push_insn(MInsn::new(Opcode::SqrtSd, vec![xmm_def(1), xmm_use(1)]));
-    // v0 = x * x + sqrt(y)
-    f.push_insn(MInsn::new(Opcode::AddSd, vec![xmm_def(0), xmm_use(1)]));
-    // v0 = (x * x + sqrt(y)) / sqrt(y)
-    f.push_insn(MInsn::new(Opcode::DivSd, vec![xmm_def(0), xmm_use(1)]));
-    // Round trip through integers: i = cvttsd2si(v0); v0 = cvtsi2sd(i).
-    f.push_insn(MInsn::new(
-        Opcode::CvtSd2Si,
-        vec![Operand::vreg_def(2, RegClass::Gpr64), xmm_use(0)],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::CvtSi2Sd,
-        vec![xmm_def(0), Operand::vreg_use(2, RegClass::Gpr64)],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::PReg {
-                id: preg::XMM0,
-                class: RegClass::Xmm64,
-                def: true,
-            },
-            xmm_use(0),
-        ],
-    ));
-    f.push_insn(MInsn::new(Opcode::Ret, vec![]));
-    f.vreg_classes.push((0, RegClass::Xmm64));
-    f.vreg_classes.push((1, RegClass::Xmm64));
-    f.vreg_classes.push((2, RegClass::Gpr64));
-    f
-}
-
-/// Executes the extended floating-point kernel.
-// CEP:WHAT: Tests extended SSE execution.
-// CEP:WHY: Multiplication, roots, division, and conversions execute together in one kernel.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via assert.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-#[test]
-fn executes_sse_extended() {
-    let target = X86_64Target::new();
-    let mut f = sse_ext_program();
-    let alloc = allocate(&mut f, &target).expect("allocates");
-    verify_allocation(&f, &alloc, &target).expect("verifies");
-    let bytes = compile(&f, &alloc, &target).expect("encodes").text;
-    let page = jit::CodePage::install(&bytes);
-    let func: fn(f64, f64) -> f64 = unsafe { std::mem::transmute(page.entry()) };
-    let cases: [(f64, f64); 3] = [(2.0, 5.0), (5.0, 2.0), (-3.0, 7.0)];
-    for (x, y) in cases {
-        let want: f64 = (x * x + y.sqrt()) / y.sqrt();
-        let want = want as i64 as f64;
-        let got = func(x, y);
-        assert!(
-            (got - want).abs() < 1e-9,
-            "fext({x}, {y}) = {got}, want {want}"
-        );
-    }
-}
-
-/// Builds a floating-point max kernel: ucomisd followed by a conditional branch.
-// CEP:WHAT: Builds the SSE compare fixture.
-// CEP:WHY: The SSE compare sets the same flags the integer branches consume; the pairing must execute.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via expect.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-fn max_program() -> MFunction {
-    let mut f = MFunction {
-        name: "fmax".to_string(),
-        blocks: Vec::new(),
-        vreg_classes: Vec::new(),
-    };
-    let xmm_def = |v: u32| Operand::vreg_def(v, RegClass::Xmm64);
-    let xmm_use = |v: u32| Operand::vreg_use(v, RegClass::Xmm64);
-    f.push_block("entry");
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            xmm_def(0),
-            Operand::PReg {
-                id: preg::XMM0,
-                class: RegClass::Xmm64,
-                def: false,
-            },
-        ],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            xmm_def(1),
-            Operand::PReg {
-                id: preg::XMM1,
-                class: RegClass::Xmm64,
-                def: false,
-            },
-        ],
-    ));
-    // Compare x with y; jump when x > y.
-    f.push_insn(MInsn::new(Opcode::UComisd, vec![xmm_use(0), xmm_use(1)]));
-    f.push_insn(MInsn::new(
-        Opcode::Ja,
-        vec![Operand::Block("xis".to_string())],
-    ));
-    f.push_insn(MInsn::new(
-        Opcode::Mov,
-        vec![
-            Operand::PReg {
-                id: preg::XMM0,
-                class: RegClass::Xmm64,
-                def: true,
-            },
-            xmm_use(1),
-        ],
-    ));
-    f.push_insn(MInsn::new(Opcode::Ret, vec![]));
-    f.blocks[0].succs = vec!["xis".to_string()];
-    f.push_block("xis");
-    f.push_insn(MInsn::new(Opcode::Ret, vec![]));
-    f.vreg_classes.push((0, RegClass::Xmm64));
-    f.vreg_classes.push((1, RegClass::Xmm64));
-    f
-}
-
-/// Executes the floating-point max kernel.
-// CEP:WHAT: Tests SSE compare-and-branch execution.
-// CEP:WHY: ucomisd defines flags that ja consumes; the pairing crosses the integer and SSE halves of the ISA.
-// CEP:STATUS: complete
-// CEP:FAILURE: Panics via assert.
-// CEP:ASSUMES: none
-// CEP:COST: cold
-// CEP:EVIDENCE: cargo test -p mlkp-machine
-#[test]
-fn executes_sse_max() {
-    let target = X86_64Target::new();
-    let mut f = max_program();
-    let alloc = allocate(&mut f, &target).expect("allocates");
-    verify_allocation(&f, &alloc, &target).expect("verifies");
-    let bytes = compile(&f, &alloc, &target).expect("encodes").text;
-    let page = jit::CodePage::install(&bytes);
-    let func: fn(f64, f64) -> f64 = unsafe { std::mem::transmute(page.entry()) };
-    for (x, y) in [(2.0f64, 5.0), (5.0, 2.0), (-3.0, 7.0), (4.0, 4.0)] {
-        let want = if x > y { x } else { y };
-        let got = func(x, y);
-        assert!(
-            (got - want).abs() < 1e-9,
-            "fmax({x}, {y}) = {got}, want {want}"
-        );
-    }
-}
-
 /// The decoder and the emitter agree on every new instruction form.
 // CEP:WHAT: Tests bytes-versus-text equivalence for the new ISA.
 // CEP:WHY: The mechanical equivalence check must extend with the instruction set.
@@ -1183,6 +580,7 @@ fn new_isa_decodes_to_emitter_text() {
 }
 
 /// A gas differential over the mixed ISA: assembling the emitted text reproduces the encoder's bytes.
+// CEP:ID: JIT-263
 // CEP:WHAT: Runs the mixed-ISA gas differential.
 // CEP:WHY: An independent assembler remains the strongest oracle for the expanded set.
 // CEP:STATUS: complete
@@ -1236,6 +634,7 @@ fn gas_differential_mixed() {
 }
 
 /// Extracts the .text section bytes from an ELF object produced by gas.
+// CEP:ID: JIT-i90
 // CEP:WHAT: Reads a .text section.
 // CEP:WHY: The differential test compares raw section bytes.
 // CEP:STATUS: complete

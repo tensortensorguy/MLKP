@@ -141,6 +141,7 @@ fn buffer_range(plan: &KernelPlan, id: u32) -> (usize, usize) {
     (start, len)
 }
 
+// CEP:ID: JIT-e46
 // CEP:WHAT: Runs one scheduled operation.
 // CEP:WHY: The dispatch loop is a flat match so each kernel call stays direct and copy-free.
 // CEP:STATUS: complete
@@ -261,6 +262,7 @@ fn run_op(op: &PlanOp, plan: &KernelPlan, arena: &mut Arena) -> Result<(), ExecE
     Ok(())
 }
 
+// CEP:ID: JIT-420
 // CEP:WHAT: Runs the chunked matmul across worker threads over disjoint output row ranges.
 // CEP:WHY: The schedule's worker count (dimension E) must change execution, not just bookkeeping; disjoint row ownership needs no synchronization.
 // CEP:STATUS: complete

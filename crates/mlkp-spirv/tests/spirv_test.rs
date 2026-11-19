@@ -197,6 +197,7 @@ fn manifest_matches_module() {
     assert_eq!(manifest.push_constant_size, 0);
 }
 
+// CEP:ID: JIT-s87
 // CEP:WHAT: Builds a kernel with a workgroup barrier and a conditional branch.
 // CEP:WHY: The barrier lowering and the branch lowering must pass the word verifier like the straight-line kernel does.
 // CEP:STATUS: complete
@@ -246,6 +247,7 @@ fn control_kernel() -> GKernel {
     k
 }
 
+// CEP:ID: JIT-778
 // CEP:WHAT: Verifies the barrier and branch kernel emits valid words.
 // CEP:WHY: The word verifier must prove id discipline for every lowering path.
 // CEP:STATUS: complete

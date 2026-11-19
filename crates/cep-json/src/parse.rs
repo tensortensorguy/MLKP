@@ -170,6 +170,7 @@ impl<'a> Parser<'a> {
         Ok(value)
     }
 
+    // CEP:ID: CS-599
     // CEP:WHAT: Parses a JSON object with ordered members and duplicate-key rejection.
     // CEP:WHY: Duplicate keys make configuration ambiguous; the standard bans silent assumptions, so ambiguity is an error.
     // CEP:STATUS: complete
@@ -214,6 +215,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // CEP:ID: CS-x95
     // CEP:WHAT: Parses a JSON array with strict comma placement.
     // CEP:WHY: Trailing commas are rejected to keep the grammar strict.
     // CEP:STATUS: complete
@@ -244,6 +246,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // CEP:ID: CS-c85
     // CEP:WHAT: Parses a JSON string with full escape handling including surrogate pairs.
     // CEP:WHY: Configuration paths and messages may contain escapes; control bytes are rejected so no invalid UTF-8 enters the value tree.
     // CEP:STATUS: complete
@@ -356,6 +359,7 @@ impl<'a> Parser<'a> {
         Ok(v)
     }
 
+    // CEP:ID: CS-081
     // CEP:WHAT: Parses a JSON number with strict grammar and f64 semantics.
     // CEP:WHY: JSON numbers are decimal; leading zeros, lone minus, and hex are invalid.
     // CEP:STATUS: complete

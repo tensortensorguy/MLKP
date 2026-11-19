@@ -110,8 +110,30 @@ pub fn run_scan(paths: &[PathBuf], config: &Config) -> Result<Vec<Finding>, conf
             )),
         }
     }
+    run_rosetta_phase(config, &mut findings)?;
     report::sort(&mut findings);
     Ok(findings)
+}
+
+// CEP:WHAT: Runs the tree-level Rosetta checks once per configured rosetta rule.
+// CEP:WHY: Registry and heading contracts span the documentation tree, so they run at scan level like DOC-SYNC rather than per source file.
+// CEP:STATUS: complete
+// CEP:FAILURE: Returns Err(BootError) when a registry-mode rule cannot read its registry.
+// CEP:ASSUMES: none
+// CEP:COST: cold; O(documentation tree size).
+// CEP:EVIDENCE: tools/cep_lint/tests/manifest_test.rs
+fn run_rosetta_phase(
+    config: &Config,
+    findings: &mut Vec<Finding>,
+) -> Result<(), config::BootError> {
+    for (rule, params) in &config.rosetta {
+        let mut produced = checks::rosetta::run_rosetta(rule, params)?;
+        for f in &mut produced {
+            f.severity = rule.severity;
+        }
+        findings.extend(produced);
+    }
+    Ok(())
 }
 
 // CEP:WHAT: Runs the lint over in-memory files without touching the filesystem.
@@ -155,6 +177,7 @@ pub fn run_scan_memory(
     for (name, text) in files {
         scan::scan_text(name, text, config, &mut findings);
     }
+    run_rosetta_phase(config, &mut findings)?;
     report::sort(&mut findings);
     Ok(findings)
 }

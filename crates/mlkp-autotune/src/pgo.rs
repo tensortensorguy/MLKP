@@ -127,6 +127,7 @@ impl PgoStore {
     }
 
     /// Loads records from the attached path; a missing file yields an empty store.
+    // CEP:ID: JIT-m18
     // CEP:WHAT: Loads persisted records.
     // CEP:WHY: Warm-started cost models on the first compile of a new process (design PGO cache).
     // CEP:STATUS: complete
@@ -209,6 +210,7 @@ impl PgoStore {
     }
 
     /// Saves all records to the attached path.
+    // CEP:ID: JIT-088
     // CEP:WHAT: Persists all records.
     // CEP:WHY: The PGO cache outlives the process.
     // CEP:STATUS: complete
@@ -413,6 +415,7 @@ fn stored_config_json(cfg: StoredConfig) -> Json {
     ])
 }
 
+// CEP:ID: JIT-q72
 // CEP:WHAT: Parses one stored schedule from a record; absent fields yield None.
 // CEP:WHY: Older cache files without the schedule must still load; warm start then falls back to the default schedule.
 // CEP:STATUS: complete

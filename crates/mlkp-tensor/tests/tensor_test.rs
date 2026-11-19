@@ -97,6 +97,7 @@ fn shape_env_proves_equality() {
     );
 }
 
+// CEP:ID: JIT-d42
 // CEP:WHAT: Verifies constraint validation including divisibility and positivity.
 // CEP:WHY: The validation airlock of standard chapter 64.2 lives here.
 // CEP:STATUS: complete
@@ -124,6 +125,7 @@ fn shape_env_validates_constraints() {
     assert!(bad.check_type(&t).is_err() || bad.validate().is_err());
 }
 
+// CEP:ID: JIT-295
 // CEP:WHAT: Verifies numeric contract validation and hashing stability.
 // CEP:WHY: The cache keys include the contract hash; validation guards the precision chain.
 // CEP:STATUS: complete
@@ -183,6 +185,7 @@ fn refinements_follow_reliance_rule() {
     assert!(rs.get(&ValueProperty::Symmetric).expect("p").reliable());
 }
 
+// CEP:ID: JIT-384
 // CEP:WHAT: Verifies refinement chains keep semantic identity.
 // CEP:WHY: Design section 5: matmul must refine to contract while staying recognizable.
 // CEP:STATUS: complete
@@ -233,6 +236,7 @@ fn ops_refine_without_erasing_identity() {
     assert_ne!(h1, map_h);
 }
 
+// CEP:ID: JIT-738
 // CEP:WHAT: Verifies the matmul operation contract shape constraints.
 // CEP:WHY: Passes query contracts instead of hardcoding operator lists (design section 12).
 // CEP:STATUS: complete

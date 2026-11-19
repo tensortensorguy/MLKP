@@ -38,6 +38,7 @@ pub fn run(g: &mut Graph) -> usize {
     total
 }
 
+// CEP:ID: JIT-v58
 // CEP:WHAT: Performs one simplification sweep over all nodes.
 // CEP:WHY: The fixed-point loop calls this until it reports no change.
 // CEP:STATUS: complete

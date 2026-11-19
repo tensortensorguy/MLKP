@@ -39,6 +39,7 @@ pub fn to_string_compact(value: &Json) -> String {
     out
 }
 
+// CEP:ID: CS-l68
 // CEP:WHAT: Recursive pretty writer with depth-based indentation.
 // CEP:WHY: Human-diffable cache files make regressions reviewable.
 // CEP:STATUS: complete

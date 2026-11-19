@@ -221,6 +221,7 @@ impl ShapeEnv {
     }
 
     /// Validates all declared constraints against the current bindings.
+    // CEP:ID: JIT-467
     // CEP:WHAT: Checks every declared constraint.
     // CEP:WHY: The validation airlock: lowering must not enter the CEP-0 kernel path with unproven shape assumptions (standard chapter 64.2).
     // CEP:STATUS: complete

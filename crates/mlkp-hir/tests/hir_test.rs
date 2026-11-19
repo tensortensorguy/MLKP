@@ -11,6 +11,7 @@
 use mlkp_hir::{verify, Device, Graph, Node, Op};
 use mlkp_tensor::{DimExpr, ElemKind, MapFn, TensorType};
 
+// CEP:ID: JIT-f60
 // CEP:WHAT: Builds a small matmul-relu graph on one device.
 // CEP:WHY: Shared fixture for most tests.
 // CEP:STATUS: complete
@@ -145,6 +146,7 @@ fn dce_removes_unreachable_nodes() {
     assert!(verify(&g).is_ok());
 }
 
+// CEP:ID: JIT-r98
 // CEP:WHAT: Verifies CSE merges duplicate chains and redirects consumers.
 // CEP:WHY: Merging halves kernel work for duplicate subtrees.
 // CEP:STATUS: complete
@@ -186,6 +188,7 @@ fn cse_merges_duplicate_chains() {
     assert!(verify(&g).is_ok());
 }
 
+// CEP:ID: JIT-574
 // CEP:WHAT: Verifies algebraic folds: x*1, x+0, relu-of-relu, and id removal.
 // CEP:WHY: Identity folds remove whole kernels under the numerical contract.
 // CEP:STATUS: complete

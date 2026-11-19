@@ -111,6 +111,7 @@ const K: [u64; 80] = [
 ];
 
 /// Computes the SHA-512 digest of `msg`.
+// CEP:ID: CS-v19
 // CEP:WHAT: Computes the SHA-512 digest of a byte message.
 // CEP:WHY: Ed25519 keys and signatures are derived from SHA-512.
 // CEP:STATUS: complete
@@ -139,6 +140,7 @@ pub fn sha512(msg: &[u8]) -> [u8; 64] {
     out
 }
 
+// CEP:ID: CS-l54
 // CEP:WHAT: Compresses one 128-byte block into the chaining state.
 // CEP:WHY: The compression function is the core of the Merkle-Damgard construction.
 // CEP:STATUS: complete

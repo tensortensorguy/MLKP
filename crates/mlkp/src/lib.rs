@@ -60,6 +60,7 @@ pub struct Compiled {
 }
 
 /// Compiles one program end to end: parse, verify, autotune.
+// CEP:ID: JIT-y37
 // CEP:WHAT: Compiles one program.
 // CEP:WHY: The single entry point for the CLI and the integration suite; the autotuner applies each candidate's pass pipeline over the verified source graph, so pass selection is a real search dimension.
 // CEP:STATUS: complete
@@ -118,6 +119,7 @@ pub fn compile(
 }
 
 /// Executes a compiled program on prepared inputs and returns the output.
+// CEP:ID: JIT-g79
 // CEP:WHAT: Executes one compiled program.
 // CEP:WHY: The installed fast path the JIT produces.
 // CEP:STATUS: complete

@@ -17,6 +17,7 @@ use crate::ed25519;
 use crate::report::Finding;
 
 /// Verifies one invocation-mode receipt rule and returns its findings.
+// CEP:ID: CS-538
 // CEP:WHAT: Verifies one signed receipt rule end to end.
 // CEP:WHY: Chapters 65 and 67 demand mechanical, cryptographic enforcement of hunt evidence.
 // CEP:STATUS: complete
@@ -195,6 +196,7 @@ fn threshold_finding(
     ));
 }
 
+// CEP:ID: CS-999
 // CEP:WHAT: Checks the rule-specific thresholds and function references of a verified payload.
 // CEP:WHY: A signed receipt with insufficient evidence must still fail the gate.
 // CEP:STATUS: complete

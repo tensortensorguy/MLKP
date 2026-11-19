@@ -75,6 +75,7 @@ fn sign_verify_round_trip() {
     );
 }
 
+// CEP:ID: CS-831
 // CEP:WHAT: Verifies that tampered signatures and wrong keys are rejected.
 // CEP:WHY: A verifier that accepts any signature would make the receipt gate decorative.
 // CEP:STATUS: complete
@@ -109,6 +110,7 @@ fn tampered_signatures_are_rejected() {
     );
 }
 
+// CEP:ID: CS-x66
 // CEP:WHAT: Verifies that malformed public keys and signatures are rejected without panicking.
 // CEP:WHY: The linter must never crash on hostile receipt inputs.
 // CEP:STATUS: complete

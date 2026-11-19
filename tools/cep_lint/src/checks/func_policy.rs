@@ -46,11 +46,13 @@ pub fn function_policy(rule: &RuleConfig, file: &str, lexed: &Lexed) -> Vec<Find
         "stub_body" => stub_body_mode(rule, file, lexed, &functions),
         "naming" => naming_mode(rule, file, &functions),
         "constant_return" => constant_return_mode(rule, file, &functions),
+        "id" => id_mode(rule, file, lexed, &functions),
         _ => Vec::new(),
     }
 }
 
 /// Extracts function definitions with statement counts from masked code.
+// CEP:ID: CS-b38
 // CEP:WHAT: Extracts function definitions with statement counts from masked code.
 // CEP:WHY: Four rules share the extractor; one implementation keeps their semantics identical.
 // CEP:STATUS: complete
@@ -134,6 +136,7 @@ pub fn extract_functions(lexed: &Lexed) -> Vec<Function> {
     out
 }
 
+// CEP:ID: CS-n90
 // CEP:WHAT: Finds `fn NAME` in one masked line, returning (start_col, end_col, name).
 // CEP:WHY: The extractor needs the name and its column for findings.
 // CEP:STATUS: complete
@@ -190,6 +193,7 @@ fn count_statements(body_text: &str) -> usize {
     semis + (tail > 0) as usize
 }
 
+// CEP:ID: CS-f53
 // CEP:WHAT: Block mode: requires a CEP comment block before nontrivial functions.
 // CEP:WHY: Rule CEP-LINT-FUNC-BLOCK; attributes and blank lines may sit between block and signature per the gap pattern.
 // CEP:STATUS: complete
@@ -256,14 +260,16 @@ fn block_mode(
     out
 }
 
-// CEP:WHAT: Locates the comment block preceding a function, enforcing the gap pattern and rejecting the file header.
-// CEP:WHY: Chapter 50.3: only attributes may separate block and definition; header blocks are never function blocks.
+/// Locates the comment block preceding a function, enforcing the gap pattern and rejecting the file header.
+// CEP:ID: CS-t98
+// CEP:WHAT: Locates the comment block preceding a function.
+// CEP:WHY: Chapter 50.3: only attributes may separate block and definition; header blocks are never function blocks. Shared with the unsafe-documentation check so "enclosing block" has one meaning.
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns None when no acceptable block exists.
 // CEP:ASSUMES: none
 // CEP:COST: cold; O(blocks near the function).
 // CEP:EVIDENCE: tools/cep_lint/tests/func_policy_test.rs
-fn find_preceding_block(
+pub(crate) fn find_preceding_block(
     blocks: &[CommentBlock],
     function: &Function,
     lexed: &Lexed,
@@ -295,6 +301,7 @@ fn find_preceding_block(
     None
 }
 
+// CEP:ID: CS-745
 // CEP:WHAT: Stub-body mode: flags empty function bodies without a declared stub status.
 // CEP:WHY: Rule CEP-LINT-STUB-BODY; declared stubs must carry OWNER and TICKET per STUB-DECL.
 // CEP:STATUS: complete
@@ -413,6 +420,83 @@ fn constant_return_mode(rule: &RuleConfig, file: &str, functions: &[Function]) -
                 1,
                 template(&rule.message, &[("name", function.name.clone())]),
             ));
+        }
+    }
+    out
+}
+
+// CEP:ID: CS-645
+// CEP:WHAT: Id mode: requires a well-formed CEP:ID declaration on functions above the statement threshold.
+// CEP:WHY: Rule CEP-LINT-DOC-ID is the mechanical form of chapter 68.6.1's mandate that functions over ten statements declare a Rosetta identifier; the id must match the configured DOMAIN-id pattern.
+// CEP:STATUS: complete
+// CEP:FAILURE: none; unparseable constructs are skipped per chapter 50.5.
+// CEP:ASSUMES: the statement count comes from the shared extractor so block and id modes agree on nontriviality.
+// CEP:COST: cold; O(functions * blocks).
+// CEP:EVIDENCE: tools/cep_lint/tests/func_policy_test.rs
+fn id_mode(rule: &RuleConfig, file: &str, lexed: &Lexed, functions: &[Function]) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let max = crate::checks::param_u64(rule, "max_id_statements", 10) as usize;
+    let pattern = param_str(
+        rule,
+        "id_pattern",
+        "^(JIT|IR|LEX|FE|MEM|NET|GPU|HOT|CS)-[a-z0-9]+$",
+    );
+    let id_re = match re::compile(&pattern, false) {
+        Ok(r) => r,
+        Err(_) => return out,
+    };
+    let gap = param_str(rule, "gap_pattern", r"^\s*(#.*)?$");
+    let gap_re = match re::compile(&gap, false) {
+        Ok(r) => r,
+        Err(_) => return out,
+    };
+    let blocks = comment_blocks(lexed);
+    for function in functions {
+        if function.stmts <= max {
+            continue;
+        }
+        let declared = find_preceding_block(&blocks, function, lexed, &gap_re)
+            .and_then(|block| cep_field(&block.text, "CEP:ID"));
+        match declared {
+            None => out.push(Finding::new(
+                rule.severity,
+                &rule.name,
+                file,
+                function.sig_line + 1,
+                1,
+                template(
+                    &rule.message,
+                    &[(
+                        "detail",
+                        format!(
+                            "function {} has {} statements and declares no CEP:ID",
+                            function.name, function.stmts
+                        ),
+                    )],
+                ),
+            )),
+            Some(id) => {
+                let chars: Vec<char> = id.chars().collect();
+                if !id_re.is_match(&chars) {
+                    out.push(Finding::new(
+                        rule.severity,
+                        &rule.name,
+                        file,
+                        function.sig_line + 1,
+                        1,
+                        template(
+                            &rule.message,
+                            &[(
+                                "detail",
+                                format!(
+                                    "function {} declares malformed CEP:ID '{id}'",
+                                    function.name
+                                ),
+                            )],
+                        ),
+                    ));
+                }
+            }
         }
     }
     out
