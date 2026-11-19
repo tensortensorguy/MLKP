@@ -45,6 +45,9 @@ fn mem_text(op: &IsaOp) -> String {
         return String::new();
     };
     if *rip {
+        if *disp == 0 {
+            return "(%rip)".to_string();
+        }
         return format!("{disp}(%rip)");
     }
     let inner = match (base, index) {
@@ -60,8 +63,25 @@ fn mem_text(op: &IsaOp) -> String {
     };
     if inner.is_empty() {
         format!("{disp}")
+    } else if *disp == 0 {
+        format!("({inner})")
     } else {
         format!("{disp}({inner})")
+    }
+}
+
+/// Renders a register operand at an explicit width (the move grids need it).
+// CEP:WHAT: Renders a width-pinned register.
+// CEP:WHY: movzbq reads a byte register even though the instruction width is quadword.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/isa_tier_test.rs
+fn src_text(op: &IsaOp, src_w: Width) -> String {
+    match op {
+        IsaOp::Gpr(hw) => format!("%{}", reg_name(*hw, src_w)),
+        other => op_text(other, src_w),
     }
 }
 
@@ -100,22 +120,24 @@ pub fn render_insn(insn: &IsaInsn) -> String {
     let two = |m: &str, a: &str, b: &str| -> String { format!("  {m} {a}, {b}\n") };
     match insn.mn {
         IsaMn::Mov => {
-            let m = match (w, ops.first()) {
-                (Width::Q, Some(IsaOp::Imm(v))) if !fits_i32(*v) => "movabsq",
-                _ => "mov",
-            };
-            let m = format!("{m}{}", w.suffix());
-            two(&m, &s(&ops[0]), &s(&ops[1]))
+            if w == Width::Q {
+                if let Some(IsaOp::Imm(v)) = ops.first() {
+                    if !fits_i32(*v) {
+                        return two("movabsq", &s(&ops[0]), &s(&ops[1]));
+                    }
+                }
+            }
+            two(&format!("mov{}", w.suffix()), &s(&ops[0]), &s(&ops[1]))
         }
         IsaMn::MovZx(src_w) => {
             let m = format!("movz{}{}", src_w.suffix(), w.suffix());
-            two(&m, &s(&ops[0]), &s(&ops[1]))
+            two(&m, &src_text(&ops[0], src_w), &s(&ops[1]))
         }
         IsaMn::MovSx(src_w) => {
             let m = format!("movs{}{}", src_w.suffix(), w.suffix());
-            two(&m, &s(&ops[0]), &s(&ops[1]))
+            two(&m, &src_text(&ops[0], src_w), &s(&ops[1]))
         }
-        IsaMn::MovSxd => two("movslq", &s(&ops[0]), &s(&ops[1])),
+        IsaMn::MovSxd => two("movslq", &src_text(&ops[0], Width::L), &s(&ops[1])),
         IsaMn::Lea => two(&format!("lea{}", w.suffix()), &s(&ops[0]), &s(&ops[1])),
         IsaMn::Alu(alu) => {
             let name = match alu {
@@ -136,9 +158,9 @@ pub fn render_insn(insn: &IsaInsn) -> String {
         IsaMn::Div => format!("  div{} {}\n", w.suffix(), s(&ops[0])),
         IsaMn::Idiv => format!("  idiv{} {}\n", w.suffix(), s(&ops[0])),
         IsaMn::Cqo => one(if w == Width::Q { "cqto" } else { "cdq" }),
-        IsaMn::Shl => two(&format!("shl{}", w.suffix()), &s(&ops[0]), &s(&ops[1])),
-        IsaMn::Shr => two(&format!("shr{}", w.suffix()), &s(&ops[0]), &s(&ops[1])),
-        IsaMn::Sar => two(&format!("sar{}", w.suffix()), &s(&ops[0]), &s(&ops[1])),
+        IsaMn::Shl => shift("shl", w, ops),
+        IsaMn::Shr => shift("shr", w, ops),
+        IsaMn::Sar => shift("sar", w, ops),
         IsaMn::Imul2 => two(&format!("imul{}", w.suffix()), &s(&ops[0]), &s(&ops[1])),
         IsaMn::Imul3 => three(w, ops),
         IsaMn::Push => match ops.first() {
@@ -206,4 +228,26 @@ fn three(w: Width, ops: &[IsaOp]) -> String {
         _ => String::new(),
     };
     format!("  imul{} {imm}, {src}, {dst}\n", w.suffix())
+}
+
+/// Renders a shift: the CL count always prints as %cl, immediates carry $.
+// CEP:WHAT: Renders a shift.
+// CEP:WHY: The CL count form names the byte register at every width.
+// CEP:STATUS: complete
+// CEP:FAILURE: none
+// CEP:ASSUMES: none
+// CEP:COST: O(1).
+// CEP:EVIDENCE: crates/mlkp-machine/tests/isa_tier_test.rs
+fn shift(name: &str, w: Width, ops: &[IsaOp]) -> String {
+    let src = match &ops[0] {
+        IsaOp::Gpr(1) => "%cl".to_string(),
+        other => op_text(other, w),
+    };
+    format!(
+        "  {}{} {}, {}\n",
+        name,
+        w.suffix(),
+        src,
+        op_text(&ops[1], w)
+    )
 }

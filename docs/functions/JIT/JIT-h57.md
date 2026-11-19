@@ -16,7 +16,7 @@ Declared cost: O(1) per instruction.
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-machine/src/isa/decode.rs` at line 238, classification unclassified.
+Implementation: `crates/mlkp-machine/src/isa/decode.rs` at line 239, classification unclassified.
 
 ## Silent Failure Checklist
 

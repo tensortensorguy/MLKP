@@ -16,7 +16,7 @@ Declared cost: O(1).
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-machine/src/isa/render.rs` at line 75, classification unclassified.
+Implementation: `crates/mlkp-machine/src/isa/render.rs` at line 107, classification unclassified.
 
 ## Silent Failure Checklist
 

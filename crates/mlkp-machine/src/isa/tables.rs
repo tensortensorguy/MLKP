@@ -291,6 +291,7 @@ pub fn reg_name(hw: u32, w: Width) -> &'static str {
 // CEP:COST: O(table).
 // CEP:EVIDENCE: crates/mlkp-machine/tests/isa_tier_test.rs
 pub fn reg_hw(name: &str) -> Option<(u32, Width)> {
+    let name = name.strip_prefix('%').unwrap_or(name);
     let tables = [
         (NAMES_Q.as_slice(), Width::Q),
         (NAMES_L.as_slice(), Width::L),

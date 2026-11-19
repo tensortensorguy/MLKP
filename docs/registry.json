@@ -292,8 +292,8 @@
     },
     {
       "id": "JIT-170",
-      "file": "crates/mlkp-machine/tests/encode_test.rs",
-      "line": 696
+      "file": "crates/mlkp-machine/src/isa/assemble/parse.rs",
+      "line": 322
     },
     {
       "id": "JIT-199",
@@ -303,7 +303,7 @@
     {
       "id": "JIT-223",
       "file": "crates/mlkp-machine/src/isa/decode.rs",
-      "line": 167
+      "line": 168
     },
     {
       "id": "JIT-248",
@@ -318,7 +318,7 @@
     {
       "id": "JIT-266",
       "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
-      "line": 69
+      "line": 112
     },
     {
       "id": "JIT-295",
@@ -343,7 +343,7 @@
     {
       "id": "JIT-388",
       "file": "crates/mlkp-machine/src/isa/decode.rs",
-      "line": 372
+      "line": 444
     },
     {
       "id": "JIT-395",
@@ -369,6 +369,11 @@
       "id": "JIT-527",
       "file": "crates/mlkp-machine/tests/encode_test.rs",
       "line": 428
+    },
+    {
+      "id": "JIT-556",
+      "file": "crates/mlkp-machine/src/isa/assemble/mod.rs",
+      "line": 264
     },
     {
       "id": "JIT-567",
@@ -401,6 +406,11 @@
       "line": 765
     },
     {
+      "id": "JIT-681",
+      "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
+      "line": 428
+    },
+    {
       "id": "JIT-699",
       "file": "crates/mlkp-machine/src/decode/reader.rs",
       "line": 81
@@ -419,6 +429,11 @@
       "id": "JIT-778",
       "file": "crates/mlkp-spirv/tests/spirv_test.rs",
       "line": 250
+    },
+    {
+      "id": "JIT-781",
+      "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
+      "line": 378
     },
     {
       "id": "JIT-785",
@@ -457,8 +472,8 @@
     },
     {
       "id": "JIT-a24",
-      "file": "crates/mlkp-machine/src/isa/decode.rs",
-      "line": 589
+      "file": "crates/mlkp-machine/src/isa/escape.rs",
+      "line": 18
     },
     {
       "id": "JIT-a35",
@@ -526,9 +541,14 @@
       "line": 443
     },
     {
+      "id": "JIT-e39",
+      "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
+      "line": 627
+    },
+    {
       "id": "JIT-e46",
-      "file": "crates/mlkp-runtime/src/exec.rs",
-      "line": 144
+      "file": "crates/mlkp-machine/src/isa/assemble/mod.rs",
+      "line": 61
     },
     {
       "id": "JIT-e60",
@@ -563,7 +583,7 @@
     {
       "id": "JIT-f78",
       "file": "crates/mlkp-machine/src/isa/render.rs",
-      "line": 75
+      "line": 107
     },
     {
       "id": "JIT-f86",
@@ -596,9 +616,14 @@
       "line": 308
     },
     {
+      "id": "JIT-h46",
+      "file": "crates/mlkp-machine/tests/encode_test.rs",
+      "line": 696
+    },
+    {
       "id": "JIT-h57",
       "file": "crates/mlkp-machine/src/isa/decode.rs",
-      "line": 238
+      "line": 239
     },
     {
       "id": "JIT-h82",
@@ -609,6 +634,11 @@
       "id": "JIT-h93",
       "file": "crates/mlkp-machine/src/irc/liveness.rs",
       "line": 15
+    },
+    {
+      "id": "JIT-i28",
+      "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
+      "line": 104
     },
     {
       "id": "JIT-i46",
@@ -634,6 +664,16 @@
       "id": "JIT-i90",
       "file": "crates/mlkp-machine/tests/isa_test.rs",
       "line": 637
+    },
+    {
+      "id": "JIT-j18",
+      "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
+      "line": 482
+    },
+    {
+      "id": "JIT-j68",
+      "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
+      "line": 565
     },
     {
       "id": "JIT-k18",
@@ -741,9 +781,19 @@
       "line": 104
     },
     {
+      "id": "JIT-p18",
+      "file": "crates/mlkp-machine/src/isa/assemble/forms.rs",
+      "line": 267
+    },
+    {
       "id": "JIT-p69",
       "file": "crates/mlkp-machine/tests/object_test.rs",
       "line": 197
+    },
+    {
+      "id": "JIT-q36",
+      "file": "crates/mlkp-machine/src/isa/assemble/parse.rs",
+      "line": 48
     },
     {
       "id": "JIT-q40",
@@ -778,7 +828,7 @@
     {
       "id": "JIT-s47",
       "file": "crates/mlkp-machine/src/isa/decode.rs",
-      "line": 115
+      "line": 116
     },
     {
       "id": "JIT-s73",
@@ -804,6 +854,11 @@
       "id": "JIT-t26",
       "file": "crates/mlkp-runtime/src/plan.rs",
       "line": 235
+    },
+    {
+      "id": "JIT-t29",
+      "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
+      "line": 509
     },
     {
       "id": "JIT-t83",
@@ -891,6 +946,16 @@
       "line": 78
     },
     {
+      "id": "JIT-x66",
+      "file": "crates/mlkp-machine/src/isa/assemble/parse.rs",
+      "line": 191
+    },
+    {
+      "id": "JIT-x84",
+      "file": "crates/mlkp-machine/tests/isa_tier_test.rs",
+      "line": 467
+    },
+    {
       "id": "JIT-y37",
       "file": "crates/mlkp/src/lib.rs",
       "line": 63
@@ -919,6 +984,11 @@
       "id": "JIT-z77",
       "file": "crates/mlkp-spirv/src/emit/verify.rs",
       "line": 100
+    },
+    {
+      "id": "JIT-z95",
+      "file": "crates/mlkp-runtime/src/exec.rs",
+      "line": 144
     }
   ]
 }

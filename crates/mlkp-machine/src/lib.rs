@@ -37,7 +37,8 @@ pub use irc::{
     Interference, SpillRewrite,
 };
 pub use isa::{
-    decode_bytes as isa_decode_bytes, render_insn as isa_render_insn, IsaError, IsaInsn, IsaObject,
+    assemble as isa_assemble, decode_bytes as isa_decode_bytes, render_insn as isa_render_insn,
+    IsaError, IsaInsn, IsaObject, IsaReloc,
 };
 pub use mir::{MBlock, MFunction, MInsn, Opcode, Operand, RegClass};
 pub use object::{emit_object, emit_with_evidence, ObjectEvidence};

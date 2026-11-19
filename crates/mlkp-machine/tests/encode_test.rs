@@ -693,7 +693,7 @@ fn loop_program() -> MFunction {
 }
 
 /// Builds an xmm program: arg0 * arg1 + arg0.
-// CEP:ID: JIT-170
+// CEP:ID: JIT-h46
 // CEP:WHAT: Builds an xmm program.
 // CEP:WHY: SSE encoding coverage.
 // CEP:STATUS: complete

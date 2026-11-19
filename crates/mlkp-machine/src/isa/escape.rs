@@ -10,9 +10,7 @@
 
 #![deny(missing_docs)]
 
-use super::decode::{
-    gpr, modrm, read_mem, take, take_int, Prefixes, MOD_REG,
-};
+use super::decode::{gpr, modrm, read_mem, take, take_int, Prefixes, MOD_REG};
 use super::tables::Width;
 use super::{IsaError, IsaInsn, IsaMn, IsaOp};
 
@@ -102,9 +100,7 @@ pub(crate) fn decode_escape(
             } else {
                 read_mem(b, pos, m, rm, p, start)?
             };
-            let mn = if signed && src_w == Width::W && dst_w == Width::Q {
-                IsaMn::MovSxd
-            } else if signed {
+            let mn = if signed {
                 IsaMn::MovSx(src_w)
             } else {
                 IsaMn::MovZx(src_w)
@@ -139,7 +135,7 @@ pub(crate) fn decode_escape(
                 return Ok(IsaInsn {
                     mn: IsaMn::MovSd,
                     width: Width::Q,
-                    ops: vec![reg_op, IsaOp::Xmm(rm)],
+                    ops: vec![IsaOp::Xmm(rm), reg_op],
                     target: None,
                 });
             }
@@ -164,7 +160,7 @@ pub(crate) fn decode_escape(
                 return Ok(IsaInsn {
                     mn: IsaMn::MovApd,
                     width: Width::Q,
-                    ops: vec![reg_op, IsaOp::Xmm(rm)],
+                    ops: vec![IsaOp::Xmm(rm), reg_op],
                     target: None,
                 });
             }

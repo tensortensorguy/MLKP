@@ -1,26 +1,26 @@
 # JIT-e46
 
-`run_op`
+`assemble`
 
 ## Tier 1: Beginner
 
-`run_op` runs one scheduled operation.
+`assemble` assembles one text program.
 
-Inputs, outputs, and errors: Returns ExecError per the module contract.
+Inputs, outputs, and errors: Returns the module errors; branch sizes settle within 64 rounds or the assembly fails.
 
-Context: The dispatch loop is a flat match so each kernel call stays direct and copy-free.
+Context: The tier pair's text entry: emit() text, renderer text, and hand-written programs all encode through one path.
 
 ## Tier 2: Silicon Reality
 
-Declared cost: O(kernel work); no allocation on any path.
+Declared cost: cold; O(text) parse plus O(insns) per fixpoint round.
 
-Declared preconditions: the airlock proved disjointness for every operation; dispatch re-proves it per view.
+Declared preconditions: the System V AMD64 ABI; branch targets are labels, symbols, or absolute byte offsets.
 
-Implementation: `crates/mlkp-runtime/src/exec.rs` at line 144, classification unclassified.
+Implementation: `crates/mlkp-machine/src/isa/assemble/mod.rs` at line 61, classification unclassified.
 
 ## Silent Failure Checklist
 
 - **Fallbacks:** failure behavior is declared under CEP:FAILURE.
-- **Truncation:** no narrowing is declared for this function; the declared assumptions state: the airlock proved disjointness for every operation; dispatch re-proves it per view..
+- **Truncation:** no narrowing is declared for this function; the declared assumptions state: the System V AMD64 ABI; branch targets are labels, symbols, or absolute byte offsets..
 - **Wrapping:** arithmetic behavior is covered by the declared failure and assumption fields; nothing wraps silently where the contract says it must not.
-- **Error codes:** declared failure surface: Returns ExecError per the module contract..
+- **Error codes:** declared failure surface: Returns the module errors; branch sizes settle within 64 rounds or the assembly fails..

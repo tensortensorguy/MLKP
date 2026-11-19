@@ -15,7 +15,7 @@ Tensor IR (mathematics) -> Heterogeneous Sea of Nodes (placement, PGO) -> Kernel
 | `mlkp-hir` | Heterogeneous Sea of Nodes, verifier, level-1 passes (algebraic, CSE, DCE) |
 | `mlkp-front` | `.mlkp` text front-end |
 | `mlkp-runtime` | CEP-0 kernels, plans with validation airlock, arena, probe, measurement discipline |
-| `mlkp-machine` | Machine IR with the complete scalar x86-64 ISA, x86-64 target description, liveness, interference, IRC allocator, assembly emission, byte-level encoding, ELF64 object emission, disassembler, verification |
+| `mlkp-machine` | Machine IR with the complete scalar x86-64 ISA, x86-64 target description, liveness, interference, IRC allocator, assembly emission, byte-level encoding, ELF64 object emission, a general ISA-tier disassembler, and an AT&T assembler verified against GNU as |
 | `mlkp-spirv` | GPU Machine IR, native SPIR-V emitter, module verifier, kernel manifests |
 | `mlkp-autotune` | PGO store, search space, five-layer pruner, four-phase search, JIT driver |
 | `mlkp` | Facade and the `mlkpc` CLI |
@@ -44,7 +44,7 @@ Prints the stage log (parse, verify, autotune winner and latency, execute checks
 
 ```sh
 cargo build -p cep_lint
-./target/debug/cep_lint --self-test        # 40 scenarios, exact counts
+./target/debug/cep_lint --self-test        # 54 scenarios, exact counts
 ./target/debug/cep_lint crates tools       # self-lint
 ./target/debug/cep_lint --verify-hunt      # signed receipt gate
 ```

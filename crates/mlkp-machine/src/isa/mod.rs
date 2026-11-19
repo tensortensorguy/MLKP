@@ -202,12 +202,14 @@ pub struct IsaObject {
 }
 
 /// Assembled output of one text program.
-mod assemble;
+pub mod assemble;
 /// General byte-level decoder and its AT&T renderer.
 pub mod decode;
 mod escape;
 mod render;
 
+/// Assembles AT&T text into bytes with labels and relocations.
+pub use assemble::assemble;
 /// Decodes a byte slice into tier instructions.
 pub use decode::decode_bytes;
 /// Renders one instruction as the emitter would.

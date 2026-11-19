@@ -702,6 +702,42 @@ fn decode_integer(
                 _ => Err(IsaError::OutsideTier(start)),
             }
         }
+        0x69 | 0x6B if !p.f2 && !p.f3 && !p.p66 => {
+            let modrm_b = take(b, pos, start)?;
+            let (m, reg, rm) = modrm(modrm_b, p);
+            let width = if p.rex_w { Width::Q } else { w };
+            let other = if m == MOD_REG {
+                gpr(rm)?
+            } else {
+                read_mem(b, pos, m, rm, p, start)?
+            };
+            let imm = if opc == 0x69 {
+                take_int(b, pos, 4, start)?
+            } else {
+                take_int(b, pos, 1, start)?
+            };
+            Ok(IsaInsn {
+                mn: IsaMn::Imul3,
+                width,
+                ops: vec![IsaOp::Imm(imm), other, gpr(reg)?],
+                target: None,
+            })
+        }
+        0x63 if !p.f2 && !p.f3 && !p.p66 && p.rex_w => {
+            let modrm_b = take(b, pos, start)?;
+            let (m, reg, rm) = modrm(modrm_b, p);
+            let src = if m == MOD_REG {
+                gpr(rm)?
+            } else {
+                read_mem(b, pos, m, rm, p, start)?
+            };
+            Ok(IsaInsn {
+                mn: IsaMn::MovSxd,
+                width: Width::Q,
+                ops: vec![src, gpr(reg)?],
+                target: None,
+            })
+        }
         0xE8 if !p.f2 && !p.f3 && !p.p66 && !p.rex_present => {
             let rel = take_int(b, pos, 4, start)?;
             let end = i64::from(*pos as u32);
