@@ -14,13 +14,13 @@ Context: This is the design's core loop: observe, predict, search, measure, lear
 
 Declared cost: bounded by the budget; the cache hit path is one lowering plus staging.
 
-Declared preconditions: the graph is verified and fully concrete.
+Declared preconditions: the graph is verified and fully concrete; the staged input count equals the graph's declared parameter count.
 
 Implementation: `crates/mlkp-autotune/src/driver.rs` at line 86, classification unclassified.
 
 ## Silent Failure Checklist
 
 - **Fallbacks:** failure behavior is declared under CEP:FAILURE.
-- **Truncation:** no narrowing is declared for this function; the declared assumptions state: the graph is verified and fully concrete..
+- **Truncation:** no narrowing is declared for this function; the declared assumptions state: the graph is verified and fully concrete; the staged input count equals the graph's declared parameter count..
 - **Wrapping:** arithmetic behavior is covered by the declared failure and assumption fields; nothing wraps silently where the contract says it must not.
 - **Error codes:** declared failure surface: Returns CompileError per the module contract..

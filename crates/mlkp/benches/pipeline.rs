@@ -134,7 +134,7 @@ fn main() {
             &src8,
             &mut fresh,
             Duration::from_millis(30),
-            (vec![0.5f32; 4096], vec![0.25f32; 4096]),
+            &[vec![0.5f32; 4096], vec![0.25f32; 4096]],
         ))
         .expect("compiles");
     });
@@ -144,7 +144,7 @@ fn main() {
             &src64,
             &mut fresh,
             Duration::from_millis(30),
-            (vec![0.5f32; 4096], vec![0.25f32; 4096]),
+            &[vec![0.5f32; 4096], vec![0.25f32; 4096]],
         ))
         .expect("compiles");
     });
@@ -153,7 +153,7 @@ fn main() {
         &src64,
         &mut warm,
         Duration::from_millis(30),
-        (vec![0.5f32; 4096], vec![0.25f32; 4096]),
+        &[vec![0.5f32; 4096], vec![0.25f32; 4096]],
     )
     .expect("warms");
     time_it("compile 64-op warm (cache hit)", 20, |_| {
@@ -161,7 +161,7 @@ fn main() {
             &src64,
             &mut warm,
             Duration::from_millis(30),
-            (vec![0.5f32; 4096], vec![0.25f32; 4096]),
+            &[vec![0.5f32; 4096], vec![0.25f32; 4096]],
         ))
         .expect("compiles");
     });
@@ -172,12 +172,12 @@ fn main() {
         &src64,
         &mut pgo,
         Duration::from_millis(30),
-        (vec![0.5f32; 4096], vec![0.25f32; 4096]),
+        &[vec![0.5f32; 4096], vec![0.25f32; 4096]],
     )
     .expect("compiles");
     let a = vec![0.5f32; 4096];
     let b = vec![0.25f32; 4096];
-    let out = mlkp::execute(&compiled, &a, &b).expect("executes");
+    let out = mlkp::execute(&compiled, &[&a, &b]).expect("executes");
     println!(
         "  {:<34} output[0]={:+.6} len={}",
         "sample output",
@@ -187,8 +187,7 @@ fn main() {
     let t = time_it("execute 64-op plan", 200, |_| {
         black_box(mlkp::execute(
             black_box(&compiled),
-            black_box(&a),
-            black_box(&b),
+            black_box(&[&a, &b]),
         ))
         .expect("executes");
     });

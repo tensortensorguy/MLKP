@@ -16,7 +16,7 @@ Declared cost: cold.
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp/src/bin/mlkpc.rs` at line 26, classification unclassified.
+Implementation: `crates/mlkp/src/bin/mlkpc.rs` at line 29, classification unclassified.
 
 ## Silent Failure Checklist
 

@@ -245,7 +245,14 @@ fn driver_autotunes_end_to_end() {
     let mut pgo = PgoStore::in_memory();
     let a: Vec<f32> = (0..4096).map(|i| ((i % 13) as f32) * 0.25).collect();
     let b: Vec<f32> = (0..4096).map(|i| ((i % 7) as f32) * 0.5).collect();
-    let entry = autotune(&g, 42, &mut pgo, Duration::from_millis(2500), (a, b)).expect("compile");
+    let entry = autotune(
+        &g,
+        42,
+        &mut pgo,
+        Duration::from_millis(2500),
+        &[a.clone(), b.clone()],
+    )
+    .expect("compile");
     assert!(entry.latency_ns > 0);
     assert!(entry.plan.validate().is_ok());
     // The PGO store received exactly one cache-key record with a positive cost.

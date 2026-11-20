@@ -55,8 +55,12 @@ pub struct Compiled {
     pub latency_ns: u64,
     /// Whether the compilation was served from cache.
     pub from_cache: bool,
-    /// Buffer staging offsets: input a, input b, output.
-    pub staging: (u64, u64, u64),
+    /// Staging offsets of the declared inputs, in parameter order.
+    pub input_offsets: Vec<u64>,
+    /// Staging offset of the program output.
+    pub output_offset: u64,
+    /// Total element count per declared input, in parameter order.
+    pub param_lens: Vec<u64>,
 }
 
 /// Compiles one program end to end: parse, verify, autotune.
@@ -72,7 +76,7 @@ pub fn compile(
     source: &str,
     pgo: &mut mlkp_autotune::PgoStore,
     budget: std::time::Duration,
-    inputs: (Vec<f32>, Vec<f32>),
+    inputs: &[Vec<f32>],
 ) -> Result<Compiled, CompilerError> {
     let program =
         mlkp_front::parse_program(source).map_err(|e| CompilerError::Parse(e.to_string()))?;
@@ -89,11 +93,22 @@ pub fn compile(
     let subgraph_hash = program.graph.hash64(0x4d_4c_4b_50);
     let entry = mlkp_autotune::autotune(&program.graph, subgraph_hash, pgo, budget, inputs)
         .map_err(|e| CompilerError::Compile(e.to_string()))?;
-    // Staging offsets come from the plan's own offset table: inputs are buffers 0 and 1,
-    // and the output is the destination of the last scheduled op.
-    let lens = &entry.plan.buffer_lens;
-    let a_off = entry.plan.offset_of(0);
-    let b_off = entry.plan.offset_of(1);
+    // Staging offsets come from the plan's own offset table: the declared inputs
+    // alias buffers 0..N in parameter order, and the output is the destination
+    // of the last scheduled op.
+    if inputs.len() != program.graph.inputs.len() {
+        return Err(CompilerError::Compile(format!(
+            "input arity mismatch: the program declares {} parameters, {} buffers were staged",
+            program.graph.inputs.len(),
+            inputs.len()
+        )));
+    }
+    let input_offsets = (0..program.graph.inputs.len() as u32)
+        .map(|i| entry.plan.offset_of(i))
+        .collect();
+    let param_lens = (0..program.graph.inputs.len())
+        .map(|i| entry.plan.buffer_lens.get(i).copied().unwrap_or(0))
+        .collect();
     let out_id = entry
         .plan
         .ops
@@ -106,15 +121,16 @@ pub fn compile(
             | mlkp_runtime::PlanOp::MatMul { c: dst, .. } => *dst,
         })
         .unwrap_or(0);
-    let out_off = entry.plan.offset_of(out_id);
-    let _ = lens;
+    let output_offset = entry.plan.offset_of(out_id);
     Ok(Compiled {
         name: program.name,
         plan: entry.plan,
         config_hash: entry.config_hash,
         latency_ns: entry.latency_ns,
         from_cache: entry.from_cache,
-        staging: (a_off, b_off, out_off),
+        input_offsets,
+        output_offset,
+        param_lens,
     })
 }
 
@@ -127,25 +143,29 @@ pub fn compile(
 // CEP:ASSUMES: the arena capacity covers the plan.
 // CEP:COST: the measured hot path.
 // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
-pub fn execute(compiled: &Compiled, a: &[f32], b: &[f32]) -> Result<Vec<f32>, CompilerError> {
+pub fn execute(compiled: &Compiled, inputs: &[&[f32]]) -> Result<Vec<f32>, CompilerError> {
     let total: u64 = compiled.plan.buffer_lens.iter().sum();
     let mut arena = mlkp_runtime::Arena::with_capacity(total);
-    let (a_off, b_off, out_off) = compiled.staging;
-    let a_expect = compiled.plan.buffer_lens.first().copied().unwrap_or(0);
-    let b_expect = compiled.plan.buffer_lens.get(1).copied().unwrap_or(0);
-    // CEP:WHAT: Stages inputs with exact length checks.
+    if inputs.len() != compiled.input_offsets.len() {
+        return Err(CompilerError::Compile(format!(
+            "input arity mismatch: the program declares {}, {} buffers were staged",
+            compiled.input_offsets.len(),
+            inputs.len()
+        )));
+    }
+    // CEP:WHAT: Stages every declared input with exact length checks.
     // CEP:WHY: A short or long input would leave stale elements or spill into the next buffer, defeating the airlock's length invariants at staging time.
     // CEP:STATUS: complete
     // CEP:FAILURE: Returns CompilerError::Compile on length or range mismatch.
-    // CEP:ASSUMES: the first two buffers are the inputs, matching the staging tuple produced by compile.
+    // CEP:ASSUMES: the declared inputs alias buffers 0..N in parameter order, matching the offsets produced by compile.
     // CEP:COST: O(elements).
     // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
-    arena
-        .fill(a_off, a_expect, a)
-        .ok_or_else(|| CompilerError::Compile("stage a length mismatch".to_string()))?;
-    arena
-        .fill(b_off, b_expect, b)
-        .ok_or_else(|| CompilerError::Compile("stage b length mismatch".to_string()))?;
+    for (i, buf) in inputs.iter().enumerate() {
+        let expect = compiled.plan.buffer_lens.get(i).copied().unwrap_or(0);
+        arena
+            .fill(compiled.input_offsets[i], expect, buf)
+            .ok_or_else(|| CompilerError::Compile(format!("stage input {i} length mismatch")))?;
+    }
     mlkp_runtime::execute(&compiled.plan, &mut arena)
         .map_err(|e| CompilerError::Compile(e.to_string()))?;
     let out_id = compiled
@@ -174,7 +194,7 @@ pub fn execute(compiled: &Compiled, a: &[f32], b: &[f32]) -> Result<Vec<f32>, Co
         .copied()
         .ok_or_else(|| CompilerError::Compile("output buffer has no planned length".to_string()))?;
     arena
-        .slice(out_off, out_len)
+        .slice(compiled.output_offset, out_len)
         .map(|s| s.to_vec())
         .ok_or_else(|| CompilerError::Compile("output slice unavailable".to_string()))
 }

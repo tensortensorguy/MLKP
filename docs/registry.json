@@ -838,7 +838,7 @@
     {
       "id": "JIT-f16",
       "file": "crates/mlkp-autotune/tests/autotune_test.rs",
-      "line": 281
+      "line": 288
     },
     {
       "id": "JIT-f17",
@@ -893,7 +893,7 @@
     {
       "id": "JIT-g79",
       "file": "crates/mlkp/src/lib.rs",
-      "line": 122
+      "line": 138
     },
     {
       "id": "JIT-h14",
@@ -1086,6 +1086,11 @@
       "line": 197
     },
     {
+      "id": "JIT-p73",
+      "file": "crates/mlkp/tests/lifecycle_test.rs",
+      "line": 193
+    },
+    {
       "id": "JIT-q36",
       "file": "crates/mlkp-machine/src/isa/assemble/parse.rs",
       "line": 48
@@ -1098,7 +1103,7 @@
     {
       "id": "JIT-q42",
       "file": "crates/mlkp/src/bin/mlkpc.rs",
-      "line": 26
+      "line": 29
     },
     {
       "id": "JIT-q72",
@@ -1273,7 +1278,7 @@
     {
       "id": "JIT-y37",
       "file": "crates/mlkp/src/lib.rs",
-      "line": 63
+      "line": 67
     },
     {
       "id": "JIT-y52",

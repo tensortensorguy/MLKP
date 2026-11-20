@@ -4,7 +4,7 @@
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns exit code 2 on any compile failure with the message on stderr.
-// CEP:ASSUMES: none
+// CEP:ASSUMES: every declared parameter's shape is concrete so staged synthesis can build the buffers.
 // CEP:COST: cold CLI plus the measured run.
 // CEP:EVIDENCE: scripts/ci.sh smoke run.
 
@@ -17,7 +17,10 @@ use std::time::Duration;
 const USAGE: &str = "mlkpc [command]
 Commands:
   run [file]            parse, verify, autotune, execute; prints the run log.
-                        Without a file a synthetic matmul-relu program is used.
+                        Every declared parameter is staged: for a file, each
+                        parameter's shape is synthesized deterministically
+                        (symbolic dimensions are rejected); without a file a
+                        synthetic matmul-relu program is used.
   version               print compiler version
 Options:
   --budget-ms <n>       autotune time budget (default from config/limits.rs)
@@ -81,18 +84,35 @@ fn main() {
             d = dim
         ),
     };
-    let elements = dim * dim;
-    let a: Vec<f32> = (0..elements).map(|i| ((i % 17) as f32) * 0.25).collect();
-    let b: Vec<f32> = (0..elements).map(|i| ((i % 11) as f32) * 0.5).collect();
+    // Every declared parameter is staged (CEP-324). The per-param shapes come
+    // from one parse pass; symbolic dimensions cannot be synthesized here and
+    // are rejected with a usage error instead of a silent wrong-shape run.
+    let parsed = mlkp_front::parse_program(&source).unwrap_or_else(|e| {
+        eprintln!("usage error: {e}");
+        std::process::exit(3);
+    });
+    let mut inputs: Vec<Vec<f32>> = Vec::new();
+    for (k, param) in parsed.params.iter().enumerate() {
+        let mut elems: u64 = 1;
+        for d in &param.dims {
+            match d {
+                mlkp_tensor::DimExpr::Const(c) => elems = elems.saturating_mul(*c),
+                other => {
+                    eprintln!("usage error: parameter '{}' has symbolic dimension {other:?}; concrete dims are required for staged synthesis", param.name);
+                    std::process::exit(3);
+                }
+            }
+        }
+        inputs.push(
+            (0..elems)
+                .map(|i| (((i % (17 + 7 * k as u64)) as f32) - 3.0) * 0.25)
+                .collect(),
+        );
+    }
     let cache_dir = std::path::Path::new(".mlkp-cache");
     let mut pgo = mlkp_autotune::PgoStore::in_memory().with_path(&cache_dir.join("pgo.json"));
     let _ = pgo.load();
-    let compiled = mlkp::compile(
-        &source,
-        &mut pgo,
-        Duration::from_millis(budget_ms),
-        (a.clone(), b.clone()),
-    );
+    let compiled = mlkp::compile(&source, &mut pgo, Duration::from_millis(budget_ms), &inputs);
     let compiled = match compiled {
         Ok(c) => c,
         Err(e) => {
@@ -100,7 +120,8 @@ fn main() {
             std::process::exit(2);
         }
     };
-    let out = mlkp::execute(&compiled, &a, &b);
+    let staged: Vec<&[f32]> = inputs.iter().map(|v| v.as_slice()).collect();
+    let out = mlkp::execute(&compiled, &staged);
     match out {
         Ok(out) => {
             let sum: f32 = out.iter().sum();

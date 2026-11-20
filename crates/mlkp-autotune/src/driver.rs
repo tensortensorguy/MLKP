@@ -88,7 +88,7 @@ pub fn hardware_profile_hash() -> u64 {
 // CEP:WHY: This is the design's core loop: observe, predict, search, measure, learn, repeat. The cache-hit path reuses the previous winner's schedule through hash reconstruction, and hot paths re-run the full search once the execution count crosses the trigger.
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns CompileError per the module contract.
-// CEP:ASSUMES: the graph is verified and fully concrete.
+// CEP:ASSUMES: the graph is verified and fully concrete; the staged input count equals the graph's declared parameter count.
 // CEP:COST: bounded by the budget; the cache hit path is one lowering plus staging.
 // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
 #[allow(clippy::too_many_lines)]
@@ -97,8 +97,15 @@ pub fn autotune(
     subgraph_hash: u64,
     pgo: &mut PgoStore,
     budget: Duration,
-    inputs: (Vec<f32>, Vec<f32>),
+    inputs: &[Vec<f32>],
 ) -> Result<CacheEntry, CompileError> {
+    if inputs.len() != graph.inputs.len() {
+        return Err(CompileError::Airlock(format!(
+            "input arity mismatch: the program declares {} parameters, {} buffers were staged",
+            graph.inputs.len(),
+            inputs.len()
+        )));
+    }
     let hw_hash = hardware_profile_hash();
     let cache_key = hash_u64(subgraph_hash, hw_hash);
 
@@ -119,12 +126,12 @@ pub fn autotune(
                 last_best,
                 subgraph_hash,
                 hw_hash,
-                in_len_hint(&inputs) + output_len(graph),
+                in_len_hint(inputs) + output_len(graph),
             )
         });
         if let (Some(config), true) = (stored_config, last_best != 0 && !hot) {
             let out_len = output_len(graph);
-            let in_len = inputs.0.len() as u64;
+            let in_len = in_len_hint(inputs);
             let plan = mlkp_runtime::plan::lower(graph, &config)
                 .map_err(|e| CompileError::Lowering(e.to_string()))?;
             plan.validate()
@@ -148,7 +155,7 @@ pub fn autotune(
 
     // Step 7: search space generation over the PL practice dimensions.
     let out_len = output_len(graph);
-    let in_len = inputs.0.len() as u64;
+    let in_len = in_len_hint(inputs);
     let candidates = enumerate(in_len + out_len);
 
     // Steps 7 and 8: prune through the five layers.
@@ -187,8 +194,7 @@ pub fn autotune(
     let arena = Arena::with_capacity(mlkp_config::limits::ARENA_EVAL_ELEMENTS);
     let mut eval_state = EvalState {
         base_graph: graph.clone(),
-        inputs: inputs.0,
-        inputs_b: inputs.1,
+        inputs: inputs.to_vec(),
         arena,
         reference: Vec::new(),
         reference_ready: false,
@@ -274,7 +280,7 @@ pub fn recompile_warm(
     graph: &Graph,
     subgraph_hash: u64,
     pgo: &mut PgoStore,
-    inputs: (Vec<f32>, Vec<f32>),
+    inputs: &[Vec<f32>],
 ) -> Result<CacheEntry, CompileError> {
     let budget = Duration::from_millis(mlkp_config::limits::WARM_TIME_BUDGET_MS);
     autotune(graph, subgraph_hash, pgo, budget, inputs)
@@ -361,8 +367,8 @@ fn stored_from_candidate(c: &crate::space::Candidate) -> StoredConfig {
 // CEP:ASSUMES: none
 // CEP:COST: O(1).
 // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
-fn in_len_hint(inputs: &(Vec<f32>, Vec<f32>)) -> u64 {
-    inputs.0.len() as u64
+fn in_len_hint(inputs: &[Vec<f32>]) -> u64 {
+    inputs.iter().map(|v| v.len() as u64).sum()
 }
 
 // CEP:WHAT: Reconstructs a schedule from its stored hash by re-enumerating the space.
@@ -387,30 +393,29 @@ fn config_from_hash(
 /// The per-evaluation state: one arena reused across candidates.
 struct EvalState {
     base_graph: Graph,
-    inputs: Vec<f32>,
-    inputs_b: Vec<f32>,
+    inputs: Vec<Vec<f32>>,
     arena: Arena,
     reference: Vec<f32>,
     reference_ready: bool,
 }
 
-// CEP:WHAT: Stages the two inputs and runs one plan once.
-// CEP:WHY: The shadow reference and the evaluator share one staging discipline.
+// CEP:WHAT: Stages the declared inputs in parameter order and runs one plan once.
+// CEP:WHY: The shadow reference and the evaluator share one staging discipline; every declared parameter is staged, not just the first two.
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns CompileError when staging or execution fails.
-// CEP:ASSUMES: the plan was airlock-validated.
+// CEP:ASSUMES: the plan was airlock-validated and the input count equals the plan's declared input buffers.
 // CEP:COST: O(plan work).
 // CEP:EVIDENCE: crates/mlkp/tests/lifecycle_test.rs
 fn stage_and_run(plan: &KernelPlan, state: &mut EvalState) -> Result<(), CompileError> {
-    let a_off = plan.offset_of(0);
-    let b_off = plan.offset_of(1);
-    let a_expect = plan.buffer_lens.first().copied().unwrap_or(0);
-    let b_expect = plan.buffer_lens.get(1).copied().unwrap_or(0);
     state.arena.reset();
-    if state.arena.fill(a_off, a_expect, &state.inputs).is_none()
-        || state.arena.fill(b_off, b_expect, &state.inputs_b).is_none()
-    {
-        return Err(CompileError::Airlock("staging failed".to_string()));
+    for (i, buf) in state.inputs.iter().enumerate() {
+        let off = plan.offset_of(i as u32);
+        let expect = plan.buffer_lens.get(i).copied().unwrap_or(0);
+        if state.arena.fill(off, expect, buf).is_none() {
+            return Err(CompileError::Airlock(format!(
+                "staging failed for input {i}"
+            )));
+        }
     }
     execute(plan, &mut state.arena).map_err(|e| CompileError::Airlock(e.to_string()))
 }

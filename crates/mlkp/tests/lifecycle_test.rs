@@ -34,7 +34,7 @@ fn full_lifecycle_compiles_and_executes() {
         PROGRAM,
         &mut pgo,
         Duration::from_millis(2500),
-        (a.clone(), b.clone()),
+        &[a.clone(), b.clone()],
     )
     .expect("compile");
     assert!(
@@ -47,7 +47,7 @@ fn full_lifecycle_compiles_and_executes() {
     );
 
     // Step 15/17: install and execute.
-    let out = mlkp::execute(&compiled, &a, &b).expect("execute");
+    let out = mlkp::execute(&compiled, &[&a, &b]).expect("execute");
     assert_eq!(out.len(), 4096);
     // The reference matmul-relu: compute a few entries independently.
     let d = 64;
@@ -92,7 +92,7 @@ fn warm_recompile_is_cheap() {
         PROGRAM,
         &mut pgo,
         Duration::from_millis(2000),
-        (a.clone(), b.clone()),
+        &[a.clone(), b.clone()],
     )
     .expect("cold compile");
     let started = std::time::Instant::now();
@@ -103,7 +103,7 @@ fn warm_recompile_is_cheap() {
             g.hash64(0x4d_4c_4b_50)
         },
         &mut pgo,
-        (a.clone(), b.clone()),
+        &[a.clone(), b.clone()],
     )
     .expect("warm recompile");
     let elapsed = started.elapsed();
@@ -132,7 +132,7 @@ fn drift_triggers_re_autotune() {
         PROGRAM,
         &mut pgo,
         Duration::from_millis(1500),
-        (a.clone(), b.clone()),
+        &[a.clone(), b.clone()],
     )
     .expect("compile");
     let graph = mlkp_front::parse_program(PROGRAM).expect("parse").graph;
@@ -148,11 +148,10 @@ fn drift_triggers_re_autotune() {
                 PROGRAM,
                 &mut pgo,
                 Duration::from_millis(800),
-                (a.clone(), b.clone()),
+                &[a.clone(), b.clone()],
             )
             .expect("recompile"),
-            &a,
-            &b,
+            &[&a, &b],
         )
         .expect("execute");
     }
@@ -189,4 +188,95 @@ fn pruner_layers_cut_the_space() {
     // The untrained model must not prune (design Layer 3 requires samples first).
     assert!(!after_model.is_empty());
     let _ = Tile::NAIVE;
+}
+
+// CEP:ID: JIT-p73
+// CEP:WHAT: Verifies a three-parameter program stages, compiles, and executes with every declared input, and that arity and length violations fail loudly.
+// CEP:WHY: CEP-324 closes the two-operand facade contract: plans alias one buffer per declared parameter in order, so a three-input program must stage all three buffers and reject mismatched staging.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via expect or assert on failure.
+// CEP:ASSUMES: elementwise tolerance holds for the naive f32 reference of the two-matmul chain.
+// CEP:COST: cold; bounded by a 2.5 second budget.
+// CEP:EVIDENCE: cargo test -p mlkp
+#[test]
+fn multi_input_program_stages_every_declared_parameter() {
+    const PROGRAM3: &str = "fn @net(%a: f32[32,32], %b: f32[32,32], %c: f32[32,32]) -> f32[32,32] {\n  %t = matmul(%a, %b)\n  %r = matmul(%t, %c)\n  return %r\n}\n";
+    let d = 32usize;
+    let gen = |salt: u64| -> Vec<f32> {
+        (0..(d * d) as u64)
+            .map(|i| ((((i * 7 + salt) % 13) as f32) - 6.0) * 0.25)
+            .collect()
+    };
+    let a = gen(1);
+    let b = gen(2);
+    let c = gen(3);
+    let mut pgo = PgoStore::in_memory();
+    let compiled = mlkp::compile(
+        PROGRAM3,
+        &mut pgo,
+        Duration::from_millis(2500),
+        &[a.clone(), b.clone(), c.clone()],
+    )
+    .expect("three-parameter compile");
+    assert_eq!(
+        compiled.input_offsets.len(),
+        3,
+        "one staging slot per parameter"
+    );
+    assert_eq!(
+        compiled.param_lens,
+        vec![1024; 3],
+        "per-parameter element counts"
+    );
+    assert_ne!(compiled.output_offset, compiled.input_offsets[2]);
+
+    let out = mlkp::execute(&compiled, &[&a, &b, &c]).expect("three-input execute");
+    assert_eq!(out.len(), 1024);
+    // The naive reference of the chain: (a x b) x c.
+    let mut t = vec![0.0f32; 1024];
+    for i in 0..d {
+        for j in 0..d {
+            let mut acc = 0.0f32;
+            for k in 0..d {
+                acc += a[i * d + k] * b[k * d + j];
+            }
+            t[i * d + j] = acc;
+        }
+    }
+    for i in 0..d {
+        for j in 0..d {
+            let mut acc = 0.0f32;
+            for k in 0..d {
+                acc += t[i * d + k] * c[k * d + j];
+            }
+            assert!(
+                (out[i * d + j] - acc).abs() <= limits::CORRECTNESS_ABS_TOLERANCE as f32,
+                "chain entry ({i},{j}): {} vs {acc}",
+                out[i * d + j]
+            );
+        }
+    }
+
+    // Arity is checked at compile and at execute, with named diagnostics.
+    let arity = mlkp::compile(
+        PROGRAM3,
+        &mut PgoStore::in_memory(),
+        Duration::from_millis(300),
+        &[a.clone(), b.clone()],
+    );
+    match arity {
+        Err(mlkp::CompilerError::Compile(msg)) => assert!(msg.contains("arity"), "{msg}"),
+        other => panic!("two buffers against three parameters must fail: {other:?}"),
+    }
+    let short_c = &c[..1023];
+    let staged = mlkp::execute(&compiled, &[&a, &b, short_c]);
+    match staged {
+        Err(mlkp::CompilerError::Compile(msg)) => {
+            assert!(
+                msg.contains("length mismatch") && msg.contains("input 2"),
+                "{msg}"
+            )
+        }
+        other => panic!("short third input must fail staging: {other:?}"),
+    }
 }

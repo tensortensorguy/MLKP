@@ -16,7 +16,7 @@ Declared cost: the measured hot path.
 
 Declared preconditions: the arena capacity covers the plan.
 
-Implementation: `crates/mlkp/src/lib.rs` at line 122, classification unclassified.
+Implementation: `crates/mlkp/src/lib.rs` at line 138, classification unclassified.
 
 ## Silent Failure Checklist
 

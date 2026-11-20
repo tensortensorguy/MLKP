@@ -16,7 +16,7 @@ Declared cost: bounded by the autotune budget.
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp/src/lib.rs` at line 63, classification unclassified.
+Implementation: `crates/mlkp/src/lib.rs` at line 67, classification unclassified.
 
 ## Silent Failure Checklist
 
