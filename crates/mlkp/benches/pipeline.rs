@@ -185,11 +185,7 @@ fn main() {
         out.len()
     );
     let t = time_it("execute 64-op plan", 200, |_| {
-        black_box(mlkp::execute(
-            black_box(&compiled),
-            black_box(&[&a, &b]),
-        ))
-        .expect("executes");
+        black_box(mlkp::execute(black_box(&compiled), black_box(&[&a, &b]))).expect("executes");
     });
     println!(
         "  {:<34} {:.1} ops/exec, {:.1} ns/op effective",

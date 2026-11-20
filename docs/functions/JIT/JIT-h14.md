@@ -16,7 +16,7 @@ Declared cost: cold
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-autotune/tests/autotune_test.rs` at line 188, classification unclassified.
+Implementation: `crates/mlkp-autotune/tests/autotune_test.rs` at line 189, classification unclassified.
 
 ## Silent Failure Checklist
 

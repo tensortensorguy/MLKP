@@ -16,7 +16,7 @@ Declared cost: O(1).
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-autotune/src/search.rs` at line 366, classification unclassified.
+Implementation: `crates/mlkp-autotune/src/search.rs` at line 390, classification unclassified.
 
 ## Silent Failure Checklist
 

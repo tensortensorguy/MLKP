@@ -43,7 +43,7 @@ CEP-324 generalizes the contract to N declared parameters:
   ```
   stage=parse ok
   stage=verify ok nodes=5
-  stage=autotune winner_hash=8337228315157809879 latency_ns=9840 from_cache=false tile=64x64x64 loop_order=0 transpose_b=false threads=2
+  stage=autotune winner_hash=1869352678443678359 latency_ns=9839 from_cache=false tile=128x64x128 loop_order=0 transpose_b=false threads=1
   stage=execute ok checksum=42195108.0000
   ```
 
@@ -64,3 +64,42 @@ adds one loop iteration per extra parameter to staging and one arena fill per
 parameter to evaluation — inside run-to-run noise on the execution path
 (217.9 µs min vs the 218.1 µs recorded for the two-input pipeline before this
 change).
+
+## Phase 2 acquisition — CEP-351 Gaussian-process Expected Improvement
+
+Phase 2 previously ranked candidates by the ridge model's predicted latency
+minus one global uncertainty bonus (`residual_std`), so an uncertain region
+and a certain one with the same residual spread scored identically. CEP-351
+fits a Gaussian process (RBF kernel, median-heuristic lengthscale, relative
+nugget, packed Cholesky solve — `mlkp-autotune/src/gp.rs`, std-only and
+deterministic) on the session's observed (features, latency) pairs and ranks
+by Expected Improvement against the incumbent: promising candidates (low
+posterior mean) and unexplored candidates (high posterior variance) both
+rank high, per candidate rather than globally. Below `GP_MIN_FIT_POINTS`
+observations the phase falls back to the previous LCB scoring.
+
+Evidence:
+
+- `gp_fits_and_predicts_held_out_points` (JIT-g31): held-out interpolation
+  within 30% of the true function on a quadratic, positive posterior variance,
+  and extrapolation variance more than 10x interpolation variance.
+- `expected_improvement_properties_hold` (JIT-g37): EI is zero for a certain
+  candidate at or worse than the incumbent, grows with sigma, and declines
+  with mean latency.
+- `phase2_gp_finds_the_landscape_optimum` (JIT-g39): over a synthetic
+  landscape with a known optimum, the four-phase search evaluates through the
+  EI ranking (`phase_evals[1] > 0`) and returns exactly the argmin of the
+  space plus the baseline — the incumbent guarantee is intact.
+
+Winner quality on the real evaluator (same source, same budget, one run each):
+
+| Workload | LCB winner | GP-EI winner |
+|---|---|---|
+| 48^3 three-input chain (400 ms budget) | 9840 ns (tile 64x64x64, threads 2) | 9839 ns (tile 128x64x128, threads 1) |
+| 96^2 synthetic (default budget) | 36410 ns | 35905 ns (-1.4%) |
+
+Compile-path cost is unchanged inside noise: cold 64-op 42.7 ms (was 43.4 ms,
+budget-dominated), warm cache-hit floor 218.2 us (was 211.5 us), execute
+64-op 217.8 us min and 3470 ns/op effective (was 3508). The GP fit is
+O(n^3) over at most `GP_MAX_FIT_POINTS` (160) observations per Phase 2
+round, re-fit per batch from the session's accumulated observations.

@@ -48,6 +48,21 @@ pub const PHASE2_BATCH_SIZE: usize = 8;
 /// lower-confidence-bound exploration bonus of the Phase 2 acquisition.
 pub const PHASE2_EXPLORATION_BONUS: f64 = 1.0;
 
+/// Minimum observations before the Phase 2 Gaussian process is fitted; below
+/// this the phase falls back to the ridge-model lower confidence bound.
+pub const GP_MIN_FIT_POINTS: usize = 6;
+
+/// Cap on the GP fit set (the most recent observations win); bounds the
+/// O(n^3) Cholesky solve inside the compile budget.
+pub const GP_MAX_FIT_POINTS: usize = 160;
+
+/// Relative nugget added to the GP kernel diagonal, as a fraction of the
+/// target variance; keeps duplicate observations positive definite.
+pub const GP_NOISE_REL: f64 = 1e-3;
+
+/// Floor on the fitted GP lengthscale in normalized feature units.
+pub const GP_LENGTHSCALE_FLOOR: f64 = 0.1;
+
 /// Mutant count generated around the incumbent in Phase 3.
 pub const PHASE3_MUTANT_COUNT: usize = 24;
 

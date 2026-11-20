@@ -468,7 +468,7 @@
     {
       "id": "JIT-a17",
       "file": "crates/mlkp-autotune/src/search.rs",
-      "line": 366
+      "line": 390
     },
     {
       "id": "JIT-a24",
@@ -838,7 +838,7 @@
     {
       "id": "JIT-f16",
       "file": "crates/mlkp-autotune/tests/autotune_test.rs",
-      "line": 288
+      "line": 289
     },
     {
       "id": "JIT-f17",
@@ -886,6 +886,51 @@
       "line": 324
     },
     {
+      "id": "JIT-g31",
+      "file": "crates/mlkp-autotune/src/gp.rs",
+      "line": 39
+    },
+    {
+      "id": "JIT-g32",
+      "file": "crates/mlkp-autotune/src/gp.rs",
+      "line": 148
+    },
+    {
+      "id": "JIT-g33",
+      "file": "crates/mlkp-autotune/src/gp.rs",
+      "line": 194
+    },
+    {
+      "id": "JIT-g34",
+      "file": "crates/mlkp-autotune/src/gp.rs",
+      "line": 211
+    },
+    {
+      "id": "JIT-g35",
+      "file": "crates/mlkp-autotune/src/gp.rs",
+      "line": 233
+    },
+    {
+      "id": "JIT-g36",
+      "file": "crates/mlkp-autotune/src/gp.rs",
+      "line": 263
+    },
+    {
+      "id": "JIT-g37",
+      "file": "crates/mlkp-autotune/tests/autotune_test.rs",
+      "line": 316
+    },
+    {
+      "id": "JIT-g38",
+      "file": "crates/mlkp-autotune/tests/autotune_test.rs",
+      "line": 357
+    },
+    {
+      "id": "JIT-g39",
+      "file": "crates/mlkp-autotune/tests/autotune_test.rs",
+      "line": 384
+    },
+    {
       "id": "JIT-g53",
       "file": "crates/mlkp-machine/tests/isa_test.rs",
       "line": 486
@@ -898,7 +943,7 @@
     {
       "id": "JIT-h14",
       "file": "crates/mlkp-autotune/tests/autotune_test.rs",
-      "line": 188
+      "line": 189
     },
     {
       "id": "JIT-h25",
@@ -1068,7 +1113,7 @@
     {
       "id": "JIT-o90",
       "file": "crates/mlkp-autotune/src/search.rs",
-      "line": 104
+      "line": 105
     },
     {
       "id": "JIT-p01",
@@ -1123,7 +1168,7 @@
     {
       "id": "JIT-s37",
       "file": "crates/mlkp-autotune/src/search.rs",
-      "line": 405
+      "line": 429
     },
     {
       "id": "JIT-s47",
@@ -1138,7 +1183,7 @@
     {
       "id": "JIT-s76",
       "file": "crates/mlkp-autotune/tests/autotune_test.rs",
-      "line": 56
+      "line": 57
     },
     {
       "id": "JIT-s83",
@@ -1283,7 +1328,7 @@
     {
       "id": "JIT-y52",
       "file": "crates/mlkp-autotune/tests/autotune_test.rs",
-      "line": 234
+      "line": 235
     },
     {
       "id": "JIT-z19",

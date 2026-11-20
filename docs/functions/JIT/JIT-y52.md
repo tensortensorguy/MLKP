@@ -16,7 +16,7 @@ Declared cost: cold but measures real executions; bounded by a short budget.
 
 Declared preconditions: none
 
-Implementation: `crates/mlkp-autotune/tests/autotune_test.rs` at line 234, classification unclassified.
+Implementation: `crates/mlkp-autotune/tests/autotune_test.rs` at line 235, classification unclassified.
 
 ## Silent Failure Checklist
 

@@ -14,6 +14,8 @@
 
 /// The JIT compilation lifecycle driver.
 pub mod driver;
+/// The Gaussian-process surrogate and Expected Improvement acquisition.
+pub mod gp;
 /// The persistent PGO store with drift detection.
 pub mod pgo;
 /// The five-layer pruner and the learned cost model.
@@ -24,6 +26,7 @@ pub mod search;
 pub mod space;
 
 pub use driver::{autotune, hardware_profile_hash, recompile_warm, CacheEntry, CompileError};
+pub use gp::{expected_improvement, GaussianProcess};
 pub use pgo::{Observation, PgoError, PgoRecord, PgoStore, StoredConfig};
 pub use pruner::{Constraint, CostModel, Evaluated, Objectives, Pruner};
 pub use search::{search, Budget, SearchContext, SearchResult};

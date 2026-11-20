@@ -8,6 +8,7 @@
 // CEP:COST: cold; not performance-relevant.
 // CEP:EVIDENCE: cargo test -p mlkp-autotune.
 
+use mlkp_autotune::gp;
 use mlkp_autotune::{
     autotune, candidate_hash, enumerate, search, Budget, Candidate, Layout, Objectives,
     Observation, PassSet, PgoStore, Pruner,
@@ -311,4 +312,145 @@ fn space_covers_fusion_and_reuse_dimensions() {
     assert!(space.iter().any(|c| c.config.buffer_reuse), "reuse side");
     assert!(space.iter().any(|c| !c.passes.fusion), "fusion pass off");
     assert!(space.iter().any(|c| c.passes.fusion), "fusion pass on");
+}
+// CEP:ID: JIT-g37
+// CEP:WHAT: Verifies the GP surrogate interpolates a smooth held-out function and orders uncertainty by proximity to the training set.
+// CEP:WHY: The Phase 2 acquisition is only as good as its posterior; held-out predictions prove the Cholesky solve, normalization, and kernel agree, and the variance ordering proves the uncertainty term is real.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: the RBF kernel with a median-heuristic lengthscale interpolates a smooth quadratic within the stated tolerance.
+// CEP:COST: cold; one fit and three predictions.
+// CEP:EVIDENCE: cargo test -p mlkp-autotune
+#[test]
+fn gp_fits_and_predicts_held_out_points() {
+    // y = 1000 (x0 - 0.65)^2 + 50 over a six-dim feature space with only x0 varying.
+    let f = |x0: f64| [x0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let y = |x0: f64| 1000.0 * (x0 - 0.65).powi(2) + 50.0;
+    let mut train = Vec::new();
+    for i in [0usize, 2, 4, 6, 8, 10] {
+        let x0 = i as f64 / 10.0;
+        train.push((f(x0), y(x0)));
+    }
+    let model = gp::fit(&train).expect("six points fit");
+    assert_eq!(model.n_points(), 6);
+    for x0 in [0.27, 0.63, 0.82] {
+        let (mu, var) = model.predict(&f(x0));
+        let want = y(x0);
+        assert!(
+            (mu - want).abs() <= 0.30 * want,
+            "held-out {x0}: predicted {mu} vs {want}"
+        );
+        assert!(var > 0.0, "posterior variance must be positive at {x0}");
+    }
+    // Variance ordering: extrapolating beyond every training point is more
+    // uncertain than interpolating next to one (training points sit at
+    // 0.0,0.2,...,1.0; a midpoint stacks two correlations and can be less
+    // uncertain than a single-point neighbor, so the probe goes outside).
+    let (_, near_var) = model.predict(&f(0.19));
+    let (_, far_var) = model.predict(&f(1.30));
+    assert!(
+        far_var > 10.0 * near_var,
+        "far {far_var} must exceed near {near_var}"
+    );
+}
+
+// CEP:ID: JIT-g38
+// CEP:WHAT: Verifies the Expected Improvement acquisition's mathematical properties: zero certainty improvement, monotone growth with uncertainty, and monotone decline with mean latency.
+// CEP:WHY: EI drives Phase 2's exploration-exploitation balance (CEP-351); these three properties are the contract the search relies on, so a broken acquisition would corrupt the phase silently.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: latencies are minimized.
+// CEP:COST: cold; arithmetic only.
+// CEP:EVIDENCE: cargo test -p mlkp-autotune
+#[test]
+fn expected_improvement_properties_hold() {
+    let best = 1000.0f64;
+    // A certain candidate at the incumbent cannot improve.
+    let certain = gp::expected_improvement(best, 0.0, best);
+    assert!(certain < 1e-6, "certain at incumbent: {certain}");
+    // More uncertainty means more expected improvement when the mean is promising.
+    let e1 = gp::expected_improvement(900.0, 10.0, best);
+    let e2 = gp::expected_improvement(900.0, 50.0, best);
+    assert!(e1 > 0.0 && e2 > e1, "uncertainty bonus: {e1} vs {e2}");
+    // For fixed sigma, a lower mean latency is always at least as attractive.
+    let m1 = gp::expected_improvement(800.0, 30.0, best);
+    let m2 = gp::expected_improvement(950.0, 30.0, best);
+    assert!(m1 > m2, "mean ordering: {m1} vs {m2}");
+    // A certain candidate worse than the incumbent cannot improve either.
+    let worse_certain = gp::expected_improvement(1100.0, 0.0, best);
+    assert!(worse_certain < 1e-6, "certain worse: {worse_certain}");
+}
+
+// CEP:ID: JIT-g39
+// CEP:WHAT: Runs the four-phase search over a synthetic landscape with a known optimum and verifies the GP-backed Phase 2 evaluates candidates and finds the true argmin.
+// CEP:WHY: The acquisition is wired into the real search loop: Phase 2 must spend its budget through the EI ranking (phase_evals[1] > 0) and the session must land on the best configuration the space contains, proving the GP path neither degrades nor breaks the incumbent guarantee.
+// CEP:STATUS: complete
+// CEP:FAILURE: Panics via assert on mismatch.
+// CEP:ASSUMES: the deterministic evaluator makes every evaluated candidate's objective exact.
+// CEP:COST: cold; the evaluator is arithmetic only, bounded by a generous wall budget.
+// CEP:EVIDENCE: cargo test -p mlkp-autotune and benches/artifacts/compiler.md
+#[test]
+fn phase2_gp_finds_the_landscape_optimum() {
+    // Known landscape: quadratic penalty around the tile target plus additive
+    // penalties on threads, loop order, and the transposed layout.
+    let landscape = |c: &Candidate| -> u64 {
+        let t = &c.config.tile;
+        let bm = t.bm as f64;
+        let bn = t.bn as f64;
+        let bk = t.bk as f64;
+        let th = f64::from(c.config.threads);
+        let lo = f64::from(c.config.loop_order);
+        let tb = f64::from(c.layout == Layout::TransposedB);
+        (2000.0
+            + 30.0 * (bm - 48.0).powi(2)
+            + 25.0 * (bn - 64.0).powi(2)
+            + 8.0 * bk
+            + 400.0 * (th - 1.0)
+            + 250.0 * lo
+            + 150.0 * tb) as u64
+    };
+    let mut space = enumerate(4096);
+    space.truncate(60);
+    let baseline = Candidate {
+        config: mlkp_runtime::PassConfig::default(),
+        layout: Layout::RowMajor,
+        device_workers: 1,
+        passes: PassSet::ALL,
+        algebraic_iters: 1,
+    };
+    // The true best over the space plus the baseline, computed by the same
+    // landscape: the search must never return anything worse than this.
+    let true_best = space
+        .iter()
+        .map(&landscape)
+        .chain(std::iter::once(landscape(&baseline)))
+        .min()
+        .expect("space non-empty");
+    let mut eval = |c: &Candidate, _runs: u32| -> Objectives {
+        Objectives {
+            latency_ns: landscape(c),
+            memory_bytes: 1024,
+            power_w: 1.0,
+            energy_j: 1.0,
+            variance_ns2: 0.0,
+        }
+    };
+    let mut pruner = Pruner::new();
+    let mut ctx = mlkp_autotune::SearchContext {
+        baseline,
+        baseline_hash: 1,
+        subgraph_hash: 2,
+        hw_hash: 3,
+        budget: Budget::start(Duration::from_secs(30)),
+        evaluate: &mut eval,
+    };
+    let result = search(space, &mut pruner, &mut ctx);
+    assert!(
+        result.phase_evals[1] > 0,
+        "Phase 2 must run its acquisition"
+    );
+    assert_eq!(
+        result.objectives.latency_ns, true_best,
+        "search must find the space's argmin"
+    );
 }

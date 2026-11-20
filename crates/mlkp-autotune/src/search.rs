@@ -1,5 +1,5 @@
 // CEP:FILE: crates/mlkp-autotune/src/search.rs
-// CEP:WHAT: The four-phase search: broad diverse sampling, Bayesian-style optimization with a lower-confidence-bound acquisition, evolutionary refinement, and final polish with extended measurement and the Welch significance policy, all under a shared time budget and session cap.
+// CEP:WHAT: The four-phase search: broad diverse sampling, Bayesian optimization scored by Expected Improvement over a Gaussian-process surrogate (ridge lower-confidence-bound fallback below the fit threshold), evolutionary refinement, and final polish with extended measurement and the Welch significance policy, all under a shared time budget and session cap.
 // CEP:WHY: Design section VI defines the phases, budgets, and the multi-objective policy; the final polish applies hypothesis testing rather than raw means per design fix 4, and the session cap implements the named MAX_SESSION_CANDIDATES limit.
 // CEP:CLASS: CEP-1
 // CEP:STATUS: complete
@@ -12,6 +12,7 @@
 
 use std::time::{Duration, Instant};
 
+use crate::gp::{expected_improvement, fit as gp_fit};
 use crate::pruner::{Evaluated, Objectives, Pruner};
 use crate::space::{candidate_hash, features, Candidate};
 
@@ -102,8 +103,8 @@ struct SessionState<'e> {
 
 /// Runs the four-phase search over a prepared context.
 // CEP:ID: JIT-o90
-// CEP:WHAT: Runs the four-phase search under a budget.
-// CEP:WHY: The phases implement design section VI; the context object keeps the evaluator and keys together so the signature stays readable.
+// CEP:WHAT: Runs the four-phase search under a budget; Phase 2 scores candidates by Expected Improvement over a Gaussian process fitted on the session's observed latencies, with the ridge-model lower confidence bound as the fallback below the fit threshold.
+// CEP:WHY: The phases implement design section VI; the GP posterior gives each candidate its own predictive variance (CEP-351), so the acquisition balances promising and unexplored points per candidate instead of through one global residual bonus. The context object keeps the evaluator and keys together so the signature stays readable.
 // CEP:STATUS: complete
 // CEP:FAILURE: Returns the best-so-far at budget expiry; never panics.
 // CEP:ASSUMES: the candidate list is already pruned and the baseline is included in the context.
@@ -133,6 +134,9 @@ pub fn search(
     session.evals += 1;
     pruner.record_result(session.baseline.clone(), session.baseline_hash, base_obj);
     let mut best = (session.baseline_hash, base_obj, session.baseline.clone());
+    // The GP's training set: every observed (features, latency) pair this session.
+    let mut obs: Vec<([f64; 6], f64)> = Vec::new();
+    obs.push((features(&session.baseline), base_obj.latency_ns as f64));
 
     // Phase 1: broad diverse sampling. Design fix 3: the first sample must span
     // the space, so the probe set is the greedy max-min diverse subset.
@@ -163,14 +167,18 @@ pub fn search(
                 o
             }
         };
+        obs.push((features(&c), obj.latency_ns as f64));
         if obj.latency_ns < best.1.latency_ns {
             best = (h, obj, c);
         }
     }
 
-    // Phase 2: Bayesian-style optimization. The acquisition is a lower
-    // confidence bound on the learned model: predicted latency minus an
-    // uncertainty bonus, so both promising and unexplored candidates rank high.
+    // Phase 2: Bayesian optimization on the Gaussian-process surrogate. The GP
+    // posterior gives every candidate its own predictive mean and variance;
+    // Expected Improvement turns them into one acquisition value that balances
+    // promising (low mean) and unexplored (high variance) points. Below the
+    // fit threshold the phase falls back to the ridge-model lower confidence
+    // bound with its global uncertainty bonus.
     let p2_budget = session
         .budget
         .remaining_for(mlkp_config::limits::PHASE2_BUDGET_FRACTION);
@@ -186,13 +194,28 @@ pub fn search(
         if candidates.is_empty() {
             break;
         }
+        let gp = if obs.len() >= mlkp_config::limits::GP_MIN_FIT_POINTS {
+            gp_fit(&obs)
+        } else {
+            None
+        };
         let mut scored: Vec<(f64, Candidate)> = candidates
             .drain(..)
             .map(|c| {
                 let f = features(&c);
-                let pred = pruner.model_predict(&f);
-                let bonus = pruner.residual_std() * mlkp_config::limits::PHASE2_EXPLORATION_BONUS;
-                (pred - bonus, c)
+                let score = match &gp {
+                    Some(g) => {
+                        let (mu, var) = g.predict(&f);
+                        -expected_improvement(mu, var.sqrt(), best.1.latency_ns as f64)
+                    }
+                    None => {
+                        let pred = pruner.model_predict(&f);
+                        let bonus =
+                            pruner.residual_std() * mlkp_config::limits::PHASE2_EXPLORATION_BONUS;
+                        pred - bonus
+                    }
+                };
+                (score, c)
             })
             .collect();
         scored.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -219,6 +242,7 @@ pub fn search(
                     o
                 }
             };
+            obs.push((features(&c), obj.latency_ns as f64));
             if obj.latency_ns < best.1.latency_ns {
                 best = (h, obj, c);
             }
