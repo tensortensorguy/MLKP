@@ -16,7 +16,7 @@ Declared cost: O(n) total instead of O(kinds * n) memory traffic.
 
 Declared preconditions: a.len() == out.len(); kinds is non-empty (the dispatcher guarantees 1..=4).
 
-Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 102, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 123, classification unclassified.
 
 ## Silent Failure Checklist
 

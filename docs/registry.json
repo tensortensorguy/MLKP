@@ -583,12 +583,12 @@
     {
       "id": "JIT-e05",
       "file": "crates/mlkp-runtime/src/simd/element.rs",
-      "line": 102
+      "line": 123
     },
     {
       "id": "JIT-e06",
       "file": "crates/mlkp-runtime/src/simd/element.rs",
-      "line": 204
+      "line": 257
     },
     {
       "id": "JIT-e07",
@@ -688,7 +688,7 @@
     {
       "id": "JIT-e28",
       "file": "crates/mlkp-runtime/src/simd/element.rs",
-      "line": 160
+      "line": 213
     },
     {
       "id": "JIT-e29",
@@ -749,6 +749,16 @@
       "id": "JIT-e93",
       "file": "crates/mlkp-machine/tests/common/mod.rs",
       "line": 340
+    },
+    {
+      "id": "JIT-e94",
+      "file": "crates/mlkp-runtime/src/simd/element.rs",
+      "line": 41
+    },
+    {
+      "id": "JIT-e95",
+      "file": "crates/mlkp-runtime/src/simd/element.rs",
+      "line": 150
     },
     {
       "id": "JIT-f01",

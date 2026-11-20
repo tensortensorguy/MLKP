@@ -38,8 +38,9 @@ pub(crate) fn ew_unary_fast(op: EwUnary, a: &[f32], out: &mut [f32]) {
     }
 }
 
-// CEP:WHAT: The AVX2 body of the unary pass.
-// CEP:WHY: Eight lanes per iteration with one scalar tail loop.
+// CEP:ID: JIT-e94
+// CEP:WHAT: The AVX2 body of the unary pass: two vectors in flight per iteration.
+// CEP:WHY: Eight lanes per iteration with one scalar tail loop; the interleave hides the exp latency the same way the chain pass does.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
 // CEP:ASSUMES: AVX2 and FMA enabled; lengths equal.
@@ -51,6 +52,26 @@ unsafe fn ew_unary_avx2(op: EwUnary, a: &[f32], out: &mut [f32]) {
     // CEP:UNSAFE: the intrinsics read and write fixed-size lanes; every load and store stays in bounds by the loop conditions and the airlock-proven slice lengths.
     let n = a.len();
     let mut i = 0;
+    // Two vectors per iteration for the same latency-hiding reason as the
+    // chain pass; per-element arithmetic is unchanged.
+    while i + 32 <= n {
+        let v0 = _mm256_loadu_ps(a.as_ptr().add(i));
+        let v1 = _mm256_loadu_ps(a.as_ptr().add(i + 8));
+        let v2 = _mm256_loadu_ps(a.as_ptr().add(i + 16));
+        let v3 = _mm256_loadu_ps(a.as_ptr().add(i + 24));
+        _mm256_storeu_ps(out.as_mut_ptr().add(i), transform_avx2(op, v0));
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 8), transform_avx2(op, v1));
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 16), transform_avx2(op, v2));
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 24), transform_avx2(op, v3));
+        i += 32;
+    }
+    while i + 16 <= n {
+        let v0 = _mm256_loadu_ps(a.as_ptr().add(i));
+        let v1 = _mm256_loadu_ps(a.as_ptr().add(i + 8));
+        _mm256_storeu_ps(out.as_mut_ptr().add(i), transform_avx2(op, v0));
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 8), transform_avx2(op, v1));
+        i += 16;
+    }
     while i + 8 <= n {
         let v = _mm256_loadu_ps(a.as_ptr().add(i));
         _mm256_storeu_ps(out.as_mut_ptr().add(i), transform_avx2(op, v));
@@ -126,8 +147,9 @@ pub(crate) fn ew_unary_chain_fast(kinds: &[EwUnary], a: &[f32], out: &mut [f32])
     }
 }
 
-// CEP:WHAT: The AVX2 body of the fused chain pass.
-// CEP:WHY: The composition applies per vector, one load and one store for the whole chain.
+// CEP:ID: JIT-e95
+// CEP:WHAT: The AVX2 body of the fused chain pass: two vectors in flight per iteration.
+// CEP:WHY: The composition applies per vector, one load and one store for the whole chain; the two-vector interleave hides the exp polynomial's serial latency, which the 64-op profile showed dominates the elementwise passes.
 // CEP:STATUS: complete
 // CEP:FAILURE: none
 // CEP:ASSUMES: AVX2 and FMA enabled; lengths equal; kinds non-empty.
@@ -139,6 +161,37 @@ unsafe fn ew_chain_avx2(kinds: &[EwUnary], a: &[f32], out: &mut [f32]) {
     // CEP:UNSAFE: the intrinsics read and write fixed-size lanes; every load and store stays in bounds by the loop conditions and the airlock-proven slice lengths.
     let n = a.len();
     let mut i = 0;
+    // Two vectors per iteration: the transform chains of independent vectors
+    // interleave, hiding the exp Horner's serial latency that a one-vector
+    // loop exposes on this engine. Per-element arithmetic is unchanged.
+    while i + 32 <= n {
+        let mut v0 = _mm256_loadu_ps(a.as_ptr().add(i));
+        let mut v1 = _mm256_loadu_ps(a.as_ptr().add(i + 8));
+        let mut v2 = _mm256_loadu_ps(a.as_ptr().add(i + 16));
+        let mut v3 = _mm256_loadu_ps(a.as_ptr().add(i + 24));
+        for &k in kinds {
+            v0 = transform_avx2(k, v0);
+            v1 = transform_avx2(k, v1);
+            v2 = transform_avx2(k, v2);
+            v3 = transform_avx2(k, v3);
+        }
+        _mm256_storeu_ps(out.as_mut_ptr().add(i), v0);
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 8), v1);
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 16), v2);
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 24), v3);
+        i += 32;
+    }
+    while i + 16 <= n {
+        let mut v0 = _mm256_loadu_ps(a.as_ptr().add(i));
+        let mut v1 = _mm256_loadu_ps(a.as_ptr().add(i + 8));
+        for &k in kinds {
+            v0 = transform_avx2(k, v0);
+            v1 = transform_avx2(k, v1);
+        }
+        _mm256_storeu_ps(out.as_mut_ptr().add(i), v0);
+        _mm256_storeu_ps(out.as_mut_ptr().add(i + 8), v1);
+        i += 16;
+    }
     while i + 8 <= n {
         let mut v = _mm256_loadu_ps(a.as_ptr().add(i));
         for &k in kinds {

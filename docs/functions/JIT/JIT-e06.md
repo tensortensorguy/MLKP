@@ -16,7 +16,7 @@ Declared cost: O(n) with two loads and one store per element.
 
 Declared preconditions: a.len() == b.len() == out.len().
 
-Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 204, classification unclassified.
+Implementation: `crates/mlkp-runtime/src/simd/element.rs` at line 257, classification unclassified.
 
 ## Silent Failure Checklist
 
